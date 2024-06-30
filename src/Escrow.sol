@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8;
 
-contract Escrow { 
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+contract Escrow is ReentrancyGuard { 
     // MVP of a unilateral bridge from sepolia to sepolia 
     // with a single type of asset 
 
@@ -45,7 +47,7 @@ contract Escrow {
     function createOrder(
         uint256 _destinationAddress,
         uint256 _fee
-        ) public payable {
+        ) public payable nonReentrant {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
