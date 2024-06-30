@@ -22,8 +22,8 @@ contract EscrowTest is Test {
         (bool success, ) = address(escrow).call{value: sendAmount}(abi.encodeWithSelector(escrow.createOrder.selector, 12345, fee));
         assertTrue(success, "createOrder transaction failed");
 
-        Escrow.OrderInfo memory order = escrow.getOrderInfo(0);
-        Escrow.OrderLog memory log = escrow.getOrderLog(0);
+        Escrow.InitialOrderData memory order = escrow.getInitialOrderData(0);
+        Escrow.OrderStatusUpdates memory log = escrow.getOrderUpdates(0);
 
         assertEq(order.amount, sendAmount - fee, "Incorrect bridge amount calculated");
         assertEq(uint(log.status), uint(Escrow.OrderStatus.PENDING), "Order status should be PENDING");

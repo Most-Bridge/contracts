@@ -5,8 +5,8 @@ contract Escrow {
     // MVP of a unilateral bridge from sepolia to sepolia 
     // with a single type of asset 
 
-    mapping(uint256 => OrderInfo) public orders;
-    mapping(uint256 => OrderLog) public orderLogs;
+    mapping(uint256 => InitialOrderData) public orders;
+    mapping(uint256 => OrderStatusUpdates) public orderUpdates;
 
     uint256 private orderId = 0;
 
@@ -17,14 +17,14 @@ contract Escrow {
         uint256 fee
     );
 
-    struct OrderInfo {
+    struct InitialOrderData {
         uint256 orderId;
         uint256 creatorDestinationAddress;
         uint256 amount;
         uint256 fee; 
     }
 
-    struct OrderLog {
+    struct OrderStatusUpdates {
         uint256 orderId;
         OrderStatus status;
         uint256 marketMakerSourceAddress;
@@ -50,17 +50,17 @@ contract Escrow {
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
         uint256 bridgeAmount = msg.value - _fee; //no underflow since previous check is made
-        orders[orderId] = OrderInfo({
+        orders[orderId] = InitialOrderData({
             orderId: orderId, 
             creatorDestinationAddress: _destinationAddress, 
             amount: bridgeAmount,
             fee: _fee
             });
 
-        orderLogs[orderId] = OrderLog({orderId: orderId, status: OrderStatus.PLACED, marketMakerSourceAddress: 0});
+        orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PLACED, marketMakerSourceAddress: 0});
 
         emit OrderPlaced(orderId, _destinationAddress, bridgeAmount, _fee);
-        orderLogs[orderId].status = OrderStatus.PENDING;
+        orderUpdates[orderId].status = OrderStatus.PENDING;
 
         orderId += 1;
     } 
@@ -70,7 +70,7 @@ contract Escrow {
         // need to figure out how the data from Herodotus is going to look like 
         // however you would call this function with the proof of the transaction
         // on the destination chain, then the function would check the info passed 
-        // from the proof, to it's own info in the OrderInfo, 
+        // from the proof, to it's own info in the InitialOrderData, 
         // ** note ** the proof will contain the MM's source and destination address
         // check that marketMakerDestinationAddress is the same as the address in the proof
         // check that the userDestinationAddress matches
@@ -88,14 +88,12 @@ contract Escrow {
 
     // getters 
     // In your Escrow contract
-    function getOrderInfo(uint256 _orderId) public view returns (OrderInfo memory) {
+    function getInitialOrderData(uint256 _orderId) public view returns (InitialOrderData memory) {
         return orders[_orderId];
     }
 
-    function getOrderLog(uint256 _orderId) public view returns (OrderLog memory) {
-        return orderLogs[_orderId];
+    function getOrderUpdates(uint256 _orderId) public view returns (OrderStatusUpdates memory) {
+        return orderUpdates[_orderId];
     }
-
-
 
 }
