@@ -49,17 +49,17 @@ contract Escrow {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
-        uint256 bridge_amount = msg.value - _fee; //no underflow since previous check is made
+        uint256 bridgeAmount = msg.value - _fee; //no underflow since previous check is made
         orders[orderId] = OrderInfo({
             orderId: orderId, 
             creatorDestinationAddress: _destinationAddress, 
-            amount: bridge_amount,
+            amount: bridgeAmount,
             fee: _fee
             });
 
         orderLogs[orderId] = OrderLog({orderId: orderId, status: OrderStatus.PLACED, marketMakerSourceAddress: 0});
 
-        emit OrderPlaced(orderId, _destinationAddress, bridge_amount, _fee);
+        emit OrderPlaced(orderId, _destinationAddress, bridgeAmount, _fee);
         orderLogs[orderId].status = OrderStatus.PENDING;
 
         orderId += 1;
@@ -78,13 +78,24 @@ contract Escrow {
         // mark the pendingOrder as PROVED
     }
 
-    function withdrawProoved(uint256 _orderId, uint256 mmSourceAddress) internal { 
+    function withdrawProven(uint256 _orderId, uint256 mmSourceAddress) internal { 
         // require _orderId exists
         // require OrdersReceived[_orderId].status == OrderStatus.PROVED
         // require OrdersReceived[_orderId].marketMakerSourceAddress == msg.sender
         // transfer the (amount + fee - contract fee) msg.sender who is being assumed
         // is the Market Maker 
     } 
+
+    // getters 
+    // In your Escrow contract
+    function getOrderInfo(uint256 _orderId) public view returns (OrderInfo memory) {
+        return orders[_orderId];
+    }
+
+    function getOrderLog(uint256 _orderId) public view returns (OrderLog memory) {
+        return orderLogs[_orderId];
+    }
+
 
 
 }
