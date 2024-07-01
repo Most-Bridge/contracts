@@ -101,5 +101,14 @@ contract Escrow {
     function getOrderUpdates(uint256 _orderId) public view returns (OrderStatusUpdates memory) {
         return orderUpdates[_orderId];
     }
+    
+    //TODO: to be removed
+    // setters for testing purposes only 
+    function updateMarketMakerSourceAddress(uint256 _orderId, address _newAddress) public {
+        orderUpdates[_orderId].marketMakerSourceAddress = _newAddress;
+    }
 
+    function updateOrderStatus(uint256 _orderId, OrderStatus _newStatus) public {
+        orderUpdates[_orderId].status = _newStatus;
+    }
 }
