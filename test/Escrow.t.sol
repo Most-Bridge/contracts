@@ -32,8 +32,17 @@ contract EscrowTest is Test {
         vm.stopPrank();
     }
 
-    // additional tests: 
-    // order creation with zero funds
-    // creating an order with not enough funds for fees
+    function testCreateOrderWithNoFunds() public { 
+        vm.expectRevert("Funds being sent must be greater than 0.");
+        escrow.createOrder(12345, 0.1 ether); // calling with no value
+    }
+
+    function testCreateOrderWithInsufficientFee() public { 
+        vm.startPrank(user);
+        vm.expectRevert("Fee must be less than the total value sent");
+        (bool success, ) = address(escrow).call{value: 1 ether}(abi.encodeWithSelector(escrow.createOrder.selector, 12345, 5 ether));
+        assertTrue(success, "Function did not revert as expected");
+        vm.stopPrank();
+    }
 
 }
