@@ -8,18 +8,18 @@ contract Escrow {
     mapping(uint256 => InitialOrderData) public orders;
     mapping(uint256 => OrderStatusUpdates) public orderUpdates;
 
-    uint256 private orderId = 0;
+    uint256 private orderId = 1;
 
     event OrderPlaced(
         uint256 orderId,
-        uint256 creatorDestinationAddress, 
+        address creatorDestinationAddress, 
         uint256 amount, 
         uint256 fee
     );
 
     struct InitialOrderData {
         uint256 orderId;
-        uint256 creatorDestinationAddress;
+        address creatorDestinationAddress;
         uint256 amount;
         uint256 fee; 
     }
@@ -27,7 +27,7 @@ contract Escrow {
     struct OrderStatusUpdates {
         uint256 orderId;
         OrderStatus status;
-        uint256 marketMakerSourceAddress;
+        address marketMakerSourceAddress;
     }
 
     enum OrderStatus {
@@ -43,7 +43,7 @@ contract Escrow {
     // for now assuming only eth is being sent 
     //Function recieves in msg.value the total value, and in fee the user specifies what portion of that msg.value is fee for MM
     function createOrder(
-        uint256 _destinationAddress,
+        address _destinationAddress,
         uint256 _fee
         ) public payable {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
@@ -57,7 +57,7 @@ contract Escrow {
             fee: _fee
             });
 
-        orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PLACED, marketMakerSourceAddress: 0});
+        orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PLACED, marketMakerSourceAddress: address(0)});
 
         emit OrderPlaced(orderId, _destinationAddress, bridgeAmount, _fee);
         orderUpdates[orderId].status = OrderStatus.PENDING;
@@ -78,16 +78,22 @@ contract Escrow {
         // mark the pendingOrder as PROVED
     }
 
-    function withdrawProven(uint256 _orderId, uint256 mmSourceAddress) internal { 
-        // require _orderId exists
-        // require OrdersReceived[_orderId].status == OrderStatus.PROVED
-        // require OrdersReceived[_orderId].marketMakerSourceAddress == msg.sender
-        // transfer the (amount + fee - contract fee) msg.sender who is being assumed
-        // is the Market Maker 
+    function withdrawProved(uint256 _orderId) external { // could also add reenterancy guard here from openzeppelin
+        InitialOrderData memory _order = orders[_orderId];
+        OrderStatusUpdates memory _orderUpdates = orderUpdates[_orderId];
+
+        require(_order.orderId != 0, "The following order doesn't exist"); // for a non-existing order a 0 will be returned as the orderId, also covers edge case where a orderId 0 passed will return a 0 also 
+        require(_orderUpdates.status == OrderStatus.PROVED, "This order has not been proved yet.");
+        require(msg.sender == _orderUpdates.marketMakerSourceAddress, "Only the MM can withdraw.");
+
+        uint256 transferAmountAndFee = _order.amount + _order.fee;
+        require(address(this).balance >= transferAmountAndFee, "Escrow: Insuffienct balance to withdraw");
+
+        orderUpdates[_orderId].status = OrderStatus.COMPLETED;
+        payable(msg.sender).transfer(transferAmountAndFee);
     } 
 
     // getters 
-    // In your Escrow contract
     function getInitialOrderData(uint256 _orderId) public view returns (InitialOrderData memory) {
         return orders[_orderId];
     }
