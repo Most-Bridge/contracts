@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8;
 
-import "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 import "../src/PaymentRegistry.sol";
 
 contract PaymentRegistryTest is Test {
