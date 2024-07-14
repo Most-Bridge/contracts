@@ -33,7 +33,6 @@ contract Escrow {
         PROVED, // proof has been validated, able to be claimed
         COMPLETED, // MM has been paid out
         DROPPED // something wrong with the order
-
     }
 
     // for now assuming only eth is being sent
@@ -66,7 +65,6 @@ contract Escrow {
         // on the destination chain, then the function would check the info passed
         // from the proof, to it's own info in the InitialOrderData,
         // ** note ** the proof will contain the MM's source and destination address
-        // check that marketMakerDestinationAddress is the same as the address in the proof
         // check that the userDestinationAddress matches
         // check that the amounts match
         // mark the pendingOrder as PROVED
