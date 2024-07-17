@@ -22,19 +22,19 @@ contract PaymentRegistryTest is Test {
         paymentRegistry.transferTo{value: sendAmount}(orderId, destinationAddress);
 
         bytes32 index = keccak256(abi.encodePacked(orderId, destinationAddress, sendAmount));
-        assertTrue(paymentRegistry.transfers(index)); // transfer recorded
+        assertTrue(paymentRegistry.getTransfers(index).isUsed); // check that isUsed is true
 
         assertEq(address(destinationAddress).balance, 2 ether); // user balance up
         assertEq(address(mmAddress).balance, 9 ether); // mm balance down
     }
 
     function testTransferToFailsIfAlreadyProcessed() public {
-        vm.prank(mmAddress);
+        vm.startPrank(mmAddress);
         paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress);
 
-        vm.prank(mmAddress); // try same transfer
         vm.expectRevert("Transfer already processed.");
         paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress);
+        vm.stopPrank();
     }
 
     function testTransferToFailsIfNoValue() public {
