@@ -4,4 +4,8 @@ out = "out"
 libs = ["lib"]
 remappings = ["forge-std/=lib/forge-std/src/"]
 
+[rpc]
+SEPOLIA_RPC_URL="https://sepolia.infura.io/v3/580a6a4667464912b43ef356b016839c"
+
+
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
