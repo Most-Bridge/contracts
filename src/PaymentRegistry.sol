@@ -8,6 +8,7 @@ contract PaymentRegistry {
     // however, a different version of this contract is also available
 
     struct TransferInfo {
+        uint256 orderId;
         address destAddress;
         uint256 amount;
         bool isUsed;
@@ -20,10 +21,11 @@ contract PaymentRegistry {
     function transferTo(uint256 _orderId, address _destinationAddress) external payable {
         require(msg.value > 0, "Funds being sent must exceed 0.");
 
+        // TODO: just use the order it as the key for this mapping
         bytes32 index = keccak256(abi.encodePacked(_orderId, _destinationAddress, msg.value));
 
         require(transfers[index].isUsed == false, "Transfer already processed.");
-        transfers[index] = TransferInfo({destAddress: _destinationAddress, amount: msg.value, isUsed: true});
+        transfers[index] = TransferInfo({orderId: _orderId, destAddress: _destinationAddress, amount: msg.value, isUsed: true});
 
         (bool success,) = payable(_destinationAddress).call{value: msg.value}(""); // transfer to user
 
