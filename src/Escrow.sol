@@ -33,7 +33,10 @@ contract Escrow {
         PROVED, // proof has been validated, able to be claimed
         COMPLETED, // MM has been paid out
         DROPPED // something wrong with the order
+
     }
+
+    // TODO: hardcode the address of the PaymentRegistry contract
 
     // for now assuming only eth is being sent
     //Function recieves in msg.value the total value, and in fee the user specifies what portion of that msg.value is fee for MM
@@ -58,16 +61,19 @@ contract Escrow {
         orderId += 1;
     }
 
+    function acceptProofInfo(uint256 _orderIdSlot, address _dstAddressSlot, uint256 _amountSlot, uint256 _blockNumber)
+        public
+    {
+        // so this will take in all the slots that are to be checked as well as the block number,
+        // call the facts registry and then get the values for those slots
+        // then using the values from the slots, it will call the proveBridgeTransaction 
+        // mark the order as PROVING
+    }
+
     function proveBridgeTransaction() external {
-        // this function will be called by the relay system that will pass the proof
-        // need to figure out how the data from Herodotus is going to look like
-        // however you would call this function with the proof of the transaction
-        // on the destination chain, then the function would check the info passed
-        // from the proof, to it's own info in the InitialOrderData,
-        // ** note ** the proof will contain the MM's source and destination address
-        // check that the userDestinationAddress matches
-        // check that the amounts match
-        // mark the pendingOrder as PROVED
+        // check the values passed from the slots against own mapping of the order
+        // once those all pass, then add in the MM source address into the OrderStatusUpdates
+        // mark the transaction as PROVED
     }
 
     function withdrawProved(uint256 _orderId) external {

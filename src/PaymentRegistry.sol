@@ -11,6 +11,8 @@ contract PaymentRegistry {
         uint256 orderId;
         address destAddress;
         uint256 amount;
+        address mmSrcAddress;
+        address mmDstAddress;
         bool isUsed;
     }
 
@@ -18,14 +20,22 @@ contract PaymentRegistry {
 
     mapping(bytes32 => TransferInfo) public transfers;
 
-    function transferTo(uint256 _orderId, address _destinationAddress) external payable {
+    // called by the MM to transfer funds to the user on the destination chain
+    function transferTo(uint256 _orderId, address _destinationAddress, address _mmSrcAddress) external payable {
         require(msg.value > 0, "Funds being sent must exceed 0.");
 
-        // TODO: just use the order it as the key for this mapping
+        // TODO: just use the order id as the key for this mapping
         bytes32 index = keccak256(abi.encodePacked(_orderId, _destinationAddress, msg.value));
 
         require(transfers[index].isUsed == false, "Transfer already processed.");
-        transfers[index] = TransferInfo({orderId: _orderId, destAddress: _destinationAddress, amount: msg.value, isUsed: true});
+        transfers[index] = TransferInfo({
+            orderId: _orderId,
+            destAddress: _destinationAddress,
+            amount: msg.value,
+            mmSrcAddress: _mmSrcAddress,
+            mmDstAddress: msg.sender,
+            isUsed: true
+        });
 
         (bool success,) = payable(_destinationAddress).call{value: msg.value}(""); // transfer to user
 
