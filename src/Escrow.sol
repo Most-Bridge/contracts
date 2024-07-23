@@ -11,6 +11,7 @@ contract Escrow {
     uint256 private orderId = 1;
 
     event OrderPlaced(uint256 orderId, address creatorDestinationAddress, uint256 amount, uint256 fee);
+    event SlotsReceived(string slot1, string slot2, string slot3, string slot4, string slot5, uint256 blockNumber);
 
     struct InitialOrderData {
         uint256 orderId;
@@ -70,6 +71,9 @@ contract Escrow {
         string _mmDstAddressSlot,
         uint256 _blockNumber
     ) public {
+        emit SlotsReceived(
+            _orderIdSlot, _dstAddressSlot, _amountSlot, _mmSrcAddressSlot, _mmDstAddressSlot, _blockNumber
+        );
         // so this will take in all the slots that are to be checked as well as the block number,
         // call the facts registry and then get the values for those slots
         // then using the values from the slots, it will call the proveBridgeTransaction
