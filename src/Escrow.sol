@@ -63,12 +63,13 @@ contract Escrow {
     }
 
     // accepting just slots, should be coming in the context of strings,
+    // accepting just slots, should be coming in the context of strings,
     function acceptProofSlots(
-        string _orderIdSlot,
-        string _dstAddressSlot,
-        string _amountSlot,
-        string _mmSrcAddressSlot,
-        string _mmDstAddressSlot,
+        string calldata _orderIdSlot,
+        string calldata _dstAddressSlot,
+        string calldata _amountSlot,
+        string calldata _mmSrcAddressSlot,
+        string calldata _mmDstAddressSlot,
         uint256 _blockNumber
     ) public {
         emit SlotsReceived(
