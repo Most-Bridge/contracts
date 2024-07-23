@@ -61,12 +61,18 @@ contract Escrow {
         orderId += 1;
     }
 
-    function acceptProofInfo(uint256 _orderIdSlot, address _dstAddressSlot, uint256 _amountSlot, uint256 _blockNumber)
-        public
-    {
+    // accepting just slots, should be coming in the context of strings,
+    function acceptProofSlots(
+        string _orderIdSlot,
+        string _dstAddressSlot,
+        string _amountSlot,
+        string _mmSrcAddressSlot,
+        string _mmDstAddressSlot,
+        uint256 _blockNumber
+    ) public {
         // so this will take in all the slots that are to be checked as well as the block number,
         // call the facts registry and then get the values for those slots
-        // then using the values from the slots, it will call the proveBridgeTransaction 
+        // then using the values from the slots, it will call the proveBridgeTransaction
         // mark the order as PROVING
     }
 
