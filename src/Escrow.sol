@@ -3,38 +3,46 @@ pragma solidity ^0.8.20;
 
 import "./interface/IFactsRegistry.sol";
 
-contract Escrow {
-    // MVP of a unilateral bridge from sepolia to sepolia
-    // with a single type of asset
+/*
+    * Escrow along with the PaymentRegistry contract and a 3rd party service EventWatch 
+    * make up the MVP of a unilateral bridge rom sepolia to sepolia with a single type of asset. 
+    * 
+    * Terminology: 
+    * User(usr) - The entity that is wishing to bridge their assets. 
+    * Market Maker(mm) - The entity that is going to facilitate the bridging process. 
+    * Source(src) -  Where funds are being bridged from, and where an order is created. 
+    * Destination(dst) - The chain to which the funds are being bridged. 
+    */
 
+contract Escrow {
     mapping(uint256 => InitialOrderData) public orders;
     mapping(uint256 => OrderStatusUpdates) public orderUpdates;
 
     uint256 private orderId = 1;
 
-    event OrderPlaced(uint256 orderId, address creatorDestinationAddress, uint256 amount, uint256 fee);
-    event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, bytes32 slot4, bytes32 slot5, uint256 blockNumber); // TODO: remove when done testing
-    event ValuesReceived(
-        bytes32 _orderId, bytes32 dstAddress, bytes32 _amount, bytes32 _mmSrcAddress, bytes32 _mmDstAddress
-    ); // TODO: remove when done testing
+    event OrderPlaced(uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee);
+    event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, bytes32 slot4, uint256 blockNumber); // TODO: remove when done testing
+    event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount, bytes32 _mmSrcAddress); // TODO: remove when done testing
 
+    // Contains all information that is available during the order creation
     struct InitialOrderData {
         uint256 orderId;
-        address creatorDestinationAddress;
+        address usrDstAddress;
         uint256 amount;
         uint256 fee;
     }
 
+    // Suplementary information to be updated throughout the process
     struct OrderStatusUpdates {
         uint256 orderId;
         OrderStatus status;
-        address marketMakerSourceAddress;
+        address mmSrcAddress;
     }
 
     enum OrderStatus {
         PLACED, // once order has been placed by user
-        PENDING, // the order has been emitted to the MM's
-        PROVING, // proof has come to the escrow contract (might drop)
+        PENDING, // the order has been emitted to the MMs
+        PROVING, // proof has come to the escrow contract
         PROVED, // proof has been validated, able to be claimed
         COMPLETED, // MM has been paid out
         DROPPED // something wrong with the order
@@ -47,24 +55,19 @@ contract Escrow {
     // FactsRegistry interface
     IFactsRegistry factsRegistry = IFactsRegistry(FACTS_REGISTRY_ADDRESS);
 
-    // for now assuming only eth is being sent
-    //Function recieves in msg.value the total value, and in fee the user specifies what portion of that msg.value is fee for MM
-    function createOrder(address _destinationAddress, uint256 _fee) public payable {
+    //Function recieves funds in msg.value, and the user specifies what portion of that msg.value is a fee for MM
+    function createOrder(address _usrDstAddress, uint256 _fee) public payable {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
         uint256 bridgeAmount = msg.value - _fee; //no underflow since previous check is made
-        orders[orderId] = InitialOrderData({
-            orderId: orderId,
-            creatorDestinationAddress: _destinationAddress,
-            amount: bridgeAmount,
-            fee: _fee
-        });
+        orders[orderId] =
+            InitialOrderData({orderId: orderId, usrDstAddress: _usrDstAddress, amount: bridgeAmount, fee: _fee});
 
         orderUpdates[orderId] =
-            OrderStatusUpdates({orderId: orderId, status: OrderStatus.PLACED, marketMakerSourceAddress: address(0)});
+            OrderStatusUpdates({orderId: orderId, status: OrderStatus.PLACED, mmSrcAddress: address(0)});
 
-        emit OrderPlaced(orderId, _destinationAddress, bridgeAmount, _fee);
+        emit OrderPlaced(orderId, _usrDstAddress, bridgeAmount, _fee);
         orderUpdates[orderId].status = OrderStatus.PENDING;
 
         orderId += 1;
@@ -76,9 +79,9 @@ contract Escrow {
         bytes32 _dstAddressSlot,
         bytes32 _amountSlot,
         bytes32 _mmSrcAddressSlot,
-        bytes32 _mmDstAddressSlot,
         uint256 _blockNumber
     ) public {
+        emit SlotsReceived(_orderIdSlot, _dstAddressSlot, _amountSlot, _mmSrcAddressSlot, _blockNumber);
         bytes32 _orderIdValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
         bytes32 _dstAddressValue =
@@ -87,18 +90,16 @@ contract Escrow {
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
         bytes32 _mmSrcAddressValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _mmSrcAddressSlot);
-        bytes32 _mmDstAddressValue =
-            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _mmDstAddressSlot);
 
-        convertBytes32toNative(_orderIdValue, _dstAddressValue, _amountValue, _mmSrcAddressValue, _mmDstAddressValue);
+        convertBytes32toNative(_orderIdValue, _dstAddressValue, _amountValue, _mmSrcAddressValue);
+        emit ValuesReceived(_orderIdValue, _dstAddressValue, _amountValue, _mmSrcAddressValue);
     }
 
     function convertBytes32toNative(
         bytes32 _orderIdValue,
         bytes32 _dstAddressValue,
         bytes32 _amountValue,
-        bytes32 _mmSrcAddressValue,
-        bytes32 _mmDstAddressValue
+        bytes32 _mmSrcAddressValue
     ) internal {
         // bytes32 to uint256
         uint256 _orderId = uint256(_orderIdValue);
@@ -107,27 +108,24 @@ contract Escrow {
         //bytes32 to address
         address _dstAddress = address(uint160(uint256(_dstAddressValue)));
         address _mmSrcAddress = address(uint160(uint256(_mmSrcAddressValue)));
-        address _mmDstAddress = address(uint160(uint256(_mmDstAddressValue)));
 
         orderUpdates[_orderId].status = OrderStatus.PROVING;
-        proveBridgeTransaction(_orderId, _dstAddress, _amount, _mmSrcAddress, _mmDstAddress);
+        proveBridgeTransaction(_orderId, _dstAddress, _amount, _mmSrcAddress);
     }
 
     // TODO: finish functionality and testing
-    function proveBridgeTransaction(
-        uint256 _orderId,
-        address _dstAddress,
-        uint256 _amount,
-        address _mmSrcAddress,
-        address _mmDstAddress
-    ) internal {
+    function proveBridgeTransaction(uint256 _orderId, address _dstAddress, uint256 _amount, address _mmSrcAddress)
+        internal
+    {
         InitialOrderData memory correctOrder = orders[_orderId];
-        // check the values passed from the slots against own mapping of the order
-        if (correctOrder.creatorDestinationAddress == _dstAddress && correctOrder.amount == _amount) {
-            // once those all pass, then add in the MM source address into the OrderStatusUpdates
-            orderUpdates[_orderId].marketMakerSourceAddress = _mmSrcAddress;
-            // mark the transaction as PROVED
+        // make sure that proof data matches the contract's own data
+        if (correctOrder.usrDstAddress == _dstAddress && correctOrder.amount == _amount) {
+            // add the address which will be paid out to, and update status
+            orderUpdates[_orderId].mmSrcAddress = _mmSrcAddress;
             orderUpdates[_orderId].status = OrderStatus.PROVED;
+        } else {
+            // if the proof fails, this will allow the order to be fulfilled again
+            orderUpdates[_orderId].status = OrderStatus.PENDING;
         }
     }
 
@@ -138,7 +136,7 @@ contract Escrow {
 
         require(_order.orderId != 0, "The following order doesn't exist"); // for a non-existing order a 0 will be returned as the orderId, also covers edge case where a orderId 0 passed will return a 0 also
         require(_orderUpdates.status == OrderStatus.PROVED, "This order has not been proved yet.");
-        require(msg.sender == _orderUpdates.marketMakerSourceAddress, "Only the MM can withdraw.");
+        require(msg.sender == _orderUpdates.mmSrcAddress, "Only the MM can withdraw.");
 
         uint256 transferAmountAndFee = _order.amount + _order.fee;
         require(address(this).balance >= transferAmountAndFee, "Escrow: Insuffienct balance to withdraw");
@@ -158,8 +156,8 @@ contract Escrow {
 
     //TODO: to be removed
     // setters for testing purposes only
-    function updateMarketMakerSourceAddress(uint256 _orderId, address _newAddress) public {
-        orderUpdates[_orderId].marketMakerSourceAddress = _newAddress;
+    function updatemmSrcAddress(uint256 _orderId, address _newAddress) public {
+        orderUpdates[_orderId].mmSrcAddress = _newAddress;
     }
 
     function updateOrderStatus(uint256 _orderId, OrderStatus _newStatus) public {

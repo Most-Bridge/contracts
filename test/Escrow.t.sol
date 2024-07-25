@@ -87,8 +87,8 @@ contract EscrowTest is Test {
             "Order status should be PROVED"
         );
 
-        escrow.updateMarketMakerSourceAddress(1, mmAddress);
-        assertEq(escrow.getOrderUpdates(1).marketMakerSourceAddress, mmAddress);
+        escrow.updatemmSrcAddress(1, mmAddress);
+        assertEq(escrow.getOrderUpdates(1).mmSrcAddress, mmAddress);
 
         vm.prank(maliciousActor);
         vm.expectRevert("Only the MM can withdraw.");
