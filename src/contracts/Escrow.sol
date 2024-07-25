@@ -4,15 +4,15 @@ pragma solidity ^0.8.20;
 import "../interface/IFactsRegistry.sol";
 
 /*
-    * Escrow along with the PaymentRegistry contract and a 3rd party service EventWatch 
-    * make up the MVP of a unilateral bridge rom sepolia to sepolia with a single type of asset. 
-    * 
-    * Terminology: 
-    * User(usr) - The entity that is wishing to bridge their assets. 
-    * Market Maker(mm) - The entity that is going to facilitate the bridging process. 
-    * Source(src) -  Where funds are being bridged from, and where an order is created. 
-    * Destination(dst) - The chain to which the funds are being bridged. 
-    */
+* Escrow along with the PaymentRegistry contract and a 3rd party service EventWatch 
+* make up the MVP of a unilateral bridge rom sepolia to sepolia with a single type of asset. 
+* 
+* Terminology: 
+* User(usr) - The entity that is wishing to bridge their assets. 
+* Market Maker(mm) - The entity that is going to facilitate the bridging process. 
+* Source(src) -  Where funds are being bridged from, and where an order is created. 
+* Destination(dst) - The chain to which the funds are being bridged. 
+*/
 
 contract Escrow {
     mapping(uint256 => InitialOrderData) public orders;
@@ -113,7 +113,6 @@ contract Escrow {
         proveBridgeTransaction(_orderId, _dstAddress, _amount, _mmSrcAddress);
     }
 
-    // TODO: finish functionality and testing
     function proveBridgeTransaction(uint256 _orderId, address _dstAddress, uint256 _amount, address _mmSrcAddress)
         internal
     {

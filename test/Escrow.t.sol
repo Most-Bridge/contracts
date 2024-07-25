@@ -94,5 +94,4 @@ contract EscrowTest is Test {
         vm.expectRevert("Only the MM can withdraw.");
         escrow.withdrawProved(1);
     }
-    // fail if contract has insuffienct funds
 }
