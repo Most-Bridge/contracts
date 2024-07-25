@@ -9,7 +9,6 @@ contract PaymentRegistry {
         address destAddress;
         uint256 amount;
         address mmSrcAddress;
-        address mmDstAddress;
         bool isUsed;
     }
 
@@ -30,7 +29,6 @@ contract PaymentRegistry {
             destAddress: _destinationAddress,
             amount: msg.value,
             mmSrcAddress: _mmSrcAddress,
-            mmDstAddress: msg.sender,
             isUsed: true
         });
 
