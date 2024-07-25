@@ -145,7 +145,10 @@ contract Escrow {
         payable(msg.sender).transfer(transferAmountAndFee);
     }
 
-    // getters
+    /*
+    * FOR TESTING PURPOSES ONLY 
+    */
+
     function getInitialOrderData(uint256 _orderId) public view returns (InitialOrderData memory) {
         return orders[_orderId];
     }
@@ -154,8 +157,6 @@ contract Escrow {
         return orderUpdates[_orderId];
     }
 
-    //TODO: to be removed
-    // setters for testing purposes only
     function updatemmSrcAddress(uint256 _orderId, address _newAddress) public {
         orderUpdates[_orderId].mmSrcAddress = _newAddress;
     }
