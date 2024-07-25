@@ -34,7 +34,6 @@ contract Escrow {
     enum OrderStatus {
         PLACED, // once order has been placed by user
         PENDING, // the order has been emitted to the MM's
-        FULFILLED, // MM sent funds on destination chain
         PROVING, // proof has come to the escrow contract (might drop)
         PROVED, // proof has been validated, able to be claimed
         COMPLETED, // MM has been paid out
@@ -71,11 +70,8 @@ contract Escrow {
         orderId += 1;
     }
 
-    // accepting just slots, should be coming in the context of strings,
-    // rename option: checkProofSlots
     // TODO: should be limited to only be called by one address that is trusted, which is the relaySlotsToEscrow from eventWatch
-    // TODO: finish functionality and test
-    function acceptProofSlots(
+    function getValuesFromSlots(
         bytes32 _orderIdSlot,
         bytes32 _dstAddressSlot,
         bytes32 _amountSlot,
@@ -83,11 +79,6 @@ contract Escrow {
         bytes32 _mmDstAddressSlot,
         uint256 _blockNumber
     ) public {
-        emit SlotsReceived(
-            _orderIdSlot, _dstAddressSlot, _amountSlot, _mmSrcAddressSlot, _mmDstAddressSlot, _blockNumber
-        );
-        // so this will take in all the slots that are to be checked as well as the block number,
-        // call the facts registry and then get the values for those slots
         bytes32 _orderIdValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
         bytes32 _dstAddressValue =
@@ -98,11 +89,28 @@ contract Escrow {
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _mmSrcAddressSlot);
         bytes32 _mmDstAddressValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _mmDstAddressSlot);
-        // then using the values from the slots, it will call the proveBridgeTransaction
-        // UNCOMMENT proveBridgeTransaction(_orderIdValue, _dstAddressValue, _amountValue, _mmSrcAddressValue, _mmDstAddressValue);
-        // mark the order as PROVING
-        // UNCOMMENT orderUpdates[_orderIdValue].status = OrderStatus.PROVING;
-        emit ValuesReceived(_orderIdValue, _dstAddressValue, _amountValue, _mmSrcAddressValue, _mmDstAddressValue);
+
+        convertBytes32toNative(_orderIdValue, _dstAddressValue, _amountValue, _mmSrcAddressValue, _mmDstAddressValue);
+    }
+
+    function convertBytes32toNative(
+        bytes32 _orderIdValue,
+        bytes32 _dstAddressValue,
+        bytes32 _amountValue,
+        bytes32 _mmSrcAddressValue,
+        bytes32 _mmDstAddressValue
+    ) internal {
+        // bytes32 to uint256
+        uint256 _orderId = uint256(_orderIdValue);
+        uint256 _amount = uint256(_amountValue);
+
+        //bytes32 to address
+        address _dstAddress = address(uint160(uint256(_dstAddressValue)));
+        address _mmSrcAddress = address(uint160(uint256(_mmSrcAddressValue)));
+        address _mmDstAddress = address(uint160(uint256(_mmDstAddressValue)));
+
+        orderUpdates[_orderId].status = OrderStatus.PROVING;
+        proveBridgeTransaction(_orderId, _dstAddress, _amount, _mmSrcAddress, _mmDstAddress);
     }
 
     // TODO: finish functionality and testing
@@ -112,7 +120,7 @@ contract Escrow {
         uint256 _amount,
         address _mmSrcAddress,
         address _mmDstAddress
-    ) external {
+    ) internal {
         InitialOrderData memory correctOrder = orders[_orderId];
         // check the values passed from the slots against own mapping of the order
         if (correctOrder.creatorDestinationAddress == _dstAddress && correctOrder.amount == _amount) {

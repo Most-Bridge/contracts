@@ -4,9 +4,6 @@ pragma solidity ^0.8.20;
 contract PaymentRegistry {
     // MVP of a unilateral bridge from sepolia to sepolia
 
-    // following example of proving with yab<>herodotus
-    // however, a different version of this contract is also available
-
     struct TransferInfo {
         uint256 orderId;
         address destAddress;
