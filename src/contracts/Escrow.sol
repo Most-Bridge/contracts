@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./interface/IFactsRegistry.sol";
+import "../interface/IFactsRegistry.sol";
 
 /*
     * Escrow along with the PaymentRegistry contract and a 3rd party service EventWatch 

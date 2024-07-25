@@ -16,4 +16,6 @@ docs/
 # Vscode file 
 .vscode 
 
-#Foundry toml file
+# Commit Messages
+commitMessages.txt
+
