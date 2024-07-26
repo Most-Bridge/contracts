@@ -100,7 +100,7 @@ contract Escrow {
         bytes32 _dstAddressValue,
         bytes32 _amountValue,
         bytes32 _mmSrcAddressValue
-    ) internal {
+    ) private {
         // bytes32 to uint256
         uint256 _orderId = uint256(_orderIdValue);
         uint256 _amount = uint256(_amountValue);
@@ -109,12 +109,13 @@ contract Escrow {
         address _dstAddress = address(uint160(uint256(_dstAddressValue)));
         address _mmSrcAddress = address(uint160(uint256(_mmSrcAddressValue)));
 
+        require(orders[_orderId].orderId != 0, "This order does not exist");
         orderUpdates[_orderId].status = OrderStatus.PROVING;
         proveBridgeTransaction(_orderId, _dstAddress, _amount, _mmSrcAddress);
     }
 
     function proveBridgeTransaction(uint256 _orderId, address _dstAddress, uint256 _amount, address _mmSrcAddress)
-        internal
+        private
     {
         InitialOrderData memory correctOrder = orders[_orderId];
         // make sure that proof data matches the contract's own data
