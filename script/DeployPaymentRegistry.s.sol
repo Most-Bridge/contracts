@@ -13,4 +13,4 @@ contract DeployPaymentRegistry is Script {
 }
 
 // run using
-// forge script script/DeployPaymentRegistry.s.sol:DeployPaymentRegistry --rpc-url https://sepolia.infura.io/v3/580a6a4667464912b43ef356b016839c --broadcast --private-key $SEPOLIA_TEST_PRIVATE_KEY
+// forge script script/DeployPaymentRegistry.s.sol:DeployPaymentRegistry --rpc-url https://sepolia.infura.io/v3/580a6a4667464912b43ef356b016839c --broadcast --private-key $DEPLOY_ADDRESS_PRIVATE_KEY
