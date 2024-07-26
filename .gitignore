@@ -16,6 +16,6 @@ docs/
 # Vscode file 
 .vscode 
 
-# Commit Messages
-commitMessages.txt
+# local folder
+/local 
 
