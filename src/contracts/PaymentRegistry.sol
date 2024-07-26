@@ -6,13 +6,13 @@ contract PaymentRegistry {
 
     struct TransferInfo {
         uint256 orderId;
-        address destAddress;
+        address usrDstAddress;
         uint256 amount;
         address mmSrcAddress;
         bool isUsed;
     }
 
-    event Transfer(uint256 indexed orderId, address srcAddress, TransferInfo transferInfo);
+    event Transfer(TransferInfo transferInfo);
 
     mapping(bytes32 => TransferInfo) public transfers;
 
@@ -26,7 +26,7 @@ contract PaymentRegistry {
         require(transfers[index].isUsed == false, "Transfer already processed.");
         transfers[index] = TransferInfo({
             orderId: _orderId,
-            destAddress: _usrDstAddress,
+            usrDstAddress: _usrDstAddress,
             amount: msg.value,
             mmSrcAddress: _mmSrcAddress,
             isUsed: true
@@ -36,7 +36,7 @@ contract PaymentRegistry {
 
         require(success, "Transfer failed.");
         // to be picked up by listener and turned into a proof
-        emit Transfer(_orderId, msg.sender, transfers[index]); 
+        emit Transfer(transfers[index]);
     }
 
     // getters
