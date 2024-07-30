@@ -77,29 +77,29 @@ contract Escrow {
     function getValuesFromSlots(
         bytes32 _orderIdSlot,
         bytes32 _dstAddressSlot,
-        bytes32 _amountSlot,
         bytes32 _mmSrcAddressSlot,
+        bytes32 _amountSlot,
         uint256 _blockNumber
     ) public {
-        emit SlotsReceived(_orderIdSlot, _dstAddressSlot, _amountSlot, _mmSrcAddressSlot, _blockNumber);
+        emit SlotsReceived(_orderIdSlot, _dstAddressSlot, _mmSrcAddressSlot, _amountSlot, _blockNumber);
         bytes32 _orderIdValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
         bytes32 _dstAddressValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _dstAddressSlot);
-        bytes32 _amountValue =
-            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
         bytes32 _mmSrcAddressValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _mmSrcAddressSlot);
+        bytes32 _amountValue =
+            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
 
-        convertBytes32toNative(_orderIdValue, _dstAddressValue, _amountValue, _mmSrcAddressValue);
-        emit ValuesReceived(_orderIdValue, _dstAddressValue, _amountValue, _mmSrcAddressValue);
+        convertBytes32toNative(_orderIdValue, _dstAddressValue, _mmSrcAddressValue, _amountValue);
+        emit ValuesReceived(_orderIdValue, _dstAddressValue, _mmSrcAddressValue, _amountValue);
     }
 
     function convertBytes32toNative(
         bytes32 _orderIdValue,
         bytes32 _dstAddressValue,
-        bytes32 _amountValue,
-        bytes32 _mmSrcAddressValue
+        bytes32 _mmSrcAddressValue,
+        bytes32 _amountValue
     ) private {
         // bytes32 to uint256
         uint256 _orderId = uint256(_orderIdValue);
@@ -111,10 +111,10 @@ contract Escrow {
 
         require(orders[_orderId].orderId != 0, "This order does not exist");
         orderUpdates[_orderId].status = OrderStatus.PROVING;
-        proveBridgeTransaction(_orderId, _dstAddress, _amount, _mmSrcAddress);
+        proveBridgeTransaction(_orderId, _dstAddress, _mmSrcAddress, _amount);
     }
 
-    function proveBridgeTransaction(uint256 _orderId, address _dstAddress, uint256 _amount, address _mmSrcAddress)
+    function proveBridgeTransaction(uint256 _orderId, address _dstAddress, address _mmSrcAddress, uint256 _amount)
         private
     {
         InitialOrderData memory correctOrder = orders[_orderId];
