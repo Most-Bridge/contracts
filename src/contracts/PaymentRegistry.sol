@@ -7,8 +7,8 @@ contract PaymentRegistry {
     struct TransferInfo {
         uint256 orderId;
         address usrDstAddress;
-        uint256 amount;
         address mmSrcAddress;
+        uint256 amount;
         bool isUsed;
     }
 
@@ -24,11 +24,12 @@ contract PaymentRegistry {
         bytes32 index = keccak256(abi.encodePacked(_orderId, _usrDstAddress, msg.value));
 
         require(transfers[index].isUsed == false, "Transfer already processed.");
+
         transfers[index] = TransferInfo({
             orderId: _orderId,
             usrDstAddress: _usrDstAddress,
-            amount: msg.value,
             mmSrcAddress: _mmSrcAddress,
+            amount: msg.value,
             isUsed: true
         });
 
