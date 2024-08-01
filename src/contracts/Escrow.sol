@@ -49,7 +49,7 @@ contract Escrow {
 
     }
 
-    address constant PAYMENT_REGISTRY_ADDRESS = 0xbAF6625e54035Ed93B3FEa38fa5F0aba1fBC5027;
+    address constant PAYMENT_REGISTRY_ADDRESS = 0x306B29FA96bffdAba8f2b19C2ced0Ab6bc85C08f;
     address constant FACTS_REGISTRY_ADDRESS = 0x7Cb1C4a51575Dc4505D8a8Ea361fc07346E5BC02;
 
     // FactsRegistry interface

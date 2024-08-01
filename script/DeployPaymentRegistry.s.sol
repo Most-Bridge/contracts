@@ -16,7 +16,7 @@ contract DeployPaymentRegistry is Script {
 // when adding changing vars in the .env make sure to run `source .env` to update the changes in the terminal 
 
 // *DEPLOY* using
-// forge script script/DeployPaymentRegistry.s.sol:DeployPaymentRegistry --rpc-url https://sepolia.infura.io/v3/580a6a4667464912b43ef356b016839c --broadcast --private-key $DEPLOY_ADDRESS_PRIVATE_KEY
+// forge script script/DeployPaymentRegistry.s.sol:DeployPaymentRegistry --rpc-url https://sepolia.infura.io/v3/580a6a4667464912b43ef356b016839c --broadcast --private-key $DEPLOY_PRIVATE_KEY
 
 
 // *TRANSFER* an order *** CHANGE ORDER ID PER TRANSFER *****
