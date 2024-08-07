@@ -51,7 +51,7 @@ contract Escrow {
 
     }
 
-    address constant PAYMENT_REGISTRY_ADDRESS = 0x306B29FA96bffdAba8f2b19C2ced0Ab6bc85C08f;
+    address constant PAYMENT_REGISTRY_ADDRESS = 0x28b86873f5EFEf8f136befA644bBE53f0593D57a;
     address constant FACTS_REGISTRY_ADDRESS = 0x7Cb1C4a51575Dc4505D8a8Ea361fc07346E5BC02;
 
     // FactsRegistry interface
@@ -126,7 +126,7 @@ contract Escrow {
             orderUpdates[_orderId].mmSrcAddress = _mmSrcAddress;
             orderUpdates[_orderId].status = OrderStatus.PROVED;
             // TODO: emit event here that prove bridge was successful
-            emit ProveBridgeSuccess(orderId);
+            emit ProveBridgeSuccess(_orderId);
         } else {
             // if the proof fails, this will allow the order to be fulfilled again
             orderUpdates[_orderId].status = OrderStatus.PENDING;

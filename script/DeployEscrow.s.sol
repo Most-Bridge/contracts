@@ -17,3 +17,6 @@ contract DeployEscrow is Script {
 
 // *CREATE* an order on Escrow for 0.001 eth value, and 0.0001 fee
 // cast send $ESCROW_ADDRESS "createOrder(address,uint256)" $USR_DST_ADDRESS 100000000000000 --value 10000000000000000 --rpc-url $RPC_URL --private-key $USR_SRC_PRIVATE_KEY
+
+// *WITHDRAW PROVED*
+// cast send $ESCROW_ADDRESS "withdrawProved(uint256)" 1 --rpc-url $RPC_URL --private-key $MM_SRC_PRIVATE_KEY
