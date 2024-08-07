@@ -23,6 +23,8 @@ contract Escrow {
     event OrderPlaced(uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee);
     event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, bytes32 slot4, uint256 blockNumber); // TODO: remove when done testing
     event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount, bytes32 _mmSrcAddress); // TODO: remove when done testing
+    event ProveBridgeSuccess(uint256 orderId);
+    event WithdrawSuccess(address mmSrcAddress);
 
     // Contains all information that is available during the order creation
     struct InitialOrderData {
@@ -123,6 +125,8 @@ contract Escrow {
             // add the address which will be paid out to, and update status
             orderUpdates[_orderId].mmSrcAddress = _mmSrcAddress;
             orderUpdates[_orderId].status = OrderStatus.PROVED;
+            // TODO: emit event here that prove bridge was successful
+            emit ProveBridgeSuccess(orderId);
         } else {
             // if the proof fails, this will allow the order to be fulfilled again
             orderUpdates[_orderId].status = OrderStatus.PENDING;
@@ -143,6 +147,7 @@ contract Escrow {
 
         orderUpdates[_orderId].status = OrderStatus.COMPLETED;
         payable(msg.sender).transfer(transferAmountAndFee);
+        emit WithdrawSuccess(msg.sender);
     }
 
     /*
