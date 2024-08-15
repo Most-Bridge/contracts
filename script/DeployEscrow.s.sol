@@ -16,7 +16,7 @@ contract DeployEscrow is Script {
 // forge script script/DeployEscrow.s.sol:DeployEscrow --rpc-url $RPC_URL --broadcast --private-key $DEPLOY_PRIVATE_KEY
 
 // *CREATE* an order on Escrow for 0.001 eth value, and 0.0001 fee
-// cast send $ESCROW_ADDRESS "createOrder(address,uint256)" $USR_DST_ADDRESS 100000000000000 --value 10000000000000000 --rpc-url $RPC_URL --private-key $USR_SRC_PRIVATE_KEY
+// cast send $ESCROW_ADDRESS "createOrder(address,uint256)" $USR_DST_ADDRESS 100000000000000 --value 1000000000000000 --rpc-url $RPC_URL --private-key $USR_SRC_PRIVATE_KEY
 
 // *WITHDRAW PROVED*
 // cast send $ESCROW_ADDRESS "withdrawProved(uint256)" 1 --rpc-url $RPC_URL --private-key $MM_SRC_PRIVATE_KEY
