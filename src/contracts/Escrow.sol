@@ -51,6 +51,13 @@ contract Escrow {
 
     }
 
+    constructor() {
+        owner = msg.sender;
+    }
+
+    address public owner;
+    address public allowedRelayAddress = 0x0616BaE9f787949066aa277038e35f4d0C32Bc3D; // address which will be relayig slots to this contract
+
     address constant PAYMENT_REGISTRY_ADDRESS = 0x28b86873f5EFEf8f136befA644bBE53f0593D57a;
     address constant FACTS_REGISTRY_ADDRESS = 0x7Cb1C4a51575Dc4505D8a8Ea361fc07346E5BC02;
 
@@ -75,14 +82,13 @@ contract Escrow {
         orderId += 1;
     }
 
-    // TODO: should be limited to only be called by one address that is trusted, which is the relaySlotsToEscrow from eventWatch
     function getValuesFromSlots(
         bytes32 _orderIdSlot,
         bytes32 _dstAddressSlot,
         bytes32 _mmSrcAddressSlot,
         bytes32 _amountSlot,
         uint256 _blockNumber
-    ) public {
+    ) public onlyAllowedAddress {
         emit SlotsReceived(_orderIdSlot, _dstAddressSlot, _mmSrcAddressSlot, _amountSlot, _blockNumber);
         bytes32 _orderIdValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
@@ -148,6 +154,20 @@ contract Escrow {
         orderUpdates[_orderId].status = OrderStatus.COMPLETED;
         payable(msg.sender).transfer(transferAmountAndFee);
         emit WithdrawSuccess(msg.sender);
+    }
+
+    function setAllowedAddress(address _newAllowedAddress) public onlyOwner {
+        allowedRelayAddress = _newAllowedAddress;
+    }
+
+    modifier onlyAllowedAddress() {
+        require(msg.sender == allowedRelayAddress, "Caller is not allowed");
+        _;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Caller is not the owner");
+        _;
     }
 
     /*
