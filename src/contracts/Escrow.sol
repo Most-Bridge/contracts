@@ -58,7 +58,7 @@ contract Escrow {
     address public owner;
     address public allowedRelayAddress = 0x0616BaE9f787949066aa277038e35f4d0C32Bc3D; // address which will be relayig slots to this contract
 
-    address constant PAYMENT_REGISTRY_ADDRESS = 0x28b86873f5EFEf8f136befA644bBE53f0593D57a;
+    address constant PAYMENT_REGISTRY_ADDRESS = 0xaEE130Ddc182870aC9BC47eeb63FF506F4eE0415;
     address constant FACTS_REGISTRY_ADDRESS = 0x7Cb1C4a51575Dc4505D8a8Ea361fc07346E5BC02;
 
     // FactsRegistry interface
