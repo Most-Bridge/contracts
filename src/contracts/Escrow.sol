@@ -24,7 +24,7 @@ contract Escrow {
     event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, bytes32 slot4, uint256 blockNumber); // TODO: remove when done testing
     event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount, bytes32 _mmSrcAddress); // TODO: remove when done testing
     event ProveBridgeSuccess(uint256 orderId);
-    event WithdrawSuccess(address mmSrcAddress);
+    event WithdrawSuccess(address mmSrcAddress, uint256 orderId);
     event BatchSlotsReceived(OrderSlots[] ordersToBeProved);
 
     // Contains all information that is available during the order creation
@@ -191,7 +191,7 @@ contract Escrow {
 
         // payout MM
         payable(msg.sender).transfer(transferAmountAndFee);
-        emit WithdrawSuccess(msg.sender);
+        emit WithdrawSuccess(msg.sender, _orderId);
     }
 
     // TODO: add re-enterancy guard
@@ -216,7 +216,7 @@ contract Escrow {
 
             // payout MM
             payable(msg.sender).transfer(transferAmountAndFee);
-            emit WithdrawSuccess(msg.sender);
+            emit WithdrawSuccess(msg.sender, _orderId);
         }
     }
 
