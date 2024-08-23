@@ -25,6 +25,7 @@ contract Escrow {
     event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount, bytes32 _mmSrcAddress); // TODO: remove when done testing
     event ProveBridgeSuccess(uint256 orderId);
     event WithdrawSuccess(address mmSrcAddress);
+    event BatchSlotsReceived(OrderSlots[] ordersToBeProved);
 
     // Contains all information that is available during the order creation
     struct InitialOrderData {
@@ -49,6 +50,14 @@ contract Escrow {
         COMPLETED, // MM has been paid out
         DROPPED // something wrong with the order
 
+    }
+
+    struct OrderSlots {
+        bytes32 orderIdSlot;
+        bytes32 dstAddressSlot;
+        bytes32 mmSrcAddressSlot;
+        bytes32 amountSlot;
+        uint256 blockNumber;
     }
 
     constructor() {
@@ -103,6 +112,29 @@ contract Escrow {
         emit ValuesReceived(_orderIdValue, _dstAddressValue, _mmSrcAddressValue, _amountValue);
     }
 
+    // TODO: test for gas emmisions from batch orders
+    function batchGetValuesFromSlots(OrderSlots[] memory ordersToBeProved) public onlyAllowedAddress {
+        require(ordersToBeProved.length > 0, "Orders to be proved array cannot be empty");
+        emit BatchSlotsReceived(ordersToBeProved);
+        for (uint256 i = 0; i < ordersToBeProved.length; i++) {
+            OrderSlots memory singleOrder = ordersToBeProved[i];
+            bytes32 _orderIdValue = factsRegistry.accountStorageSlotValues(
+                PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.orderIdSlot
+            );
+            bytes32 _dstAddressValue = factsRegistry.accountStorageSlotValues(
+                PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.dstAddressSlot
+            );
+            bytes32 _mmSrcAddressValue = factsRegistry.accountStorageSlotValues(
+                PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.mmSrcAddressSlot
+            );
+            bytes32 _amountValue = factsRegistry.accountStorageSlotValues(
+                PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.amountSlot
+            );
+            convertBytes32toNative(_orderIdValue, _dstAddressValue, _mmSrcAddressValue, _amountValue);
+            emit ValuesReceived(_orderIdValue, _dstAddressValue, _mmSrcAddressValue, _amountValue);
+        }
+    }
+
     function convertBytes32toNative(
         bytes32 _orderIdValue,
         bytes32 _dstAddressValue,
@@ -139,21 +171,53 @@ contract Escrow {
         }
     }
 
+    // could also add reenterancy guard here from openzeppelin
     function withdrawProved(uint256 _orderId) external {
-        // could also add reenterancy guard here from openzeppelin
+        // get order from this contract's state
         InitialOrderData memory _order = orders[_orderId];
         OrderStatusUpdates memory _orderUpdates = orderUpdates[_orderId];
 
+        // validate
         require(_order.orderId != 0, "The following order doesn't exist"); // for a non-existing order a 0 will be returned as the orderId, also covers edge case where a orderId 0 passed will return a 0 also
         require(_orderUpdates.status == OrderStatus.PROVED, "This order has not been proved yet.");
         require(msg.sender == _orderUpdates.mmSrcAddress, "Only the MM can withdraw.");
 
+        // calculate payout
         uint256 transferAmountAndFee = _order.amount + _order.fee;
         require(address(this).balance >= transferAmountAndFee, "Escrow: Insuffienct balance to withdraw");
 
+        // update status
         orderUpdates[_orderId].status = OrderStatus.COMPLETED;
+
+        // payout MM
         payable(msg.sender).transfer(transferAmountAndFee);
         emit WithdrawSuccess(msg.sender);
+    }
+
+    // TODO: add re-enterancy guard
+    function batchWithdrawProved(uint256[] memory _orderIds) external {
+        for (uint256 i = 0; i < _orderIds.length; i++) {
+            uint256 _orderId = _orderIds[i];
+            // get order from this contract's state
+            InitialOrderData memory _order = orders[_orderId];
+            OrderStatusUpdates memory _orderUpdates = orderUpdates[_orderId];
+
+            // validate
+            require(_order.orderId != 0, "The following order doesn't exist"); // for a non-existing order a 0 will be returned as the orderId, also covers edge case where a orderId 0 passed will return a 0 also
+            require(_orderUpdates.status == OrderStatus.PROVED, "This order has not been proved yet.");
+            require(msg.sender == _orderUpdates.mmSrcAddress, "Only the MM can withdraw.");
+
+            // calculate payout
+            uint256 transferAmountAndFee = _order.amount + _order.fee;
+            require(address(this).balance >= transferAmountAndFee, "Escrow: Insuffienct balance to withdraw");
+
+            // update status
+            orderUpdates[_orderId].status = OrderStatus.COMPLETED;
+
+            // payout MM
+            payable(msg.sender).transfer(transferAmountAndFee);
+            emit WithdrawSuccess(msg.sender);
+        }
     }
 
     function setAllowedAddress(address _newAllowedAddress) public onlyOwner {
