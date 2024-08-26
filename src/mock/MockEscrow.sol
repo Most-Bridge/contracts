@@ -164,7 +164,7 @@ contract MockEscrow {
     }
 
     function proveBridgeTransaction(uint256 _orderId, address _dstAddress, address _mmSrcAddress, uint256 _amount)
-        private
+        public 
     {
         InitialOrderData memory correctOrder = orders[_orderId];
         // make sure that proof data matches the contract's own data

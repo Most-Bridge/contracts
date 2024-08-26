@@ -10,6 +10,7 @@ contract MockEscrowTest is Test {
     address user = address(1);
 
     address destinationAddress = address(2);
+    address mmSrcAddress = address(3);
     uint256 sendAmount = 1 ether;
     uint256 fee = 0.1 ether;
 
@@ -80,14 +81,32 @@ contract MockEscrowTest is Test {
         bytes32 amountValue = bytes32(expectedAmount);
 
         // get results
-        (uint256 orderId, address dstAddress, address mmSrcAddress, uint256 amount) =
+        (uint256 orderId, address dstAddress, address _mmSrcAddress, uint256 amount) =
             mockEscrow.convertBytes32toNative(orderIdValue, dstAddressValue, mmSrcAddressValue, amountValue);
 
         // assert
         assertEq(orderId, expectedOrderId);
         assertEq(dstAddress, expectedDstAddress);
-        assertEq(mmSrcAddress, expectedMmSrcAddress);
+        assertEq(_mmSrcAddress, expectedMmSrcAddress);
         assertEq(amount, expectedAmount);
+    }
+
+    function testProveBridgeTransactionSuccess() public {
+        // set up order
+        uint256 orderId = 1;
+
+        // create order
+        mockEscrow.createOrder{value: sendAmount + fee}(destinationAddress, fee);
+
+        // prove bridge tx with correct data
+        mockEscrow.proveBridgeTransaction(orderId, destinationAddress, mmSrcAddress, sendAmount);
+
+        // fetch updated data
+        MockEscrow.OrderStatusUpdates memory updates = mockEscrow.getOrderUpdates(orderId);
+
+        // assert correct status and mmSrcAddress
+        assertEq(uint256(updates.status), uint256(MockEscrow.OrderStatus.PROVED));
+        assertEq(updates.mmSrcAddress, mmSrcAddress);
     }
 }
 
