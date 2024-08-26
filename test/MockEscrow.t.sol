@@ -9,6 +9,10 @@ contract MockEscrowTest is Test {
     MockFactsRegistry factsRegistry;
     address user = address(1);
 
+    address destinationAddress = address(2);
+    uint256 sendAmount = 1 ether;
+    uint256 fee = 0.1 ether;
+
     function setUp() public {
         factsRegistry = new MockFactsRegistry();
         mockEscrow = new MockEscrow();
@@ -50,25 +54,40 @@ contract MockEscrowTest is Test {
         // assertEq(returnedMmSrcAddress, bytes32(uint256(uint160(expectedMmSrcAddress))));
         // assertEq(returnedAmount, bytes32(expectedAmount));
 
-        // NOTE: doesn't work as expected... 
-        // need a better way to mock the facts registry contract 
-        // and test that it gets back proper values 
+        // NOTE: doesn't work as expected...
+        // need a better way to mock the facts registry contract
+        // and test that it gets back proper values
     }
 
-    function testConvertBytes32ToNative() public { 
-        // arrange 
-        uint256 expectedOrderId = 111; 
-        address expectedDstAddress = address(0x2222); 
-        address expectedMmSrcAddress = address(0x3333); 
-        uint256 expectedAmount = 4444; 
+    function testConvertBytes32ToNative() public {
+        // arrange
+        uint256 expectedOrderId = 1;
+        address expectedDstAddress = destinationAddress;
+        address expectedMmSrcAddress = address(0x3333);
+        uint256 expectedAmount = 4444;
 
-        // create order 
-        mockEscrow.createOrder(expectedDstAddress, 100);
+        // create order
+        (bool success,) = address(mockEscrow).call{value: sendAmount}(
+            abi.encodeWithSelector(mockEscrow.createOrder.selector, destinationAddress, fee)
+        );
 
-        // encode data 
-        bytes32 orderIdValue = bytes32(expectedOrderId); 
+        assertTrue(success, "createOrder transaction failed");
+
+        // encode data
+        bytes32 orderIdValue = bytes32(expectedOrderId);
         bytes32 dstAddressValue = bytes32(uint256(uint160(expectedDstAddress)));
-        bytes32 mmSrcAddressValue = bytes32(uint256(uint160(expected)))
+        bytes32 mmSrcAddressValue = bytes32(uint256(uint160(expectedMmSrcAddress)));
+        bytes32 amountValue = bytes32(expectedAmount);
+
+        // get results
+        (uint256 orderId, address dstAddress, address mmSrcAddress, uint256 amount) =
+            mockEscrow.convertBytes32toNative(orderIdValue, dstAddressValue, mmSrcAddressValue, amountValue);
+
+        // assert
+        assertEq(orderId, expectedOrderId);
+        assertEq(dstAddress, expectedDstAddress);
+        assertEq(mmSrcAddress, expectedMmSrcAddress);
+        assertEq(amount, expectedAmount);
     }
 }
 

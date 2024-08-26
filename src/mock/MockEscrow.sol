@@ -147,20 +147,20 @@ contract MockEscrow {
         bytes32 _dstAddressValue,
         bytes32 _mmSrcAddressValue,
         bytes32 _amountValue
-    ) public returns (uint256 orderId, address dstAddress, address mmSrcAddress, uint256 amount) {
+    ) public returns (uint256 _orderId, address _dstAddress, address _mmSrcAddress, uint256 _amount) {
         // bytes32 to uint256
-        orderId = uint256(_orderIdValue);
-        amount = uint256(_amountValue);
+        _orderId = uint256(_orderIdValue);
+        _amount = uint256(_amountValue);
 
         // bytes32 to address
-        dstAddress = address(uint160(uint256(_dstAddressValue)));
-        mmSrcAddress = address(uint160(uint256(_mmSrcAddressValue)));
+        _dstAddress = address(uint160(uint256(_dstAddressValue)));
+        _mmSrcAddress = address(uint160(uint256(_mmSrcAddressValue)));
 
-        require(orders[orderId].orderId != 0, "This order does not exist");
-        orderUpdates[orderId].status = OrderStatus.PROVING;
+        require(orders[_orderId].orderId != 0, "This order does not exist");
+        orderUpdates[_orderId].status = OrderStatus.PROVING;
         // proveBridgeTransaction(orderId, dstAddress, mmSrcAddress, amount);
 
-        return (orderId, dstAddress, mmSrcAddress, amount);
+        return (_orderId, _dstAddress, _mmSrcAddress, _amount);
     }
 
     function proveBridgeTransaction(uint256 _orderId, address _dstAddress, address _mmSrcAddress, uint256 _amount)
