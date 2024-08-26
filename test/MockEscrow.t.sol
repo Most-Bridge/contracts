@@ -108,6 +108,33 @@ contract MockEscrowTest is Test {
         assertEq(uint256(updates.status), uint256(MockEscrow.OrderStatus.PROVED));
         assertEq(updates.mmSrcAddress, mmSrcAddress);
     }
+
+    function testProveBridgeTransactionFailure() public {
+        // set up order
+        uint256 orderId = 1;
+
+        // create an order
+        mockEscrow.createOrder{value: sendAmount + fee}(destinationAddress, fee);
+
+        bytes32 orderIdValue = bytes32(orderId);
+        bytes32 dstAddressValue = bytes32(uint256(uint160(destinationAddress)));
+        bytes32 mmSrcAddressValue = bytes32(uint256(uint160(mmSrcAddress)));
+        bytes32 amountValue = bytes32(sendAmount);
+
+        mockEscrow.convertBytes32toNative(orderIdValue, dstAddressValue, mmSrcAddressValue, amountValue);
+
+        // order status should now be PROVING
+        MockEscrow.OrderStatusUpdates memory updates = mockEscrow.getOrderUpdates(orderId);
+        assertEq(uint256(updates.status), uint256(MockEscrow.OrderStatus.PROVING));
+
+        // call prove bridgeTransaction with incorrect data
+        address badDstAddress = address(0x9999);
+        mockEscrow.proveBridgeTransaction(orderId, badDstAddress, mmSrcAddress, sendAmount);
+
+        // check that the status is now back to pending
+        updates = mockEscrow.getOrderUpdates(orderId);
+        assertEq(uint256(updates.status), uint256(MockEscrow.OrderStatus.PENDING));
+    }
 }
 
 contract MockFactsRegistry {
