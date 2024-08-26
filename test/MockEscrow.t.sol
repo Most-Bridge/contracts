@@ -135,6 +135,40 @@ contract MockEscrowTest is Test {
         updates = mockEscrow.getOrderUpdates(orderId);
         assertEq(uint256(updates.status), uint256(MockEscrow.OrderStatus.PENDING));
     }
+
+    function testBatchWithdrawProvedSuccess() public {
+        uint256[] memory orderIds;
+
+        for (uint256 i = 0; i < orderIds.length; i++) {
+            // create order
+            mockEscrow.createOrder{value: sendAmount + fee}(destinationAddress, fee);
+
+            // set order Ids
+            orderIds[i] = i + 1;
+
+            // prove order
+            mockEscrow.proveBridgeTransaction(orderIds[i], destinationAddress, mmSrcAddress, sendAmount);
+        }
+
+        // TODO: check that balance of this contract is now worth two orders
+        uint256 expectedBalance = (sendAmount + fee) * orderIds.length;
+        assertEq(address(mockEscrow).balance, expectedBalance, "Contract balance does not match");
+
+        // call from the mm persepctive
+        vm.prank(mmSrcAddress);
+
+        // call the batch withdraw proved
+        mockEscrow.batchWithdrawProved(orderIds);
+
+        // verify orders are makred as COMPLETED
+        for (uint256 i = 0; i < orderIds.length; i++) {
+            MockEscrow.OrderStatusUpdates memory updates = mockEscrow.getOrderUpdates(orderIds[i]);
+            assertEq(uint256(updates.status), uint256(MockEscrow.OrderStatus.COMPLETED));
+        }
+
+        // verify that the correct amount was sent to MM
+        assertEq(mmSrcAddress.balance, (sendAmount + fee) * orderIds.length);
+    }
 }
 
 contract MockFactsRegistry {
