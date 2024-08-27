@@ -82,6 +82,12 @@ contract MockEscrowTest is Test {
         mockEscrow.withdrawProved(1);
     }
 
+    function testWithdrawProvedOnOrderThatDoesNotExist() public {
+        vm.startPrank(user);
+        vm.expectRevert("The following order doesn't exist");
+        mockEscrow.withdrawProved(100);
+    }
+
     function testGetValuesFromSlots() public {
         // bytes32 orderIdSlot = bytes32(uint256(0x1));
         // bytes32 dstAddressSlot = bytes32(uint256(0x2));

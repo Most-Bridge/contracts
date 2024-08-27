@@ -31,9 +31,4 @@ contract EscrowTest is Test {
         vm.stopPrank();
     }
 
-    function testWithdrawProvedOnOrderThatDoesNotExist() public {
-        vm.startPrank(user);
-        vm.expectRevert("The following order doesn't exist");
-        escrow.withdrawProved(100);
-    }
 }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.20;
 
+import "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+
 /*
 * Escrow along with the PaymentRegistry contract and a 3rd party service EventWatch 
 * make up the MVP of a unilateral bridge from OP Sepolia to ETH Sepolia with a single type of asset. 
@@ -19,7 +21,7 @@ interface IFactsRegistry {
         returns (bytes32);
 }
 
-contract Escrow {
+contract Escrow is ReentrancyGuard {
     mapping(uint256 => InitialOrderData) public orders;
     mapping(uint256 => OrderStatusUpdates) public orderUpdates;
 
@@ -53,7 +55,7 @@ contract Escrow {
         PROVING, // proof has come to the escrow contract
         PROVED, // proof has been validated, able to be claimed
         COMPLETED, // MM has been paid out
-        DROPPED // something wrong with the order
+        DROPPED // something is wrong with the order
 
     }
 
@@ -75,11 +77,11 @@ contract Escrow {
     address constant PAYMENT_REGISTRY_ADDRESS = 0xaEE130Ddc182870aC9BC47eeb63FF506F4eE0415;
     address constant FACTS_REGISTRY_ADDRESS = 0x7Cb1C4a51575Dc4505D8a8Ea361fc07346E5BC02;
 
-    // FactsRegistry interface
+    // interface for the contract which delivers slot values
     IFactsRegistry factsRegistry = IFactsRegistry(FACTS_REGISTRY_ADDRESS);
 
     //Function recieves funds in msg.value, and the user specifies what portion of that msg.value is a fee for MM
-    function createOrder(address _usrDstAddress, uint256 _fee) public payable {
+    function createOrder(address _usrDstAddress, uint256 _fee) public payable nonReentrant {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
@@ -117,7 +119,6 @@ contract Escrow {
         emit ValuesReceived(_orderIdValue, _dstAddressValue, _mmSrcAddressValue, _amountValue);
     }
 
-    // TODO: test for gas emmisions from batch orders
     function batchGetValuesFromSlots(OrderSlots[] memory ordersToBeProved) public onlyAllowedAddress {
         require(ordersToBeProved.length > 0, "Orders to be proved array cannot be empty");
         emit BatchSlotsReceived(ordersToBeProved);
@@ -176,8 +177,7 @@ contract Escrow {
         }
     }
 
-    // could also add reenterancy guard here from openzeppelin
-    function withdrawProved(uint256 _orderId) external {
+    function withdrawProved(uint256 _orderId) external onlyAllowedAddress {
         // get order from this contract's state
         InitialOrderData memory _order = orders[_orderId];
         OrderStatusUpdates memory _orderUpdates = orderUpdates[_orderId];
