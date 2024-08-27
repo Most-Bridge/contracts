@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.20;
 
-import "../interface/IFactsRegistry.sol";
-
 /*
 * Escrow along with the PaymentRegistry contract and a 3rd party service EventWatch 
-* make up the MVP of a unilateral bridge rom sepolia to sepolia with a single type of asset. 
+* make up the MVP of a unilateral bridge from OP Sepolia to ETH Sepolia with a single type of asset. 
 * 
 * Terminology: 
 * User(usr) - The entity that is wishing to bridge their assets. 
@@ -13,6 +11,13 @@ import "../interface/IFactsRegistry.sol";
 * Source(src) -  Where funds are being bridged from, and where an order is created. 
 * Destination(dst) - The chain to which the funds are being bridged. 
 */
+
+interface IFactsRegistry {
+    function accountStorageSlotValues(address account, uint256 blockNumber, bytes32 slot)
+        external
+        view
+        returns (bytes32);
+}
 
 contract Escrow {
     mapping(uint256 => InitialOrderData) public orders;
@@ -232,25 +237,5 @@ contract Escrow {
     modifier onlyOwner() {
         require(msg.sender == owner, "Caller is not the owner");
         _;
-    }
-
-    /*
-    * FOR TESTING PURPOSES ONLY 
-    */
-
-    function getInitialOrderData(uint256 _orderId) public view returns (InitialOrderData memory) {
-        return orders[_orderId];
-    }
-
-    function getOrderUpdates(uint256 _orderId) public view returns (OrderStatusUpdates memory) {
-        return orderUpdates[_orderId];
-    }
-
-    function updatemmSrcAddress(uint256 _orderId, address _newAddress) public {
-        orderUpdates[_orderId].mmSrcAddress = _newAddress;
-    }
-
-    function updateOrderStatus(uint256 _orderId, OrderStatus _newStatus) public {
-        orderUpdates[_orderId].status = _newStatus;
     }
 }

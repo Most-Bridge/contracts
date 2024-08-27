@@ -7,16 +7,79 @@ import {MockEscrow} from "../src/mock/MockEscrow.sol";
 contract MockEscrowTest is Test {
     MockEscrow mockEscrow;
     MockFactsRegistry factsRegistry;
-    address user = address(1);
 
+    address user = address(1);
     address destinationAddress = address(2);
     address mmSrcAddress = address(3);
+    address maliciousActor = address(4);
+
     uint256 sendAmount = 1 ether;
     uint256 fee = 0.1 ether;
 
     function setUp() public {
         factsRegistry = new MockFactsRegistry();
         mockEscrow = new MockEscrow();
+        vm.deal(user, 10 ether);
+    }
+
+    function testCreateOrder() public {
+        vm.startPrank(user);
+        uint256 initialBalance = user.balance;
+
+        (bool success,) = address(mockEscrow).call{value: sendAmount}(
+            abi.encodeWithSelector(mockEscrow.createOrder.selector, destinationAddress, fee)
+        );
+        assertTrue(success, "createOrder transaction failed");
+
+        MockEscrow.InitialOrderData memory order = mockEscrow.getInitialOrderData(1);
+        MockEscrow.OrderStatusUpdates memory orderUpdates = mockEscrow.getOrderUpdates(1);
+
+        assertEq(order.amount, sendAmount - fee, "Incorrect bridge amount calculated");
+        assertEq(
+            uint256(orderUpdates.status), uint256(MockEscrow.OrderStatus.PENDING), "Order status should be PENDING"
+        );
+        assertEq(user.balance, initialBalance - sendAmount, "Ether not correctly transferred from user");
+
+        vm.stopPrank();
+    }
+
+    function testWithdrawProvedOnPendingStatus() public {
+        vm.prank(user);
+        (bool success,) = address(mockEscrow).call{value: 5 ether}(
+            abi.encodeWithSelector(mockEscrow.createOrder.selector, destinationAddress, 0.1 ether)
+        );
+        assertTrue(success, "Order was not placed successfully");
+
+        MockEscrow.OrderStatusUpdates memory orderUpdates = mockEscrow.getOrderUpdates(1);
+        assertEq(
+            uint256(orderUpdates.status), uint256(MockEscrow.OrderStatus.PENDING), "Order status should be PENDING"
+        );
+
+        vm.prank(mmSrcAddress);
+        vm.expectRevert("This order has not been proved yet.");
+        mockEscrow.withdrawProved(1);
+    }
+
+    function testWithdrawProvedOnMaliciousAddress() public {
+        vm.prank(user);
+        (bool success,) = address(mockEscrow).call{value: 5 ether}(
+            abi.encodeWithSelector(mockEscrow.createOrder.selector, destinationAddress, 0.1 ether)
+        );
+        assertTrue(success, "Order was not placed successfully");
+
+        mockEscrow.updateOrderStatus(1, MockEscrow.OrderStatus.PROVED); // changing state not local reference
+        assertEq(
+            uint256((mockEscrow.getOrderUpdates(1)).status),
+            uint256(MockEscrow.OrderStatus.PROVED),
+            "Order status should be PROVED"
+        );
+
+        mockEscrow.updatemmSrcAddress(1, mmSrcAddress);
+        assertEq(mockEscrow.getOrderUpdates(1).mmSrcAddress, mmSrcAddress);
+
+        vm.prank(maliciousActor);
+        vm.expectRevert("Only the MM can withdraw.");
+        mockEscrow.withdrawProved(1);
     }
 
     function testGetValuesFromSlots() public {
