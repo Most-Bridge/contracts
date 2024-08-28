@@ -11,24 +11,83 @@ contract EscrowTest is Test {
     address mmAddress = address(3);
     address maliciousActor = address(4);
 
+    uint256 sendAmount;
+    uint256 feeAmount;
+
     function setUp() public {
         escrow = new Escrow();
         vm.deal(user, 10 ether);
+        sendAmount = 1 ether;
+        feeAmount = 0.1 ether;
     }
 
-    function testCreateOrderWithNoFunds() public {
-        vm.expectRevert("Funds being sent must be greater than 0.");
-        escrow.createOrder(destinationAddress, 0.1 ether); // calling with no value
-    }
-
-    function testCreateOrderWithInsufficientFee() public {
+    function testCreateOrderSuccess() public {
         vm.startPrank(user);
-        vm.expectRevert("Fee must be less than the total value sent");
-        (bool success,) = address(escrow).call{value: 1 ether}(
-            abi.encodeWithSelector(escrow.createOrder.selector, destinationAddress, 5 ether)
-        );
-        assertTrue(success, "Function did not revert as expected");
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
+
+        (uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee) = escrow.orders(1);
+
+        assertEq(orderId, 1);
+        assertEq(usrDstAddress, destinationAddress);
+        assertEq(amount, sendAmount - feeAmount);
+        assertEq(fee, feeAmount);
+
         vm.stopPrank();
     }
 
+    function testCreateOrderWithNoValue() public {
+        vm.startPrank(user);
+        vm.expectRevert("Funds being sent must be greater than 0.");
+        escrow.createOrder(destinationAddress, feeAmount); // calling with no value
+        vm.stopPrank();
+    }
+
+    function testCreateOrderWithZeroValue() public {
+        vm.startPrank(user);
+        vm.expectRevert("Funds being sent must be greater than 0.");
+        escrow.createOrder{value: 0}(destinationAddress, feeAmount); // calling with no value
+        vm.stopPrank();
+    }
+
+    function testCreateOrderWithFeeBiggerThanValueSent() public {
+        vm.startPrank(user);
+        vm.expectRevert("Fee must be less than the total value sent");
+        escrow.createOrder{value: sendAmount}(destinationAddress, 5 ether);
+        vm.stopPrank();
+    }
+
+    function testPauseContract() public {
+        vm.startPrank(address(this)); // this contract is the owner
+        escrow.pauseContract();
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()")); // Expect revert due to paused contract
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
+        vm.stopPrank();
+    }
+
+    function testPauseAndUnpauseContract() public {
+        vm.prank(address(this)); // this contract is the owner
+        escrow.pauseContract();
+
+        vm.startPrank(user);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()")); // Expect revert due to paused contract
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
+        vm.stopPrank();
+
+        vm.prank(address(this)); // this contract is the owner
+        escrow.unpauseContract();
+
+        vm.prank(user);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
+
+        // Assertions to check the order details
+        (uint256 id, address usrDstAddress, uint256 amount, uint256 fee) = escrow.orders(1);
+
+        assertEq(id, 1);
+        assertEq(usrDstAddress, destinationAddress);
+        assertEq(amount, sendAmount - feeAmount);
+        assertEq(fee, feeAmount);
+    }
 }

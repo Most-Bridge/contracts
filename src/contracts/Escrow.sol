@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.20;
 
-import "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
 
 /*
 * Escrow along with the PaymentRegistry contract and a 3rd party service EventWatch 
@@ -21,7 +22,7 @@ interface IFactsRegistry {
         returns (bytes32);
 }
 
-contract Escrow is ReentrancyGuard {
+contract Escrow is ReentrancyGuard, Pausable {
     mapping(uint256 => InitialOrderData) public orders;
     mapping(uint256 => OrderStatusUpdates) public orderUpdates;
 
@@ -80,8 +81,27 @@ contract Escrow is ReentrancyGuard {
     // interface for the contract which delivers slot values
     IFactsRegistry factsRegistry = IFactsRegistry(FACTS_REGISTRY_ADDRESS);
 
+    modifier onlyAllowedAddress() {
+        require(msg.sender == allowedRelayAddress, "Caller is not allowed");
+        _;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Caller is not the owner");
+        _;
+    }
+
+    // emergency kill switch
+    function pauseContract() external onlyOwner {
+        _pause();
+    }
+
+    function unpauseContract() external onlyOwner {
+        _unpause();
+    }
+
     //Function recieves funds in msg.value, and the user specifies what portion of that msg.value is a fee for MM
-    function createOrder(address _usrDstAddress, uint256 _fee) public payable nonReentrant {
+    function createOrder(address _usrDstAddress, uint256 _fee) public payable nonReentrant whenNotPaused {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
@@ -104,7 +124,7 @@ contract Escrow is ReentrancyGuard {
         bytes32 _mmSrcAddressSlot,
         bytes32 _amountSlot,
         uint256 _blockNumber
-    ) public onlyAllowedAddress {
+    ) public onlyAllowedAddress whenNotPaused {
         emit SlotsReceived(_orderIdSlot, _dstAddressSlot, _mmSrcAddressSlot, _amountSlot, _blockNumber);
         bytes32 _orderIdValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
@@ -119,7 +139,7 @@ contract Escrow is ReentrancyGuard {
         emit ValuesReceived(_orderIdValue, _dstAddressValue, _mmSrcAddressValue, _amountValue);
     }
 
-    function batchGetValuesFromSlots(OrderSlots[] memory ordersToBeProved) public onlyAllowedAddress {
+    function batchGetValuesFromSlots(OrderSlots[] memory ordersToBeProved) public onlyAllowedAddress whenNotPaused {
         require(ordersToBeProved.length > 0, "Orders to be proved array cannot be empty");
         emit BatchSlotsReceived(ordersToBeProved);
         for (uint256 i = 0; i < ordersToBeProved.length; i++) {
@@ -177,7 +197,7 @@ contract Escrow is ReentrancyGuard {
         }
     }
 
-    function withdrawProved(uint256 _orderId) external onlyAllowedAddress {
+    function withdrawProved(uint256 _orderId) external onlyAllowedAddress whenNotPaused {
         // get order from this contract's state
         InitialOrderData memory _order = orders[_orderId];
         OrderStatusUpdates memory _orderUpdates = orderUpdates[_orderId];
@@ -200,7 +220,7 @@ contract Escrow is ReentrancyGuard {
     }
 
     // TODO: add re-enterancy guard
-    function batchWithdrawProved(uint256[] memory _orderIds) external {
+    function batchWithdrawProved(uint256[] memory _orderIds) external onlyAllowedAddress whenNotPaused {
         for (uint256 i = 0; i < _orderIds.length; i++) {
             uint256 _orderId = _orderIds[i];
             // get order from this contract's state
@@ -227,15 +247,5 @@ contract Escrow is ReentrancyGuard {
 
     function setAllowedAddress(address _newAllowedAddress) public onlyOwner {
         allowedRelayAddress = _newAllowedAddress;
-    }
-
-    modifier onlyAllowedAddress() {
-        require(msg.sender == allowedRelayAddress, "Caller is not allowed");
-        _;
-    }
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Caller is not the owner");
-        _;
     }
 }
