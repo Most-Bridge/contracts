@@ -5,7 +5,7 @@ source .env && \
 
 # call the withdraw proved function from escrow contract 
 cast send \
-    --rpc-url $RPC_URL \
+    --rpc-url $OP_SEPOLIA_RPC \
     --private-key $MM_SRC_PRIVATE_KEY \
     $ESCROW_ADDRESS \
     "withdrawProved(uint256)" \

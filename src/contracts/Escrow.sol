@@ -250,7 +250,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     function setFactsRegistryAddress(address _newFactsRegistryAddress) public onlyOwner {
-        FACTS_REGISTRY_ADDRESS = _newFactsRegistryAddress; 
+        FACTS_REGISTRY_ADDRESS = _newFactsRegistryAddress;
     }
 
     function setPaymentRegistryAddress(address _newPaymentRegistryAddress) public onlyOwner {

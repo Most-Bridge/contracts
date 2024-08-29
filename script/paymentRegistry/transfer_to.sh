@@ -11,7 +11,7 @@ cast send \
     $USR_DST_ADDRESS \
     $MM_SRC_ADDRESS \
     --value 9900000000000000 \
-    --rpc-url $RPC_URL \
+    --rpc-url $ETH_SEPOLIA_RPC \
     --private-key $MM_DST_PRIVATE_KEY
 
     # *** CHANGE ORDER ID AS NEEDED *** 
