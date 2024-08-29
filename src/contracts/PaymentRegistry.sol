@@ -2,8 +2,6 @@
 pragma solidity ^0.8.20;
 
 contract PaymentRegistry {
-    // MVP of a unilateral bridge from sepolia to sepolia
-
     struct TransferInfo {
         uint256 orderId;
         address usrDstAddress;

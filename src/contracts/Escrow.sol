@@ -75,8 +75,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public owner;
     address public allowedRelayAddress = 0x0616BaE9f787949066aa277038e35f4d0C32Bc3D; // address which will be relayig slots to this contract
 
-    address constant PAYMENT_REGISTRY_ADDRESS = 0xaEE130Ddc182870aC9BC47eeb63FF506F4eE0415;
-    address constant FACTS_REGISTRY_ADDRESS = 0x7Cb1C4a51575Dc4505D8a8Ea361fc07346E5BC02;
+    address public PAYMENT_REGISTRY_ADDRESS = 0xda406e807424a8b49b4027dc5335304c00469821;
+    address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
 
     // interface for the contract which delivers slot values
     IFactsRegistry factsRegistry = IFactsRegistry(FACTS_REGISTRY_ADDRESS);
@@ -247,5 +247,13 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     function setAllowedAddress(address _newAllowedAddress) public onlyOwner {
         allowedRelayAddress = _newAllowedAddress;
+    }
+
+    function setFactsRegistryAddress(address _newFactsRegistryAddress) public onlyOwner {
+        FACTS_REGISTRY_ADDRESS = _newFactsRegistryAddress; 
+    }
+
+    function setPaymentRegistryAddress(address _newPaymentRegistryAddress) public onlyOwner {
+        PAYMENT_REGISTRY_ADDRESS = _newPaymentRegistryAddress;
     }
 }
