@@ -14,11 +14,35 @@ contract PaymentRegistry {
 
     mapping(bytes32 => TransferInfo) public transfers;
 
+    address public owner;
+    address public allowedMarketMakerAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address which will be fulfilling the transactions
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Caller is not the owner");
+        _;
+    }
+
+    modifier onlyAllowedAddress() {
+        require(msg.sender == allowedMarketMakerAddress, "Caller is not allowed");
+        _;
+    }
+
+    function setAllowedAddress(address _newAllowedAddress) public onlyOwner {
+        allowedMarketMakerAddress = _newAllowedAddress;
+    }
+
     // called by the MM to transfer funds to the user on the destination chain
-    function transferTo(uint256 _orderId, address _usrDstAddress, address _mmSrcAddress) external payable {
+    function transferTo(uint256 _orderId, address _usrDstAddress, address _mmSrcAddress)
+        external
+        payable
+        onlyAllowedAddress
+    {
         require(msg.value > 0, "Funds being sent must exceed 0.");
 
-        // TODO: just use the order id as the key for this mapping
         bytes32 index = keccak256(abi.encodePacked(_orderId, _usrDstAddress, msg.value));
 
         require(transfers[index].isUsed == false, "Transfer already processed.");
