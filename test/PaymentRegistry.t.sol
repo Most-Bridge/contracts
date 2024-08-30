@@ -15,6 +15,8 @@ contract PaymentRegistryTest is Test {
         paymentRegistry = new PaymentRegistry();
         vm.deal(mmDstAddress, 10 ether);
         vm.deal(destinationAddress, 1 ether);
+        vm.prank(address(this));
+        paymentRegistry.setAllowedAddress(mmDstAddress);
     }
 
     function testTransferTo() public {

@@ -2,6 +2,14 @@
 pragma solidity ^0.8.20;
 
 contract PaymentRegistry {
+    // State varaibles
+    address public owner;
+    address public allowedMarketMakerAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address which will be fulfilling orders
+
+    // Storage
+    mapping(bytes32 => TransferInfo) public transfers;
+
+    // Structs
     struct TransferInfo {
         uint256 orderId;
         address usrDstAddress;
@@ -10,15 +18,49 @@ contract PaymentRegistry {
         bool isUsed;
     }
 
+    // Events
     event Transfer(TransferInfo transferInfo);
 
-    mapping(bytes32 => TransferInfo) public transfers;
+    // Modifiers
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Caller is not the owner");
+        _;
+    }
 
-    // called by the MM to transfer funds to the user on the destination chain
-    function transferTo(uint256 _orderId, address _usrDstAddress, address _mmSrcAddress) external payable {
+    modifier onlyAllowedAddress() {
+        require(msg.sender == allowedMarketMakerAddress, "Caller is not allowed");
+        _;
+    }
+
+    // Constructor
+    constructor() {
+        owner = msg.sender;
+    }
+
+    // External functions
+    /**
+     * @dev Allows the owner to change the allowed market maker address, who will be fulfilling the orders.
+     * @param _newAllowedAddress The address that will fulfill the orders.
+     */
+    function setAllowedAddress(address _newAllowedAddress) public onlyOwner {
+        allowedMarketMakerAddress = _newAllowedAddress;
+    }
+
+    /**
+     * @dev Called by the allowed market maker to transfer funds to the user on the destination chain.
+     * The `transfer` mapping which is updated in this function, is what is used to prove the tx occured.
+     * @param _orderId The order ID associated with the order being fulfilled.
+     * @param _usrDstAddress The user's destination address to receive the funds.
+     * @param _mmSrcAddress The market maker's source chain address, with which they will be able to claim
+     * the funds on the source chain.
+     */
+    function transferTo(uint256 _orderId, address _usrDstAddress, address _mmSrcAddress)
+        external
+        payable
+        onlyAllowedAddress
+    {
         require(msg.value > 0, "Funds being sent must exceed 0.");
 
-        // TODO: just use the order id as the key for this mapping
         bytes32 index = keccak256(abi.encodePacked(_orderId, _usrDstAddress, msg.value));
 
         require(transfers[index].isUsed == false, "Transfer already processed.");
@@ -32,13 +74,18 @@ contract PaymentRegistry {
         });
 
         (bool success,) = payable(_usrDstAddress).call{value: msg.value}(""); // transfer to user
-
         require(success, "Transfer failed.");
-        // to be picked up by listener and turned into a proof
+
         emit Transfer(transfers[index]);
     }
 
-    // getters
+    // public functions
+
+    /**
+     * @dev Returns the transfer information for a given index.
+     * @param _index The index to look up transfer info.
+     * @return TransferInfo The transfer information associated with the index.
+     */
     function getTransfers(bytes32 _index) public view returns (TransferInfo memory) {
         return transfers[_index];
     }

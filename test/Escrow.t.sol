@@ -19,6 +19,7 @@ contract EscrowTest is Test {
         vm.deal(user, 10 ether);
         sendAmount = 1 ether;
         feeAmount = 0.1 ether;
+        escrow.setAllowedAddress(address(this));
     }
 
     function testCreateOrderSuccess() public {
