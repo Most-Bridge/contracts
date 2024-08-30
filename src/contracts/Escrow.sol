@@ -92,11 +92,11 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     // emergency kill switch
-    function pauseContract() external onlyOwner {
+    function pauseContract() external onlyAllowedAddress {
         _pause();
     }
 
-    function unpauseContract() external onlyOwner {
+    function unpauseContract() external onlyAllowedAddress {
         _unpause();
     }
 
