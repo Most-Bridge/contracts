@@ -231,7 +231,9 @@ contract Escrow is ReentrancyGuard, Pausable {
         OrderStatusUpdates memory _orderUpdates = orderUpdates[_orderId];
 
         // validate
-        require(_order.orderId != 0, "The following order doesn't exist"); // for a non-existing order a 0 will be returned as the orderId, also covers edge case where a orderId 0 passed will return a 0 also
+        // for a non-existing order a 0 will be returned as the orderId
+        // also covers edge case where a orderId 0 passed will return a 0 also
+        require(_order.orderId != 0, "The following order doesn't exist"); 
         require(_orderUpdates.status == OrderStatus.PROVED, "This order has not been proved yet.");
         require(msg.sender == _orderUpdates.mmSrcAddress, "Only the MM can withdraw.");
 
