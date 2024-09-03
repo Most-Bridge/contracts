@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.20;
 
+/**
+ * @title Payment Registry 
+ * @dev Handles the throughput of transactions from the Market Maker to a user, and saves the data
+ * to be used to prove the transaction. 
+ */
 contract PaymentRegistry {
     // State varaibles
     address public owner;

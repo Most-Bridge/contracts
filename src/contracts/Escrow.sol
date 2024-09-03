@@ -4,17 +4,16 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
-/*
-* Escrow along with the PaymentRegistry contract and a 3rd party service EventWatch 
-* make up the MVP of a unilateral bridge from OP Sepolia to ETH Sepolia with a single type of asset. 
-* 
-* Terminology: 
-* User(usr) - The entity that is wishing to bridge their assets. 
-* Market Maker(mm) - The entity that is going to facilitate the bridging process. 
-* Source(src) -  Where funds are being bridged from, and where an order is created. 
-* Destination(dst) - The chain to which the funds are being bridged. 
-*/
-
+/**
+ * @title Escrow Contract
+ * @dev Handles the bridging of assets between two chains, in conjunction with Payment Registry and a 3rd party
+ * facilitator service.
+ * Terminology:
+ * User (usr): The entity wishing to bridge their assets.
+ * Market Maker (mm): The entity facilitating the bridging process.
+ * Source (src): The chain from which funds are being bridged.
+ * Destination (dst): The chain to which the funds are being bridged.
+ */
 interface IFactsRegistry {
     function accountStorageSlotValues(address account, uint256 blockNumber, bytes32 slot)
         external
@@ -23,18 +22,29 @@ interface IFactsRegistry {
 }
 
 contract Escrow is ReentrancyGuard, Pausable {
-    mapping(uint256 => InitialOrderData) public orders;
-    mapping(uint256 => OrderStatusUpdates) public orderUpdates;
+    // State variables
+    address public owner;
+    address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying slots to this contract
+    address public PAYMENT_REGISTRY_ADDRESS = 0xdA406E807424a8b49B4027dC5335304C00469821;
+    address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
 
     uint256 private orderId = 1;
 
+    IFactsRegistry factsRegistry = IFactsRegistry(FACTS_REGISTRY_ADDRESS);
+
+    // Storage
+    mapping(uint256 => InitialOrderData) public orders;
+    mapping(uint256 => OrderStatusUpdates) public orderUpdates;
+
+    // Events
     event OrderPlaced(uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee);
-    event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, bytes32 slot4, uint256 blockNumber); // TODO: remove when done testing
-    event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount, bytes32 _mmSrcAddress); // TODO: remove when done testing
+    event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, bytes32 slot4, uint256 blockNumber);
+    event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount, bytes32 _mmSrcAddress);
     event ProveBridgeSuccess(uint256 orderId);
     event WithdrawSuccess(address mmSrcAddress, uint256 orderId);
     event BatchSlotsReceived(OrderSlots[] ordersToBeProved);
 
+    // Structs
     // Contains all information that is available during the order creation
     struct InitialOrderData {
         uint256 orderId;
@@ -50,16 +60,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         address mmSrcAddress;
     }
 
-    enum OrderStatus {
-        PLACED, // once order has been placed by user
-        PENDING, // the order has been emitted to the MMs
-        PROVING, // proof has come to the escrow contract
-        PROVED, // proof has been validated, able to be claimed
-        COMPLETED, // MM has been paid out
-        DROPPED // something is wrong with the order
-
-    }
-
     struct OrderSlots {
         bytes32 orderIdSlot;
         bytes32 dstAddressSlot;
@@ -68,19 +68,17 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 blockNumber;
     }
 
-    constructor() {
-        owner = msg.sender;
+    //Enums
+    enum OrderStatus {
+        PLACED,
+        PENDING,
+        PROVING,
+        PROVED,
+        COMPLETED,
+        DROPPED
     }
 
-    address public owner;
-    address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address which will be relayig slots to this contract
-
-    address public PAYMENT_REGISTRY_ADDRESS = 0xdA406E807424a8b49B4027dC5335304C00469821;
-    address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
-
-    // interface for the contract which delivers slot values
-    IFactsRegistry factsRegistry = IFactsRegistry(FACTS_REGISTRY_ADDRESS);
-
+    // Modifiers
     modifier onlyAllowedAddress() {
         require(msg.sender == allowedRelayAddress, "Caller is not allowed");
         _;
@@ -91,17 +89,32 @@ contract Escrow is ReentrancyGuard, Pausable {
         _;
     }
 
-    // emergency kill switch
+    // Contructor
+    constructor() {
+        owner = msg.sender;
+    }
+
+    // Functions
+    /**
+     * @dev Pause the contract in case of an error.
+     */
     function pauseContract() external onlyAllowedAddress {
         _pause();
     }
 
+    /**
+     * @dev Unpauses the contract.
+     */
     function unpauseContract() external onlyAllowedAddress {
         _unpause();
     }
 
-    //Function recieves funds in msg.value, and the user specifies what portion of that msg.value is a fee for MM
-    function createOrder(address _usrDstAddress, uint256 _fee) public payable nonReentrant whenNotPaused {
+    /**
+     * @dev Allows the user to create an order.
+     * @param _usrDstAddress The destination address of the user.
+     * @param _fee The fee for the market maker.
+     */
+    function createOrder(address _usrDstAddress, uint256 _fee) external payable nonReentrant whenNotPaused {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
@@ -118,6 +131,9 @@ contract Escrow is ReentrancyGuard, Pausable {
         orderId += 1;
     }
 
+    /**
+     * @dev Fetches and processes storage slot values from the FactsRegistry contract for a single order.
+     */
     function getValuesFromSlots(
         bytes32 _orderIdSlot,
         bytes32 _dstAddressSlot,
@@ -139,6 +155,9 @@ contract Escrow is ReentrancyGuard, Pausable {
         emit ValuesReceived(_orderIdValue, _dstAddressValue, _mmSrcAddressValue, _amountValue);
     }
 
+    /**
+     * @dev Fetches and processes storage slot values for multiple orders in batch from the FactsRegistry contract.
+     */
     function batchGetValuesFromSlots(OrderSlots[] memory ordersToBeProved) public onlyAllowedAddress whenNotPaused {
         require(ordersToBeProved.length > 0, "Orders to be proved array cannot be empty");
         emit BatchSlotsReceived(ordersToBeProved);
@@ -161,6 +180,9 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
     }
 
+    /**
+     * @dev Converts bytes32 values to their native types.
+     */
     function convertBytes32toNative(
         bytes32 _orderIdValue,
         bytes32 _dstAddressValue,
@@ -180,6 +202,9 @@ contract Escrow is ReentrancyGuard, Pausable {
         proveBridgeTransaction(_orderId, _dstAddress, _mmSrcAddress, _amount);
     }
 
+    /**
+     * @dev Validates the transaction proof, and updates the status of the order.
+     */
     function proveBridgeTransaction(uint256 _orderId, address _dstAddress, address _mmSrcAddress, uint256 _amount)
         private
     {
@@ -197,7 +222,10 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
     }
 
-    function withdrawProved(uint256 _orderId) external onlyAllowedAddress whenNotPaused {
+    /**
+     * @dev Allows the market maker to unlock the funds for a transaction fulfilled by them.
+     */
+    function withdrawProved(uint256 _orderId) external nonReentrant whenNotPaused {
         // get order from this contract's state
         InitialOrderData memory _order = orders[_orderId];
         OrderStatusUpdates memory _orderUpdates = orderUpdates[_orderId];
@@ -219,8 +247,10 @@ contract Escrow is ReentrancyGuard, Pausable {
         emit WithdrawSuccess(msg.sender, _orderId);
     }
 
-    // TODO: add re-enterancy guard
-    function batchWithdrawProved(uint256[] memory _orderIds) external onlyAllowedAddress whenNotPaused {
+    /**
+     * @dev Allows the market maker to batch unlock the funds for a transaction fulfilled by them.
+     */
+    function batchWithdrawProved(uint256[] memory _orderIds) external nonReentrant whenNotPaused {
         for (uint256 i = 0; i < _orderIds.length; i++) {
             uint256 _orderId = _orderIds[i];
             // get order from this contract's state
@@ -245,14 +275,25 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
     }
 
+    // Only owner functions
+
+    /**
+     * @dev Change the allowed relay address.
+     */
     function setAllowedAddress(address _newAllowedAddress) public onlyOwner {
         allowedRelayAddress = _newAllowedAddress;
     }
 
+    /**
+     * @dev Change the facts registry address.
+     */
     function setFactsRegistryAddress(address _newFactsRegistryAddress) public onlyOwner {
         FACTS_REGISTRY_ADDRESS = _newFactsRegistryAddress;
     }
 
+    /**
+     * @dev Change the payment registry address.
+     */
     function setPaymentRegistryAddress(address _newPaymentRegistryAddress) public onlyOwner {
         PAYMENT_REGISTRY_ADDRESS = _newPaymentRegistryAddress;
     }
