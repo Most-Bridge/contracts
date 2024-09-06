@@ -128,6 +128,8 @@ contract Escrow is ReentrancyGuard, Pausable {
         emit OrderPlaced(orderId, _usrDstAddress, bridgeAmount, _fee);
         orderUpdates[orderId].status = OrderStatus.PENDING;
 
+        // TODO: add expirary time stamp that is that's still to be decided. 
+
         orderId += 1;
     }
 
@@ -157,12 +159,13 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /**
      * @dev Fetches and processes storage slot values for multiple orders in batch from the FactsRegistry contract.
+     * And continues the flow of proving an order. 
      */
-    function batchGetValuesFromSlots(OrderSlots[] memory ordersToBeProved) public onlyAllowedAddress whenNotPaused {
-        require(ordersToBeProved.length > 0, "Orders to be proved array cannot be empty");
-        emit BatchSlotsReceived(ordersToBeProved);
-        for (uint256 i = 0; i < ordersToBeProved.length; i++) {
-            OrderSlots memory singleOrder = ordersToBeProved[i];
+    function batchGetValuesFromSlots(OrderSlots[] memory _ordersToBeProved) public onlyAllowedAddress whenNotPaused {
+        require(_ordersToBeProved.length > 0, "Orders to be proved array cannot be empty");
+        emit BatchSlotsReceived(_ordersToBeProved);
+        for (uint256 i = 0; i < _ordersToBeProved.length; i++) {
+            OrderSlots memory singleOrder = _ordersToBeProved[i];
             bytes32 _orderIdValue = factsRegistry.accountStorageSlotValues(
                 PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.orderIdSlot
             );
@@ -209,17 +212,38 @@ contract Escrow is ReentrancyGuard, Pausable {
         private
     {
         InitialOrderData memory correctOrder = orders[_orderId];
+        OrderStatusUpdates memory correctOrderStatus = orderUpdates[_orderId];
+
+        require(correctOrderStatus.status != OrderStatus.PROVED); // cannot try to prove a transaction that has already been proved
         // make sure that proof data matches the contract's own data
         if (correctOrder.usrDstAddress == _dstAddress && correctOrder.amount == _amount) {
             // add the address which will be paid out to, and update status
             orderUpdates[_orderId].mmSrcAddress = _mmSrcAddress;
             orderUpdates[_orderId].status = OrderStatus.PROVED;
-            // TODO: emit event here that prove bridge was successful
+
             emit ProveBridgeSuccess(_orderId);
         } else {
             // if the proof fails, this will allow the order to be fulfilled again
             orderUpdates[_orderId].status = OrderStatus.PENDING;
         }
+    }
+
+    function refundOrder(uint256 _orderId) external nonReentrant whenNotPaused {
+        uint256 expiryTimestamp = orders[_orderId];
+
+        uint256 destinationBlockNumberAtExpiry = remapper.get(expiryTimestamp);
+        
+        bool isFulfilled = bool(uint256(turbo.readSlot(
+            DESTINATION_CHAIN_ID,
+            PAYMENT_REGISTRY_ADDRESS,
+            destinationBlockNumberAtExpiry,
+            slot
+        )));
+
+        if(isFulfilled) revert Fulfilled(Cannot refund a fulfilled order);
+
+        sendoney();
+
     }
 
     /**
@@ -233,7 +257,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         // validate
         // for a non-existing order a 0 will be returned as the orderId
         // also covers edge case where a orderId 0 passed will return a 0 also
-        require(_order.orderId != 0, "The following order doesn't exist"); 
+        require(_order.orderId != 0, "The following order doesn't exist");
         require(_orderUpdates.status == OrderStatus.PROVED, "This order has not been proved yet.");
         require(msg.sender == _orderUpdates.mmSrcAddress, "Only the MM can withdraw.");
 
@@ -284,13 +308,6 @@ contract Escrow is ReentrancyGuard, Pausable {
      */
     function setAllowedAddress(address _newAllowedAddress) public onlyOwner {
         allowedRelayAddress = _newAllowedAddress;
-    }
-
-    /**
-     * @dev Change the facts registry address.
-     */
-    function setFactsRegistryAddress(address _newFactsRegistryAddress) public onlyOwner {
-        FACTS_REGISTRY_ADDRESS = _newFactsRegistryAddress;
     }
 
     /**
