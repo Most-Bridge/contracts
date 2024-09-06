@@ -128,7 +128,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         emit OrderPlaced(orderId, _usrDstAddress, bridgeAmount, _fee);
         orderUpdates[orderId].status = OrderStatus.PENDING;
 
-        // TODO: add expirary time stamp that is that's still to be decided. 
+        // TODO: add expirary time stamp that is that's still to be decided.
 
         orderId += 1;
     }
@@ -159,7 +159,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /**
      * @dev Fetches and processes storage slot values for multiple orders in batch from the FactsRegistry contract.
-     * And continues the flow of proving an order. 
+     * And continues the flow of proving an order.
      */
     function batchGetValuesFromSlots(OrderSlots[] memory _ordersToBeProved) public onlyAllowedAddress whenNotPaused {
         require(_ordersToBeProved.length > 0, "Orders to be proved array cannot be empty");
@@ -201,7 +201,10 @@ contract Escrow is ReentrancyGuard, Pausable {
         address _mmSrcAddress = address(uint160(uint256(_mmSrcAddressValue)));
 
         require(orders[_orderId].orderId != 0, "This order does not exist");
+        require(OrderStatus[_orderId].status == OrderStatus.PENDING); // order must be in the pending status to enter proving stage
+
         orderUpdates[_orderId].status = OrderStatus.PROVING;
+
         proveBridgeTransaction(_orderId, _dstAddress, _mmSrcAddress, _amount);
     }
 
@@ -215,6 +218,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         OrderStatusUpdates memory correctOrderStatus = orderUpdates[_orderId];
 
         require(correctOrderStatus.status != OrderStatus.PROVED); // cannot try to prove a transaction that has already been proved
+
         // make sure that proof data matches the contract's own data
         if (correctOrder.usrDstAddress == _dstAddress && correctOrder.amount == _amount) {
             // add the address which will be paid out to, and update status
@@ -232,18 +236,16 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 expiryTimestamp = orders[_orderId];
 
         uint256 destinationBlockNumberAtExpiry = remapper.get(expiryTimestamp);
-        
-        bool isFulfilled = bool(uint256(turbo.readSlot(
-            DESTINATION_CHAIN_ID,
-            PAYMENT_REGISTRY_ADDRESS,
-            destinationBlockNumberAtExpiry,
-            slot
-        )));
 
-        if(isFulfilled) revert Fulfilled(Cannot refund a fulfilled order);
+        bool isFulfilled = bool(
+            uint256(
+                turbo.readSlot(DESTINATION_CHAIN_ID, PAYMENT_REGISTRY_ADDRESS, destinationBlockNumberAtExpiry, slot)
+            )
+        );
+
+        if (isFulfilled) revert Fulfilled("Cannot refund a fulfilled order");
 
         sendoney();
-
     }
 
     /**
