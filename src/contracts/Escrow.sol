@@ -227,25 +227,9 @@ contract Escrow is ReentrancyGuard, Pausable {
 
             emit ProveBridgeSuccess(_orderId);
         } else {
-            // if the proof fails, this will allow the order to be fulfilled again
+            // if the proof fails, this will allow the order to be proved again
             orderUpdates[_orderId].status = OrderStatus.PENDING;
         }
-    }
-
-    function refundOrder(uint256 _orderId) external nonReentrant whenNotPaused {
-        uint256 expiryTimestamp = orders[_orderId];
-
-        uint256 destinationBlockNumberAtExpiry = remapper.get(expiryTimestamp);
-
-        bool isFulfilled = bool(
-            uint256(
-                turbo.readSlot(DESTINATION_CHAIN_ID, PAYMENT_REGISTRY_ADDRESS, destinationBlockNumberAtExpiry, slot)
-            )
-        );
-
-        if (isFulfilled) revert Fulfilled("Cannot refund a fulfilled order");
-
-        sendoney();
     }
 
     /**
@@ -301,6 +285,22 @@ contract Escrow is ReentrancyGuard, Pausable {
             payable(msg.sender).transfer(transferAmountAndFee);
             emit WithdrawSuccess(msg.sender, _orderId);
         }
+    }
+
+    function refundOrder(uint256 _orderId) external nonReentrant whenNotPaused {
+        uint256 expiryTimestamp = orders[_orderId];
+
+        uint256 destinationBlockNumberAtExpiry = remapper.get(expiryTimestamp);
+
+        bool isFulfilled = bool(
+            uint256(
+                turbo.readSlot(DESTINATION_CHAIN_ID, PAYMENT_REGISTRY_ADDRESS, destinationBlockNumberAtExpiry, slot)
+            )
+        );
+
+        if (isFulfilled) revert Fulfilled("Cannot refund a fulfilled order");
+
+        sendoney();
     }
 
     // Only owner functions
