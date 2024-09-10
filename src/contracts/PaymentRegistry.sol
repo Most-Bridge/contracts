@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/utils/Pausable.sol";
+
 /**
  * @title Payment Registry 
  * @dev Handles the throughput of transactions from the Market Maker to a user, and saves the data
  * to be used to prove the transaction. 
  */
-contract PaymentRegistry {
+contract PaymentRegistry is Pausable{
     // State varaibles
     address public owner;
     address public allowedMarketMakerAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address which will be fulfilling orders
@@ -63,6 +65,7 @@ contract PaymentRegistry {
         external
         payable
         onlyAllowedAddress
+        whenNotPaused
     {
         require(msg.value > 0, "Funds being sent must exceed 0.");
 
@@ -94,4 +97,17 @@ contract PaymentRegistry {
     function getTransfers(bytes32 _index) public view returns (TransferInfo memory) {
         return transfers[_index];
     }
+
+    // onlyAllowedAddress functions
+    function pauseContract() external onlyAllowedAddress {
+        _pause();
+    }
+
+    /**
+     * @dev Unpauses the contract.
+     */
+    function unpauseContract() external onlyAllowedAddress {
+        _unpause();
+    }
+
 }

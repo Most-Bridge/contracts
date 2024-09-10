@@ -300,7 +300,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         if (isFulfilled) revert Fulfilled("Cannot refund a fulfilled order");
 
-        sendoney();
+        sendmoney();
     }
 
     // Only owner functions
