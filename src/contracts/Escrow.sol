@@ -21,6 +21,12 @@ interface IFactsRegistry {
         returns (bytes32);
 }
 
+interface ITurboSwap {
+    function storageSlots(uint256 chainId, uint256 blockNumber, address account, bytes32 slot)
+        external
+        returns (bytes32);
+}
+
 contract Escrow is ReentrancyGuard, Pausable {
     // State variables
     address public owner;
@@ -31,6 +37,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     uint256 private orderId = 1;
 
     IFactsRegistry factsRegistry = IFactsRegistry(FACTS_REGISTRY_ADDRESS);
+    ITurboSwap turbo = ITurboSwap("TODO: get turbo address here");
 
     // Storage
     mapping(uint256 => InitialOrderData) public orders;
@@ -287,20 +294,38 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
     }
 
-    function refundOrder(uint256 _orderId) external nonReentrant whenNotPaused {
-        uint256 expiryTimestamp = orders[_orderId];
+    function refundOrder(uint256 _orderId) external payable nonReentrant whenNotPaused {
+        InitialOrderData orderToRefund = orders[_orderId];
+        require(
+            msg.sender == orderToRefund.usrDstAddress, "Must cancel order with the same address used to create order"
+        );
+        uint256 destinationChainId = 11155111; // eth sepolia
 
-        uint256 destinationBlockNumberAtExpiry = remapper.get(expiryTimestamp);
+        uint256 currentOPBlockNum = block.number; // OP block number
+
+        // TODO: convert OP block number to eth block number or can I pass "latest" as a parameter
+        uint256 currentEthBlockNum = remapper.get(currentOPBlockNum);
+
+        // TODO: calculate the storage slot on the destination chain smart contract mapping
+        uint256 transfersMappingSlot = 0;
+        bytes32 paymentRegistryMappingIndex =
+            keccak256(abi.encodePacked(_orderId, orderToRefund.usrDstAddress, orderToRefund.amount));
+        bytes32 baseStorageSlot = keccak256(abi.encodePacked(paymentRegistryMappingIndex, transfersMappingSlot));
+
+        // offset for the 'isUsed' field which is the 5th element
+        bytes32 isUsedSlot = bytes32(uint256(baseStorageSlot) + 4);
+
+        // technically don't need an expiration as long as we can prove that the order has not been fulfilled on the destination chain
 
         bool isFulfilled = bool(
             uint256(
-                turbo.readSlot(DESTINATION_CHAIN_ID, PAYMENT_REGISTRY_ADDRESS, destinationBlockNumberAtExpiry, slot)
+                turbo.storageSlots(destinationChainId, PAYMENT_REGISTRY_ADDRESS, currentEthBlockNum, isUsedSlot) // isFulfilled slot
             )
         );
 
-        if (isFulfilled) revert Fulfilled("Cannot refund a fulfilled order");
-
-        sendmoney();
+        uint256 amountToRefund = orderToRefund.amount + orderToRefund.fee;
+        require(!isFulfilled, "Cannot refund an order that has been fulfilled.");
+        payable(msg.sender).transfer(amountToRefund);
     }
 
     // Only owner functions
