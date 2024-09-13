@@ -96,4 +96,22 @@ contract EscrowTest is Test {
     }
 
     // TODO: test expiry timestamp
+
+    function testExpiryTimestamp() public {
+        vm.startPrank(user);
+        uint256 currentTimestamp = block.timestamp;
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
+
+        (uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee, uint256 expiryTimestamp) =
+            escrow.orders(1);
+
+        assertEq(orderId, 1);
+        assertEq(usrDstAddress, destinationAddress);
+        assertEq(amount, sendAmount - feeAmount);
+        assertEq(fee, feeAmount);
+        assert(expiryTimestamp > block.timestamp);
+        assert(expiryTimestamp == currentTimestamp + 7 days);
+
+        vm.stopPrank();
+    }
 }
