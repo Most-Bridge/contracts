@@ -47,5 +47,10 @@ contract PaymentRegistryTest is Test {
         paymentRegistry.transferTo{value: 0}(orderId, destinationAddress, mmSrcAddress, expiryTimestamp);
     }
 
-    // TODO: fail if past expiration date
+    function testTransferToFailsOnExpiredOrder() public {
+        vm.prank(mmDstAddress);
+        vm.expectRevert("Cannot fulifll an expired order.");
+        // sending the current time, while it expects a greater time
+        paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress, mmSrcAddress, block.timestamp);
+    }
 }
