@@ -21,12 +21,6 @@ interface IFactsRegistry {
         returns (bytes32);
 }
 
-interface ITurboSwap {
-    function storageSlots(uint256 chainId, uint256 blockNumber, address account, bytes32 slot)
-        external
-        returns (bytes32);
-}
-
 contract Escrow is ReentrancyGuard, Pausable {
     // State variables
     address public owner;
@@ -37,7 +31,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     uint256 private orderId = 1;
 
     IFactsRegistry factsRegistry = IFactsRegistry(FACTS_REGISTRY_ADDRESS);
-    ITurboSwap turbo = ITurboSwap("TODO: get turbo address here");
 
     // Storage
     mapping(uint256 => InitialOrderData) public orders;
@@ -58,6 +51,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         address usrDstAddress;
         uint256 amount;
         uint256 fee;
+        uint256 expiryTimestamp; 
     }
 
     // Suplementary information to be updated throughout the process
@@ -82,6 +76,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         PROVING,
         PROVED,
         COMPLETED,
+        RECLAIMED,
         DROPPED
     }
 
@@ -125,9 +120,12 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
+        uint256 currentTimestamp = block.timestamp; 
+        uint256 _expiryTimestamp = currentTimestamp + 7 days; 
+
         uint256 bridgeAmount = msg.value - _fee; //no underflow since previous check is made
         orders[orderId] =
-            InitialOrderData({orderId: orderId, usrDstAddress: _usrDstAddress, amount: bridgeAmount, fee: _fee});
+            InitialOrderData({orderId: orderId, usrDstAddress: _usrDstAddress, amount: bridgeAmount, fee: _fee, expiryTimestamp:_expiryTimestamp});
 
         orderUpdates[orderId] =
             OrderStatusUpdates({orderId: orderId, status: OrderStatus.PLACED, mmSrcAddress: address(0)});
@@ -208,7 +206,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         address _mmSrcAddress = address(uint160(uint256(_mmSrcAddressValue)));
 
         require(orders[_orderId].orderId != 0, "This order does not exist");
-        require(OrderStatus[_orderId].status == OrderStatus.PENDING); // order must be in the pending status to enter proving stage
+        require(orderUpdates[_orderId].status == OrderStatus.PENDING); // order must be in the pending status to enter proving stage
 
         orderUpdates[_orderId].status = OrderStatus.PROVING;
 
@@ -224,7 +222,10 @@ contract Escrow is ReentrancyGuard, Pausable {
         InitialOrderData memory correctOrder = orders[_orderId];
         OrderStatusUpdates memory correctOrderStatus = orderUpdates[_orderId];
 
-        require(correctOrderStatus.status != OrderStatus.PROVED); // cannot try to prove a transaction that has already been proved
+        require(correctOrderStatus.status != OrderStatus.PROVED, "Cannot prove a transaction that has already been proved");
+
+        uint256 currentTimestamp = block.timestamp; 
+        require(correctOrder.expiryTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
 
         // make sure that proof data matches the contract's own data
         if (correctOrder.usrDstAddress == _dstAddress && correctOrder.amount == _amount) {
@@ -295,36 +296,21 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     function refundOrder(uint256 _orderId) external payable nonReentrant whenNotPaused {
-        InitialOrderData orderToRefund = orders[_orderId];
+        InitialOrderData memory _orderToRefund = orders[_orderId];
+        OrderStatusUpdates memory _orderToRefundUpdates = orderUpdates[_orderId];
         require(
-            msg.sender == orderToRefund.usrDstAddress, "Must cancel order with the same address used to create order"
-        );
-        uint256 destinationChainId = 11155111; // eth sepolia
-
-        uint256 currentOPBlockNum = block.number; // OP block number
-
-        // TODO: convert OP block number to eth block number or can I pass "latest" as a parameter
-        uint256 currentEthBlockNum = remapper.get(currentOPBlockNum);
-
-        // TODO: calculate the storage slot on the destination chain smart contract mapping
-        uint256 transfersMappingSlot = 0;
-        bytes32 paymentRegistryMappingIndex =
-            keccak256(abi.encodePacked(_orderId, orderToRefund.usrDstAddress, orderToRefund.amount));
-        bytes32 baseStorageSlot = keccak256(abi.encodePacked(paymentRegistryMappingIndex, transfersMappingSlot));
-
-        // offset for the 'isUsed' field which is the 5th element
-        bytes32 isUsedSlot = bytes32(uint256(baseStorageSlot) + 4);
-
-        // technically don't need an expiration as long as we can prove that the order has not been fulfilled on the destination chain
-
-        bool isFulfilled = bool(
-            uint256(
-                turbo.storageSlots(destinationChainId, PAYMENT_REGISTRY_ADDRESS, currentEthBlockNum, isUsedSlot) // isFulfilled slot
-            )
+            msg.sender == _orderToRefund.usrDstAddress, "Must cancel order with the same address used to create order"
         );
 
-        uint256 amountToRefund = orderToRefund.amount + orderToRefund.fee;
-        require(!isFulfilled, "Cannot refund an order that has been fulfilled.");
+        require(_orderToRefundUpdates.status == OrderStatus.PENDING, "Cannot refund an if it is not pending."); 
+        // TODO: require that the order has expired. 
+        
+        uint256 currentTimestamp = block.timestamp; 
+        require(currentTimestamp > _orderToRefund.expiryTimestamp, "Cannot refund an order that has not expired."); 
+
+        orderUpdates[_orderId].status = OrderStatus.RECLAIMED; 
+
+        uint256 amountToRefund = _orderToRefund.amount + _orderToRefund.fee;
         payable(msg.sender).transfer(amountToRefund);
     }
 

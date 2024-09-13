@@ -91,4 +91,6 @@ contract EscrowTest is Test {
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
     }
+
+    // TODO: test expiry timestamp
 }

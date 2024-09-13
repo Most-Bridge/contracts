@@ -23,6 +23,7 @@ contract PaymentRegistry is Pausable{
         address mmSrcAddress;
         uint256 amount;
         bool isUsed;
+        // TODO: add expiry timestamp 
     }
 
     // Events
@@ -61,6 +62,7 @@ contract PaymentRegistry is Pausable{
      * @param _mmSrcAddress The market maker's source chain address, with which they will be able to claim
      * the funds on the source chain.
      */
+     // TODO: add expiry timestamp 
     function transferTo(uint256 _orderId, address _usrDstAddress, address _mmSrcAddress)
         external
         payable
