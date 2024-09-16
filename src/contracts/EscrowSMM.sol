@@ -27,7 +27,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying slots to this contract
     address public PAYMENT_REGISTRY_ADDRESS = 0xdA406E807424a8b49B4027dC5335304C00469821;
     address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
-    address public allowedWithdrawalAddress = TODO;
+    address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // TODO: add proper withdrawal address
 
     uint256 private orderId = 1;
 
@@ -39,9 +39,9 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     // Events
     event OrderPlaced(uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee);
-    event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, bytes32 slot4, uint256 blockNumber);
+    event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, uint256 blockNumber);
     event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount);
-    event ValuesReceivedBatch()
+    event ValuesReceivedBatch(OrderSlots[] ordersToBeProved);
     event ProveBridgeSuccess(uint256 orderId);
     event WithdrawSuccess(uint256 orderId);
     event WithdrawSuccessBatch(uint256[] orderIds);
@@ -185,7 +185,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             );
             convertBytes32toNative(_orderIdValue, _dstAddressValue, _amountValue);
         }
-            emit ValuesReceivedBatch(_ordersToBeProved);
+        emit ValuesReceivedBatch(_ordersToBeProved);
     }
 
     /**
@@ -288,7 +288,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         // payout MM
         require(address(this).balance >= amountToWithdraw, "Escrow: Insuffienct balance to withdraw");
         payable(allowedWithdrawalAddress).transfer(amountToWithdraw);
-        emit WithdrawSuccess(_orderIds);
+        emit WithdrawSuccessBatch(_orderIds);
         // TODO: change this so that I'm just adding up the ammounts and then sending one tx to the MM
     }
 
