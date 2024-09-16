@@ -43,6 +43,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     event ProveBridgeSuccess(uint256 orderId);
     event WithdrawSuccess(address mmSrcAddress, uint256 orderId);
     event BatchSlotsReceived(OrderSlots[] ordersToBeProved);
+    event OrderReclaimed(uint256 orderId);
 
     // Structs
     // Contains all information that is available during the order creation
@@ -51,7 +52,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         address usrDstAddress;
         uint256 amount;
         uint256 fee;
-        uint256 expiryTimestamp; 
+        uint256 expiryTimestamp;
     }
 
     // Suplementary information to be updated throughout the process
@@ -120,12 +121,17 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
-        uint256 currentTimestamp = block.timestamp; 
-        uint256 _expiryTimestamp = currentTimestamp + 7 days; 
+        uint256 currentTimestamp = block.timestamp;
+        uint256 _expiryTimestamp = currentTimestamp + 7 days;
 
         uint256 bridgeAmount = msg.value - _fee; //no underflow since previous check is made
-        orders[orderId] =
-            InitialOrderData({orderId: orderId, usrDstAddress: _usrDstAddress, amount: bridgeAmount, fee: _fee, expiryTimestamp:_expiryTimestamp});
+        orders[orderId] = InitialOrderData({
+            orderId: orderId,
+            usrDstAddress: _usrDstAddress,
+            amount: bridgeAmount,
+            fee: _fee,
+            expiryTimestamp: _expiryTimestamp
+        });
 
         orderUpdates[orderId] =
             OrderStatusUpdates({orderId: orderId, status: OrderStatus.PLACED, mmSrcAddress: address(0)});
@@ -206,7 +212,10 @@ contract Escrow is ReentrancyGuard, Pausable {
         address _mmSrcAddress = address(uint160(uint256(_mmSrcAddressValue)));
 
         require(orders[_orderId].orderId != 0, "This order does not exist");
-        require(orderUpdates[_orderId].status == OrderStatus.PENDING); // order must be in the pending status to enter proving stage
+        require(
+            orderUpdates[_orderId].status == OrderStatus.PENDING,
+            "The order can only be in the PENDING status; any other status is invalid."
+        );
 
         orderUpdates[_orderId].status = OrderStatus.PROVING;
 
@@ -222,9 +231,9 @@ contract Escrow is ReentrancyGuard, Pausable {
         InitialOrderData memory correctOrder = orders[_orderId];
         OrderStatusUpdates memory correctOrderStatus = orderUpdates[_orderId];
 
-        require(correctOrderStatus.status != OrderStatus.PROVED, "Cannot prove a transaction that has already been proved");
+        require(correctOrderStatus.status != OrderStatus.PROVED, "Cannot prove an order that has already been proved");
 
-        uint256 currentTimestamp = block.timestamp; 
+        uint256 currentTimestamp = block.timestamp;
         require(correctOrder.expiryTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
 
         // make sure that proof data matches the contract's own data
@@ -278,7 +287,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             OrderStatusUpdates memory _orderUpdates = orderUpdates[_orderId];
 
             // validate
-            require(_order.orderId != 0, "The following order doesn't exist"); // for a non-existing order a 0 will be returned as the orderId, also covers edge case where a orderId 0 passed will return a 0 also
+            require(_order.orderId != 0, "The following order doesn't exist"); // for a non-existing order a 0 will be returned as the orderId, also covers edge case where a orderId 0 passed will return a 0
             require(_orderUpdates.status == OrderStatus.PROVED, "This order has not been proved yet.");
             require(msg.sender == _orderUpdates.mmSrcAddress, "Only the MM can withdraw.");
 
@@ -301,17 +310,16 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(
             msg.sender == _orderToRefund.usrDstAddress, "Must cancel order with the same address used to create order"
         );
+        require(_orderToRefundUpdates.status == OrderStatus.PENDING, "Cannot refund an order if it is not pending.");
 
-        require(_orderToRefundUpdates.status == OrderStatus.PENDING, "Cannot refund an if it is not pending."); 
-        // TODO: require that the order has expired. 
-        
-        uint256 currentTimestamp = block.timestamp; 
-        require(currentTimestamp > _orderToRefund.expiryTimestamp, "Cannot refund an order that has not expired."); 
+        uint256 currentTimestamp = block.timestamp;
+        require(currentTimestamp > _orderToRefund.expiryTimestamp, "Cannot refund an order that has not expired.");
 
-        orderUpdates[_orderId].status = OrderStatus.RECLAIMED; 
+        orderUpdates[_orderId].status = OrderStatus.RECLAIMED;
 
         uint256 amountToRefund = _orderToRefund.amount + _orderToRefund.fee;
         payable(msg.sender).transfer(amountToRefund);
+        emit OrderReclaimed(_orderId);
     }
 
     // Only owner functions
