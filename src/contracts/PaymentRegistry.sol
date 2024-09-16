@@ -4,11 +4,11 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
- * @title Payment Registry 
+ * @title Payment Registry
  * @dev Handles the throughput of transactions from the Market Maker to a user, and saves the data
- * to be used to prove the transaction. 
+ * to be used to prove the transaction.
  */
-contract PaymentRegistry is Pausable{
+contract PaymentRegistry is Pausable {
     // State varaibles
     address public owner;
     address public allowedMarketMakerAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address which will be fulfilling orders
@@ -22,6 +22,7 @@ contract PaymentRegistry is Pausable{
         address usrDstAddress;
         address mmSrcAddress;
         uint256 amount;
+        uint256 expiryTimestamp;
         bool isUsed;
     }
 
@@ -61,13 +62,17 @@ contract PaymentRegistry is Pausable{
      * @param _mmSrcAddress The market maker's source chain address, with which they will be able to claim
      * the funds on the source chain.
      */
-    function transferTo(uint256 _orderId, address _usrDstAddress, address _mmSrcAddress)
+    // TODO: add expiry timestamp
+    function transferTo(uint256 _orderId, address _usrDstAddress, address _mmSrcAddress, uint256 _expiryTimestamp)
         external
         payable
         onlyAllowedAddress
         whenNotPaused
     {
         require(msg.value > 0, "Funds being sent must exceed 0.");
+        // require that the order is not expired.
+        uint256 currentTimestamp = block.timestamp;
+        require(_expiryTimestamp > currentTimestamp, "Cannot fulifll an expired order.");
 
         bytes32 index = keccak256(abi.encodePacked(_orderId, _usrDstAddress, msg.value));
 
@@ -78,6 +83,7 @@ contract PaymentRegistry is Pausable{
             usrDstAddress: _usrDstAddress,
             mmSrcAddress: _mmSrcAddress,
             amount: msg.value,
+            expiryTimestamp: _expiryTimestamp,
             isUsed: true
         });
 
@@ -109,5 +115,4 @@ contract PaymentRegistry is Pausable{
     function unpauseContract() external onlyAllowedAddress {
         _unpause();
     }
-
 }
