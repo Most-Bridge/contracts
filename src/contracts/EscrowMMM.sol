@@ -302,6 +302,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             payable(msg.sender).transfer(transferAmountAndFee);
             emit WithdrawSuccess(msg.sender, _orderId);
         }
+        // TODO: change so this just sums up how much to pay out and then paysout in one tx 
     }
 
     function refundOrder(uint256 _orderId) external payable nonReentrant whenNotPaused {
@@ -321,7 +322,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         payable(msg.sender).transfer(amountToRefund);
         emit OrderReclaimed(_orderId);
     }
-
+    
     // Only owner functions
 
     /**
