@@ -25,9 +25,10 @@ contract Escrow is ReentrancyGuard, Pausable {
     // State variables
     address public owner;
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying slots to this contract
+    address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // TODO: add proper withdrawal address
+
     address public PAYMENT_REGISTRY_ADDRESS = 0xdA406E807424a8b49B4027dC5335304C00469821;
     address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
-    address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // TODO: add proper withdrawal address
 
     uint256 private orderId = 1;
 
@@ -39,14 +40,16 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     // Events
     event OrderPlaced(uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee);
-    event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, uint256 blockNumber);
-    event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount);
-    event ValuesReceivedBatch(OrderSlots[] ordersToBeProved);
     event ProveBridgeSuccess(uint256 orderId);
     event WithdrawSuccess(uint256 orderId);
     event WithdrawSuccessBatch(uint256[] orderIds);
-    event BatchSlotsReceived(OrderSlots[] ordersToBeProved);
     event OrderReclaimed(uint256 orderId);
+
+    // for debugging purposes
+    // event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, uint256 blockNumber);
+    // event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount);
+    // event ValuesReceivedBatch(OrderSlots[] ordersToBeProved);
+    // event BatchSlotsReceived(OrderSlots[] ordersToBeProved);
 
     // Structs
     // Contains all information that is available during the order creation
@@ -123,7 +126,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
         uint256 currentTimestamp = block.timestamp;
-        uint256 _expiryTimestamp = currentTimestamp + 7 days;
+        uint256 _expiryTimestamp = currentTimestamp + 1 days;
 
         uint256 bridgeAmount = msg.value - _fee; //no underflow since previous check is made
         orders[orderId] = InitialOrderData({
@@ -139,21 +142,19 @@ contract Escrow is ReentrancyGuard, Pausable {
         emit OrderPlaced(orderId, _usrDstAddress, bridgeAmount, _fee);
         orderUpdates[orderId].status = OrderStatus.PENDING;
 
-        // TODO: add expirary time stamp that is that's still to be decided.
-
         orderId += 1;
     }
 
     /**
      * @dev Fetches and processes storage slot values from the FactsRegistry contract for a single order.
      */
+     // TODO: 
     function getValuesFromSlots(
         bytes32 _orderIdSlot,
         bytes32 _dstAddressSlot,
         bytes32 _amountSlot,
         uint256 _blockNumber
     ) public onlyAllowedAddress whenNotPaused {
-        emit SlotsReceived(_orderIdSlot, _dstAddressSlot, _amountSlot, _blockNumber);
         bytes32 _orderIdValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
         bytes32 _dstAddressValue =
@@ -162,7 +163,6 @@ contract Escrow is ReentrancyGuard, Pausable {
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
 
         convertBytes32toNative(_orderIdValue, _dstAddressValue, _amountValue);
-        emit ValuesReceived(_orderIdValue, _dstAddressValue, _amountValue);
     }
 
     /**
@@ -171,7 +171,6 @@ contract Escrow is ReentrancyGuard, Pausable {
      */
     function batchGetValuesFromSlots(OrderSlots[] memory _ordersToBeProved) public onlyAllowedAddress whenNotPaused {
         require(_ordersToBeProved.length > 0, "Orders to be proved array cannot be empty");
-        emit BatchSlotsReceived(_ordersToBeProved);
         for (uint256 i = 0; i < _ordersToBeProved.length; i++) {
             OrderSlots memory singleOrder = _ordersToBeProved[i];
             bytes32 _orderIdValue = factsRegistry.accountStorageSlotValues(
@@ -183,14 +182,15 @@ contract Escrow is ReentrancyGuard, Pausable {
             bytes32 _amountValue = factsRegistry.accountStorageSlotValues(
                 PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.amountSlot
             );
+            // TODO: ADD EXPIRY 
             convertBytes32toNative(_orderIdValue, _dstAddressValue, _amountValue);
         }
-        emit ValuesReceivedBatch(_ordersToBeProved);
     }
 
     /**
      * @dev Converts bytes32 values to their native types.
      */
+     // TODO: EXPIRY TIMESTAMP 
     function convertBytes32toNative(bytes32 _orderIdValue, bytes32 _dstAddressValue, bytes32 _amountValue) private {
         // bytes32 to uint256
         uint256 _orderId = uint256(_orderIdValue);
@@ -213,6 +213,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     /**
      * @dev Validates the transaction proof, and updates the status of the order.
      */
+     // TODO: ADD EXPIRY TIME STAMP AS A PARAMETER
     function proveBridgeTransaction(uint256 _orderId, address _dstAddress, uint256 _amount) private {
         InitialOrderData memory correctOrder = orders[_orderId];
         OrderStatusUpdates memory correctOrderStatus = orderUpdates[_orderId];
@@ -289,7 +290,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(address(this).balance >= amountToWithdraw, "Escrow: Insuffienct balance to withdraw");
         payable(allowedWithdrawalAddress).transfer(amountToWithdraw);
         emit WithdrawSuccessBatch(_orderIds);
-        // TODO: change this so that I'm just adding up the ammounts and then sending one tx to the MM
     }
 
     function refundOrder(uint256 _orderId) external payable nonReentrant whenNotPaused {
