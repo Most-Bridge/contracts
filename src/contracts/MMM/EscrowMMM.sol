@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
- * @title Escrow Contract
+ * @title Escrow Contract MMM (Multiple Market Maker)
  * @dev Handles the bridging of assets between two chains, in conjunction with Payment Registry and a 3rd party
  * facilitator service.
  * Terminology:
@@ -302,7 +302,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             payable(msg.sender).transfer(transferAmountAndFee);
             emit WithdrawSuccess(msg.sender, _orderId);
         }
-        // TODO: change so this just sums up how much to pay out and then paysout in one tx 
+        // TODO: change so this just sums up how much to pay out and then paysout in one tx
     }
 
     function refundOrder(uint256 _orderId) external payable nonReentrant whenNotPaused {
@@ -322,7 +322,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         payable(msg.sender).transfer(amountToRefund);
         emit OrderReclaimed(_orderId);
     }
-    
+
     // Only owner functions
 
     /**
