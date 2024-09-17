@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {Test, console} from "forge-std/Test.sol";
-import {Escrow} from "../src/contracts/Escrow.sol";
+import {Escrow} from "../../src/contracts/SMM/EscrowSMM.sol";
 
 contract EscrowTest is Test {
     Escrow escrow;
@@ -26,7 +26,7 @@ contract EscrowTest is Test {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
 
-        (uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee, uint256 expiryTimestamp) =
+        (uint256 orderId, address usrDstAddress, uint256 expiryTimestamp, uint256 amount, uint256 fee) =
             escrow.orders(1);
 
         assertEq(orderId, 1);
@@ -86,7 +86,7 @@ contract EscrowTest is Test {
         escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
 
         // Assertions to check the order details
-        (uint256 id, address usrDstAddress, uint256 amount, uint256 fee, uint256 expiryTimestamp) = escrow.orders(1);
+        (uint256 id, address usrDstAddress, uint256 expiryTimestamp, uint256 amount, uint256 fee) = escrow.orders(1);
 
         assertEq(id, 1);
         assertEq(usrDstAddress, destinationAddress);
@@ -95,14 +95,12 @@ contract EscrowTest is Test {
         assert(expiryTimestamp > block.timestamp);
     }
 
-    // TODO: test expiry timestamp
-
     function testExpiryTimestamp() public {
         vm.startPrank(user);
         uint256 currentTimestamp = block.timestamp;
         escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
 
-        (uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee, uint256 expiryTimestamp) =
+        (uint256 orderId, address usrDstAddress, uint256 expiryTimestamp, uint256 amount, uint256 fee) =
             escrow.orders(1);
 
         assertEq(orderId, 1);
@@ -110,7 +108,7 @@ contract EscrowTest is Test {
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
         assert(expiryTimestamp > block.timestamp);
-        assert(expiryTimestamp == currentTimestamp + 7 days);
+        assert(expiryTimestamp == currentTimestamp + 1 days);
 
         vm.stopPrank();
     }

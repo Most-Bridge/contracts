@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
- * @title Escrow Contract
+ * @title Escrow Contract SMM (Single Market Maker)
  * @dev Handles the bridging of assets between two chains, in conjunction with Payment Registry and a 3rd party
  * facilitator service.
  * Terminology:
@@ -25,6 +25,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     // State variables
     address public owner;
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying slots to this contract
+    address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // TODO: add proper withdrawal address
+
     address public PAYMENT_REGISTRY_ADDRESS = 0xdA406E807424a8b49B4027dC5335304C00469821;
     address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
 
@@ -38,34 +40,37 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     // Events
     event OrderPlaced(uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee);
-    event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, bytes32 slot4, uint256 blockNumber);
-    event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount, bytes32 _mmSrcAddress);
     event ProveBridgeSuccess(uint256 orderId);
-    event WithdrawSuccess(address mmSrcAddress, uint256 orderId);
-    event BatchSlotsReceived(OrderSlots[] ordersToBeProved);
+    event WithdrawSuccess(uint256 orderId);
+    event WithdrawSuccessBatch(uint256[] orderIds);
     event OrderReclaimed(uint256 orderId);
+
+    // for debugging purposes
+    // event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, uint256 blockNumber);
+    // event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount);
+    // event ValuesReceivedBatch(OrderSlots[] ordersToBeProved);
+    // event SlotsReceivedBatch(OrderSlots[] ordersToBeProved);
 
     // Structs
     // Contains all information that is available during the order creation
     struct InitialOrderData {
         uint256 orderId;
         address usrDstAddress;
+        uint256 expiryTimestamp;
         uint256 amount;
         uint256 fee;
-        uint256 expiryTimestamp;
     }
 
     // Suplementary information to be updated throughout the process
     struct OrderStatusUpdates {
         uint256 orderId;
         OrderStatus status;
-        address mmSrcAddress;
     }
 
     struct OrderSlots {
         bytes32 orderIdSlot;
         bytes32 dstAddressSlot;
-        bytes32 mmSrcAddressSlot;
+        bytes32 expiryTimestamp;
         bytes32 amountSlot;
         uint256 blockNumber;
     }
@@ -122,24 +127,21 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
         uint256 currentTimestamp = block.timestamp;
-        uint256 _expiryTimestamp = currentTimestamp + 7 days;
+        uint256 _expiryTimestamp = currentTimestamp + 1 days;
 
         uint256 bridgeAmount = msg.value - _fee; //no underflow since previous check is made
         orders[orderId] = InitialOrderData({
             orderId: orderId,
             usrDstAddress: _usrDstAddress,
+            expiryTimestamp: _expiryTimestamp,
             amount: bridgeAmount,
-            fee: _fee,
-            expiryTimestamp: _expiryTimestamp
+            fee: _fee
         });
 
-        orderUpdates[orderId] =
-            OrderStatusUpdates({orderId: orderId, status: OrderStatus.PLACED, mmSrcAddress: address(0)});
+        orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PLACED});
 
         emit OrderPlaced(orderId, _usrDstAddress, bridgeAmount, _fee);
         orderUpdates[orderId].status = OrderStatus.PENDING;
-
-        // TODO: add expirary time stamp that is that's still to be decided.
 
         orderId += 1;
     }
@@ -150,22 +152,20 @@ contract Escrow is ReentrancyGuard, Pausable {
     function getValuesFromSlots(
         bytes32 _orderIdSlot,
         bytes32 _dstAddressSlot,
-        bytes32 _mmSrcAddressSlot,
+        bytes32 _expiryTimestampSlot,
         bytes32 _amountSlot,
         uint256 _blockNumber
     ) public onlyAllowedAddress whenNotPaused {
-        emit SlotsReceived(_orderIdSlot, _dstAddressSlot, _mmSrcAddressSlot, _amountSlot, _blockNumber);
         bytes32 _orderIdValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
         bytes32 _dstAddressValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _dstAddressSlot);
-        bytes32 _mmSrcAddressValue =
-            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _mmSrcAddressSlot);
+        bytes32 _expiryTimestampValue =
+            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _expiryTimestampSlot);
         bytes32 _amountValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
 
-        convertBytes32toNative(_orderIdValue, _dstAddressValue, _mmSrcAddressValue, _amountValue);
-        emit ValuesReceived(_orderIdValue, _dstAddressValue, _mmSrcAddressValue, _amountValue);
+        convertBytes32toNative(_orderIdValue, _dstAddressValue, _expiryTimestampValue, _amountValue);
     }
 
     /**
@@ -174,7 +174,6 @@ contract Escrow is ReentrancyGuard, Pausable {
      */
     function batchGetValuesFromSlots(OrderSlots[] memory _ordersToBeProved) public onlyAllowedAddress whenNotPaused {
         require(_ordersToBeProved.length > 0, "Orders to be proved array cannot be empty");
-        emit BatchSlotsReceived(_ordersToBeProved);
         for (uint256 i = 0; i < _ordersToBeProved.length; i++) {
             OrderSlots memory singleOrder = _ordersToBeProved[i];
             bytes32 _orderIdValue = factsRegistry.accountStorageSlotValues(
@@ -183,14 +182,13 @@ contract Escrow is ReentrancyGuard, Pausable {
             bytes32 _dstAddressValue = factsRegistry.accountStorageSlotValues(
                 PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.dstAddressSlot
             );
-            bytes32 _mmSrcAddressValue = factsRegistry.accountStorageSlotValues(
-                PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.mmSrcAddressSlot
+            bytes32 _expiryTimestampValue = factsRegistry.accountStorageSlotValues(
+                PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.expiryTimestamp
             );
             bytes32 _amountValue = factsRegistry.accountStorageSlotValues(
                 PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.amountSlot
             );
-            convertBytes32toNative(_orderIdValue, _dstAddressValue, _mmSrcAddressValue, _amountValue);
-            emit ValuesReceived(_orderIdValue, _dstAddressValue, _mmSrcAddressValue, _amountValue);
+            convertBytes32toNative(_orderIdValue, _dstAddressValue, _expiryTimestampValue, _amountValue);
         }
     }
 
@@ -200,16 +198,16 @@ contract Escrow is ReentrancyGuard, Pausable {
     function convertBytes32toNative(
         bytes32 _orderIdValue,
         bytes32 _dstAddressValue,
-        bytes32 _mmSrcAddressValue,
+        bytes32 _expiryTimestampValue,
         bytes32 _amountValue
     ) private {
         // bytes32 to uint256
         uint256 _orderId = uint256(_orderIdValue);
         uint256 _amount = uint256(_amountValue);
+        uint256 _expiryTimestamp = uint256(_expiryTimestampValue);
 
         //bytes32 to address
         address _dstAddress = address(uint160(uint256(_dstAddressValue)));
-        address _mmSrcAddress = address(uint160(uint256(_mmSrcAddressValue)));
 
         require(orders[_orderId].orderId != 0, "This order does not exist");
         require(
@@ -219,13 +217,13 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         orderUpdates[_orderId].status = OrderStatus.PROVING;
 
-        proveBridgeTransaction(_orderId, _dstAddress, _mmSrcAddress, _amount);
+        proveBridgeTransaction(_orderId, _dstAddress, _expiryTimestamp, _amount);
     }
 
     /**
      * @dev Validates the transaction proof, and updates the status of the order.
      */
-    function proveBridgeTransaction(uint256 _orderId, address _dstAddress, address _mmSrcAddress, uint256 _amount)
+    function proveBridgeTransaction(uint256 _orderId, address _dstAddress, uint256 _expiryTimestamp, uint256 _amount)
         private
     {
         InitialOrderData memory correctOrder = orders[_orderId];
@@ -237,9 +235,10 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(correctOrder.expiryTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
 
         // make sure that proof data matches the contract's own data
-        if (correctOrder.usrDstAddress == _dstAddress && correctOrder.amount == _amount) {
-            // add the address which will be paid out to, and update status
-            orderUpdates[_orderId].mmSrcAddress = _mmSrcAddress;
+        if (
+            correctOrder.usrDstAddress == _dstAddress && correctOrder.amount == _amount
+                && correctOrder.expiryTimestamp == _expiryTimestamp
+        ) {
             orderUpdates[_orderId].status = OrderStatus.PROVED;
 
             emit ProveBridgeSuccess(_orderId);
@@ -262,7 +261,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         // also covers edge case where a orderId 0 passed will return a 0 also
         require(_order.orderId != 0, "The following order doesn't exist");
         require(_orderUpdates.status == OrderStatus.PROVED, "This order has not been proved yet.");
-        require(msg.sender == _orderUpdates.mmSrcAddress, "Only the MM can withdraw.");
+        require(msg.sender == allowedRelayAddress, "Only the approved MM address can call to withdraw.");
 
         // calculate payout
         uint256 transferAmountAndFee = _order.amount + _order.fee;
@@ -272,14 +271,15 @@ contract Escrow is ReentrancyGuard, Pausable {
         orderUpdates[_orderId].status = OrderStatus.COMPLETED;
 
         // payout MM
-        payable(msg.sender).transfer(transferAmountAndFee);
-        emit WithdrawSuccess(msg.sender, _orderId);
+        payable(allowedWithdrawalAddress).transfer(transferAmountAndFee);
+        emit WithdrawSuccess(_orderId);
     }
 
     /**
      * @dev Allows the market maker to batch unlock the funds for a transaction fulfilled by them.
      */
     function batchWithdrawProved(uint256[] memory _orderIds) external nonReentrant whenNotPaused {
+        uint256 amountToWithdraw = 0;
         for (uint256 i = 0; i < _orderIds.length; i++) {
             uint256 _orderId = _orderIds[i];
             // get order from this contract's state
@@ -287,21 +287,22 @@ contract Escrow is ReentrancyGuard, Pausable {
             OrderStatusUpdates memory _orderUpdates = orderUpdates[_orderId];
 
             // validate
-            require(_order.orderId != 0, "The following order doesn't exist"); // for a non-existing order a 0 will be returned as the orderId, also covers edge case where a orderId 0 passed will return a 0
+            // for a non-existing order a 0 will be returned as the orderId,
+            // also covers edge case where a orderId 0 passed will return a 0
+            require(_order.orderId != 0, "The following order doesn't exist");
             require(_orderUpdates.status == OrderStatus.PROVED, "This order has not been proved yet.");
-            require(msg.sender == _orderUpdates.mmSrcAddress, "Only the MM can withdraw.");
+            require(msg.sender == allowedRelayAddress, "Only the MM can withdraw.");
 
             // calculate payout
-            uint256 transferAmountAndFee = _order.amount + _order.fee;
-            require(address(this).balance >= transferAmountAndFee, "Escrow: Insuffienct balance to withdraw");
+            amountToWithdraw += _order.amount + _order.fee;
 
             // update status
             orderUpdates[_orderId].status = OrderStatus.COMPLETED;
-
-            // payout MM
-            payable(msg.sender).transfer(transferAmountAndFee);
-            emit WithdrawSuccess(msg.sender, _orderId);
         }
+        // payout MM
+        require(address(this).balance >= amountToWithdraw, "Escrow: Insuffienct balance to withdraw");
+        payable(allowedWithdrawalAddress).transfer(amountToWithdraw);
+        emit WithdrawSuccessBatch(_orderIds);
     }
 
     function refundOrder(uint256 _orderId) external payable nonReentrant whenNotPaused {

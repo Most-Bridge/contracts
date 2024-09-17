@@ -20,9 +20,9 @@ contract PaymentRegistry is Pausable {
     struct TransferInfo {
         uint256 orderId;
         address usrDstAddress;
+        uint256 expiryTimestamp;
         address mmSrcAddress;
         uint256 amount;
-        uint256 expiryTimestamp;
         bool isUsed;
     }
 
@@ -66,7 +66,6 @@ contract PaymentRegistry is Pausable {
     function transferTo(uint256 _orderId, address _usrDstAddress, address _mmSrcAddress, uint256 _expiryTimestamp)
         external
         payable
-        onlyAllowedAddress
         whenNotPaused
     {
         require(msg.value > 0, "Funds being sent must exceed 0.");
@@ -82,8 +81,8 @@ contract PaymentRegistry is Pausable {
             orderId: _orderId,
             usrDstAddress: _usrDstAddress,
             mmSrcAddress: _mmSrcAddress,
-            amount: msg.value,
             expiryTimestamp: _expiryTimestamp,
+            amount: msg.value,
             isUsed: true
         });
 

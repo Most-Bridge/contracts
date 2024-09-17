@@ -2,7 +2,7 @@
 pragma solidity >=0.8;
 
 import {Test, console} from "forge-std/Test.sol";
-import {PaymentRegistry} from "../src/contracts/PaymentRegistry.sol";
+import {PaymentRegistry} from "../../src/contracts/SMM/PaymentRegistrySMM.sol";
 
 contract PaymentRegistryTest is Test {
     PaymentRegistry public paymentRegistry;
@@ -23,7 +23,7 @@ contract PaymentRegistryTest is Test {
     function testTransferTo() public {
         uint256 sendAmount = 1 ether;
         vm.prank(mmDstAddress);
-        paymentRegistry.transferTo{value: sendAmount}(orderId, destinationAddress, mmSrcAddress, expiryTimestamp);
+        paymentRegistry.transferTo{value: sendAmount}(orderId, destinationAddress, expiryTimestamp);
 
         bytes32 index = keccak256(abi.encodePacked(orderId, destinationAddress, sendAmount));
         assertTrue(paymentRegistry.getTransfers(index).isUsed); // check that isUsed is true
@@ -34,23 +34,23 @@ contract PaymentRegistryTest is Test {
 
     function testTransferToFailsIfAlreadyProcessed() public {
         vm.startPrank(mmDstAddress);
-        paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress, mmSrcAddress, expiryTimestamp);
+        paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress, expiryTimestamp);
 
         vm.expectRevert("Transfer already processed.");
-        paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress, mmSrcAddress, expiryTimestamp);
+        paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress, expiryTimestamp);
         vm.stopPrank();
     }
 
     function testTransferToFailsIfNoValue() public {
         vm.prank(mmDstAddress);
         vm.expectRevert("Funds being sent must exceed 0.");
-        paymentRegistry.transferTo{value: 0}(orderId, destinationAddress, mmSrcAddress, expiryTimestamp);
+        paymentRegistry.transferTo{value: 0}(orderId, destinationAddress, expiryTimestamp);
     }
 
     function testTransferToFailsOnExpiredOrder() public {
         vm.prank(mmDstAddress);
         vm.expectRevert("Cannot fulifll an expired order.");
         // sending the current time, while it expects a greater time
-        paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress, mmSrcAddress, block.timestamp);
+        paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress, block.timestamp);
     }
 }
