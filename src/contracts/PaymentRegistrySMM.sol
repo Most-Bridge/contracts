@@ -20,9 +20,8 @@ contract PaymentRegistry is Pausable {
     struct TransferInfo {
         uint256 orderId;
         address usrDstAddress;
-        // address mmSrcAddress;
-        uint256 amount;
         uint256 expiryTimestamp;
+        uint256 amount;
         bool isUsed;
     }
 
@@ -59,11 +58,8 @@ contract PaymentRegistry is Pausable {
      * The `transfer` mapping which is updated in this function, is what is used to prove the tx occured.
      * @param _orderId The order ID associated with the order being fulfilled.
      * @param _usrDstAddress The user's destination address to receive the funds.
-     * @param _mmSrcAddress The market maker's source chain address, with which they will be able to claim
-     * the funds on the source chain.
      */
     // TODO: add expiry timestamp
-
     function transferTo(uint256 _orderId, address _usrDstAddress, uint256 _expiryTimestamp)
         external
         payable
@@ -82,8 +78,8 @@ contract PaymentRegistry is Pausable {
         transfers[index] = TransferInfo({
             orderId: _orderId,
             usrDstAddress: _usrDstAddress,
-            amount: msg.value,
             expiryTimestamp: _expiryTimestamp,
+            amount: msg.value,
             isUsed: true
         });
 
