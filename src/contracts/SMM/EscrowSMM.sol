@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title Escrow Contract SMM (Single Market Maker)
@@ -77,7 +78,6 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     //Enums
     enum OrderStatus {
-        PLACED,
         PENDING,
         PROVING,
         PROVED,
@@ -122,6 +122,40 @@ contract Escrow is ReentrancyGuard, Pausable {
      * @param _usrDstAddress The destination address of the user.
      * @param _fee The fee for the market maker.
      */
+    function createErc20Order(address _tokenAddress, uint256 _amount, address _usrDstAddress, uint256 _fee)
+        external
+        nonReentrant
+        whenNotPaused
+    {
+        require(_amount > 0, "Funds being sent must be greater than 0.");
+        require(_amount > _fee, "Fee must be less than the total value sent");
+        
+        IERC20(_tokenAddress).transferFrom(msg.sender, address(this), _amount);
+
+        uint256 currentTimestamp = block.timestamp;
+        uint256 _expiryTimestamp = currentTimestamp + 1 days;
+
+        uint256 bridgeAmount = _amount - _fee; //no underflow since previous check is made
+        orders[orderId] = InitialOrderData({
+            orderId: orderId,
+            usrDstAddress: _usrDstAddress,
+            expiryTimestamp: _expiryTimestamp,
+            amount: bridgeAmount,
+            fee: _fee
+        });
+
+        orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PENDING});
+
+        emit OrderPlaced(orderId, _usrDstAddress, bridgeAmount, _fee);
+
+        orderId += 1;
+    }
+
+    /**
+     * @dev Allows the user to create an order.
+     * @param _usrDstAddress The destination address of the user.
+     * @param _fee The fee for the market maker.
+     */
     function createOrder(address _usrDstAddress, uint256 _fee) external payable nonReentrant whenNotPaused {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
@@ -138,7 +172,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             fee: _fee
         });
 
-        orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PLACED});
+        orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PENDING});
 
         emit OrderPlaced(orderId, _usrDstAddress, bridgeAmount, _fee);
         orderUpdates[orderId].status = OrderStatus.PENDING;
