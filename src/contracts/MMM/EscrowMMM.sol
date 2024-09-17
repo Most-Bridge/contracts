@@ -54,9 +54,9 @@ contract Escrow is ReentrancyGuard, Pausable {
     struct InitialOrderData {
         uint256 orderId;
         address usrDstAddress;
+        uint256 expiryTimestamp;
         uint256 amount;
         uint256 fee;
-        uint256 expiryTimestamp;
     }
 
     // Suplementary information to be updated throughout the process

@@ -56,9 +56,9 @@ contract Escrow is ReentrancyGuard, Pausable {
     struct InitialOrderData {
         uint256 orderId;
         address usrDstAddress;
+        uint256 expiryTimestamp;
         uint256 amount;
         uint256 fee;
-        uint256 expiryTimestamp;
     }
 
     // Suplementary information to be updated throughout the process
@@ -70,6 +70,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     struct OrderSlots {
         bytes32 orderIdSlot;
         bytes32 dstAddressSlot;
+        bytes32 expiryTimestamp;
         bytes32 amountSlot;
         uint256 blockNumber;
     }
@@ -132,9 +133,9 @@ contract Escrow is ReentrancyGuard, Pausable {
         orders[orderId] = InitialOrderData({
             orderId: orderId,
             usrDstAddress: _usrDstAddress,
+            expiryTimestamp: _expiryTimestamp,
             amount: bridgeAmount,
-            fee: _fee,
-            expiryTimestamp: _expiryTimestamp
+            fee: _fee
         });
 
         orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PLACED});
@@ -148,10 +149,11 @@ contract Escrow is ReentrancyGuard, Pausable {
     /**
      * @dev Fetches and processes storage slot values from the FactsRegistry contract for a single order.
      */
-     // TODO: 
+    // TODO: add expiry timestamp
     function getValuesFromSlots(
         bytes32 _orderIdSlot,
         bytes32 _dstAddressSlot,
+        bytes32 _expiryTimestampSlot,
         bytes32 _amountSlot,
         uint256 _blockNumber
     ) public onlyAllowedAddress whenNotPaused {
@@ -159,10 +161,12 @@ contract Escrow is ReentrancyGuard, Pausable {
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
         bytes32 _dstAddressValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _dstAddressSlot);
+        bytes32 _expiryTimestampValue =
+            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _expiryTimestampSlot);
         bytes32 _amountValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
 
-        convertBytes32toNative(_orderIdValue, _dstAddressValue, _amountValue);
+        convertBytes32toNative(_orderIdValue, _dstAddressValue, _expiryTimestampValue, _amountValue);
     }
 
     /**
@@ -179,22 +183,30 @@ contract Escrow is ReentrancyGuard, Pausable {
             bytes32 _dstAddressValue = factsRegistry.accountStorageSlotValues(
                 PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.dstAddressSlot
             );
+            bytes32 _expiryTimestampValue = factsRegistry.accountStorageSlotValues(
+                PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.expiryTimestamp
+            );
             bytes32 _amountValue = factsRegistry.accountStorageSlotValues(
                 PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.amountSlot
             );
-            // TODO: ADD EXPIRY 
-            convertBytes32toNative(_orderIdValue, _dstAddressValue, _amountValue);
+            convertBytes32toNative(_orderIdValue, _dstAddressValue, _expiryTimestampValue, _amountValue);
         }
     }
 
     /**
      * @dev Converts bytes32 values to their native types.
      */
-     // TODO: EXPIRY TIMESTAMP 
-    function convertBytes32toNative(bytes32 _orderIdValue, bytes32 _dstAddressValue, bytes32 _amountValue) private {
+    // TODO: EXPIRY TIMESTAMP
+    function convertBytes32toNative(
+        bytes32 _orderIdValue,
+        bytes32 _dstAddressValue,
+        bytes32 _expiryTimestampValue,
+        bytes32 _amountValue
+    ) private {
         // bytes32 to uint256
         uint256 _orderId = uint256(_orderIdValue);
         uint256 _amount = uint256(_amountValue);
+        uint256 _expiryTimestamp = uint256(_expiryTimestampValue);
 
         //bytes32 to address
         address _dstAddress = address(uint160(uint256(_dstAddressValue)));
@@ -207,14 +219,16 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         orderUpdates[_orderId].status = OrderStatus.PROVING;
 
-        proveBridgeTransaction(_orderId, _dstAddress, _amount);
+        proveBridgeTransaction(_orderId, _dstAddress, _expiryTimestamp, _amount);
     }
 
     /**
      * @dev Validates the transaction proof, and updates the status of the order.
      */
-     // TODO: ADD EXPIRY TIME STAMP AS A PARAMETER
-    function proveBridgeTransaction(uint256 _orderId, address _dstAddress, uint256 _amount) private {
+    // TODO: ADD EXPIRY TIME STAMP AS A PARAMETER
+    function proveBridgeTransaction(uint256 _orderId, address _dstAddress, uint256 _expiryTimestamp, uint256 _amount)
+        private
+    {
         InitialOrderData memory correctOrder = orders[_orderId];
         OrderStatusUpdates memory correctOrderStatus = orderUpdates[_orderId];
 
@@ -224,8 +238,10 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(correctOrder.expiryTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
 
         // make sure that proof data matches the contract's own data
-        // TODO: add expiry timestamp check here that they match
-        if (correctOrder.usrDstAddress == _dstAddress && correctOrder.amount == _amount) {
+        if (
+            correctOrder.usrDstAddress == _dstAddress && correctOrder.amount == _amount
+                && correctOrder.expiryTimestamp == _expiryTimestamp
+        ) {
             orderUpdates[_orderId].status = OrderStatus.PROVED;
 
             emit ProveBridgeSuccess(_orderId);

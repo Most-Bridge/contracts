@@ -20,9 +20,9 @@ contract PaymentRegistry is Pausable {
     struct TransferInfo {
         uint256 orderId;
         address usrDstAddress;
+        uint256 expiryTimestamp;
         address mmSrcAddress;
         uint256 amount;
-        uint256 expiryTimestamp;
         bool isUsed;
     }
 
