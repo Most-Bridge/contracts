@@ -149,7 +149,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     /**
      * @dev Fetches and processes storage slot values from the FactsRegistry contract for a single order.
      */
-    // TODO: add expiry timestamp
     function getValuesFromSlots(
         bytes32 _orderIdSlot,
         bytes32 _dstAddressSlot,
@@ -196,7 +195,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     /**
      * @dev Converts bytes32 values to their native types.
      */
-    // TODO: EXPIRY TIMESTAMP
     function convertBytes32toNative(
         bytes32 _orderIdValue,
         bytes32 _dstAddressValue,
@@ -225,7 +223,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     /**
      * @dev Validates the transaction proof, and updates the status of the order.
      */
-    // TODO: ADD EXPIRY TIME STAMP AS A PARAMETER
     function proveBridgeTransaction(uint256 _orderId, address _dstAddress, uint256 _expiryTimestamp, uint256 _amount)
         private
     {
