@@ -49,7 +49,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     // event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, uint256 blockNumber);
     // event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount);
     // event ValuesReceivedBatch(OrderSlots[] ordersToBeProved);
-    // event BatchSlotsReceived(OrderSlots[] ordersToBeProved);
+    // event SlotsReceivedBatch(OrderSlots[] ordersToBeProved);
 
     // Structs
     // Contains all information that is available during the order creation

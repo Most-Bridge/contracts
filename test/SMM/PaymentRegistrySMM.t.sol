@@ -2,7 +2,7 @@
 pragma solidity >=0.8;
 
 import {Test, console} from "forge-std/Test.sol";
-import {PaymentRegistry} from "../src/contracts/PaymentRegistrySMM.sol";
+import {PaymentRegistry} from "../../src/contracts/SMM/PaymentRegistrySMM.sol";
 
 contract PaymentRegistryTest is Test {
     PaymentRegistry public paymentRegistry;

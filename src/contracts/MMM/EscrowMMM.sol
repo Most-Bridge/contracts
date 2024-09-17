@@ -38,12 +38,16 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     // Events
     event OrderPlaced(uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee);
-    event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, bytes32 slot4, uint256 blockNumber);
-    event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount, bytes32 _mmSrcAddress);
     event ProveBridgeSuccess(uint256 orderId);
     event WithdrawSuccess(address mmSrcAddress, uint256 orderId);
-    event BatchSlotsReceived(OrderSlots[] ordersToBeProved);
+    event WithdrawSuccessBatch(uint256[] orderIds);
     event OrderReclaimed(uint256 orderId);
+
+    // for debugging purposes
+    // event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, bytes32 slot4, uint256 blockNumber);
+    // event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount, bytes32 _mmSrcAddress);
+    // event ValuesReceivedBatch(OrderSlots[] ordersToBeProved);
+    // event SlotsReceivedBatch(OrderSlots[] ordersToBeProved);
 
     // Structs
     // Contains all information that is available during the order creation
@@ -154,7 +158,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 _amountSlot,
         uint256 _blockNumber
     ) public onlyAllowedAddress whenNotPaused {
-        emit SlotsReceived(_orderIdSlot, _dstAddressSlot, _mmSrcAddressSlot, _amountSlot, _blockNumber);
         bytes32 _orderIdValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
         bytes32 _dstAddressValue =
@@ -165,7 +168,6 @@ contract Escrow is ReentrancyGuard, Pausable {
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
 
         convertBytes32toNative(_orderIdValue, _dstAddressValue, _mmSrcAddressValue, _amountValue);
-        emit ValuesReceived(_orderIdValue, _dstAddressValue, _mmSrcAddressValue, _amountValue);
     }
 
     /**
@@ -174,7 +176,6 @@ contract Escrow is ReentrancyGuard, Pausable {
      */
     function batchGetValuesFromSlots(OrderSlots[] memory _ordersToBeProved) public onlyAllowedAddress whenNotPaused {
         require(_ordersToBeProved.length > 0, "Orders to be proved array cannot be empty");
-        emit BatchSlotsReceived(_ordersToBeProved);
         for (uint256 i = 0; i < _ordersToBeProved.length; i++) {
             OrderSlots memory singleOrder = _ordersToBeProved[i];
             bytes32 _orderIdValue = factsRegistry.accountStorageSlotValues(
@@ -190,7 +191,6 @@ contract Escrow is ReentrancyGuard, Pausable {
                 PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.amountSlot
             );
             convertBytes32toNative(_orderIdValue, _dstAddressValue, _mmSrcAddressValue, _amountValue);
-            emit ValuesReceived(_orderIdValue, _dstAddressValue, _mmSrcAddressValue, _amountValue);
         }
     }
 
