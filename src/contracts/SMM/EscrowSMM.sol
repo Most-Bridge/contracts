@@ -150,11 +150,12 @@ contract Escrow is ReentrancyGuard, Pausable {
         // checks
         require(bridgeAmount > 0, "Funds being sent must be greater than 0.");
         require(bridgeAmount > _fee, "Fee must be less than the total value sent.");
+        require(_tokenAddress == USDC_ADDRESS, "Only USDC supported at this moment.");
         uint256 receivedAmount = bridgeAmount - _fee; // subtract the fee from the amount received on the destination chain
 
         // for erc20 - make the transfer
         if (_tokenAddress != address(0)) {
-            IERC20(USDC_ADDRESS).transferFrom(msg.sender, address(this), _amount);
+            IERC20(_tokenAddress).transferFrom(msg.sender, address(this), _amount);
         }
 
         orders[orderId] = InitialOrderData({
@@ -306,20 +307,29 @@ contract Escrow is ReentrancyGuard, Pausable {
         // for a non-existing order a 0 will be returned as the orderId
         // also covers edge case where a orderId 0 passed will return a 0 also
         require(_order.orderId != 0, "The following order doesn't exist");
-        require(_orderUpdates.status == OrderStatus.PROVED, "This order has not been proved yet.");
+        require(_orderUpdates.status == OrderStatus.PROVED, "Cannot withdraw from an order that has not been proved.");
         require(msg.sender == allowedRelayAddress, "Only the approved MM address can call to withdraw.");
-
         require(_order.tokenAddress == _tokenAddress, "Can only withdraw the same type of asset that was locked."); // empty for native eth transfer
 
         // calculate payout
         uint256 transferAmountAndFee = _order.amount + _order.fee;
-        require(address(this).balance >= transferAmountAndFee, "Escrow: Insuffienct balance to withdraw");
 
         // update status
         orderUpdates[_orderId].status = OrderStatus.COMPLETED;
 
         // payout MM
-        payable(allowedWithdrawalAddress).transfer(transferAmountAndFee);
+        if (_tokenAddress == address(0)) {
+            // native ETH
+            require(address(this).balance >= transferAmountAndFee, "Escrow: Insufficient ETH balance to withdraw.");
+            payable(allowedWithdrawalAddress).transfer(transferAmountAndFee);
+        } else {
+            // ERC20
+            require(
+                IERC20(_tokenAddress).balanceOf(address(this)) >= transferAmountAndFee,
+                "Escrow: Insufficient ERC20 balance to withdraw."
+            );
+            IERC20(_tokenAddress).transfer(allowedWithdrawalAddress, transferAmountAndFee);
+        }
         emit WithdrawSuccess(_orderId);
     }
 
@@ -333,29 +343,70 @@ contract Escrow is ReentrancyGuard, Pausable {
         nonReentrant
         whenNotPaused
     {
-        uint256 amountToWithdraw = 0;
+        require(_orderIds.length == _tokenAddresses.length, "Mismatched input lengths.");
+
+        // Arrays to track unique token addresses and their total amounts
+        address[] memory uniqueTokenAddresses = new address[](_tokenAddresses.length);
+        uint256[] memory totalAmountPerToken = new uint256[](_tokenAddresses.length);
+        uint256 uniqueCount = 0;
+
         for (uint256 i = 0; i < _orderIds.length; i++) {
             uint256 _orderId = _orderIds[i];
-            // get order from this contract's state
+
+            // Get order from this contract's state
             InitialOrderData memory _order = orders[_orderId];
             OrderStatusUpdates memory _orderUpdates = orderUpdates[_orderId];
 
-            // validate
-            // for a non-existing order a 0 will be returned as the orderId,
-            // also covers edge case where a orderId 0 passed will return a 0
+            // Validate
             require(_order.orderId != 0, "The following order doesn't exist");
             require(_orderUpdates.status == OrderStatus.PROVED, "This order has not been proved yet.");
             require(msg.sender == allowedRelayAddress, "Only the MM can withdraw.");
+            require(
+                _order.tokenAddress == _tokenAddresses[i], "Can only withdraw the same type of asset that was locked."
+            ); // empty for native ETH transfer
 
-            // calculate payout
-            amountToWithdraw += _order.amount + _order.fee;
+            // Calculate payout
+            uint256 payout = _order.amount + _order.fee;
 
-            // update status
+            // Check if the token address is already in uniqueTokenAddresses
+            bool found = false;
+            for (uint256 j = 0; j < uniqueCount; j++) {
+                if (uniqueTokenAddresses[j] == _tokenAddresses[i]) {
+                    totalAmountPerToken[j] += payout;
+                    found = true;
+                    break;
+                }
+            }
+
+            // If this token address hasn't been found yet, add it to the list
+            if (!found) {
+                uniqueTokenAddresses[uniqueCount] = _tokenAddresses[i];
+                totalAmountPerToken[uniqueCount] = payout;
+                uniqueCount++;
+            }
+
+            // Update order status
             orderUpdates[_orderId].status = OrderStatus.COMPLETED;
         }
-        // payout MM
-        require(address(this).balance >= amountToWithdraw, "Escrow: Insuffienct balance to withdraw");
-        payable(allowedWithdrawalAddress).transfer(amountToWithdraw);
+
+        // Payout MM by looping through all the unique token addresses
+        for (uint256 i = 0; i < uniqueCount; i++) {
+            address tokenAddress = uniqueTokenAddresses[i];
+            uint256 totalAmount = totalAmountPerToken[i];
+
+            if (tokenAddress == address(0)) {
+                // Native ETH transfer
+                require(address(this).balance >= totalAmount, "Escrow: Insufficient ETH balance for withdrawal.");
+                payable(allowedWithdrawalAddress).transfer(totalAmount);
+            } else {
+                // ERC20 transfer
+                require(
+                    IERC20(tokenAddress).balanceOf(address(this)) >= totalAmount, "Escrow: Insufficient ERC20 balance."
+                );
+                IERC20(tokenAddress).transfer(allowedWithdrawalAddress, totalAmount);
+            }
+        }
+
         emit WithdrawSuccessBatch(_orderIds);
     }
     /**
