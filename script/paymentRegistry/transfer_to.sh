@@ -14,4 +14,5 @@ cast send \
     --rpc-url $ETH_SEPOLIA_RPC \
     --private-key $MM_DST_PRIVATE_KEY
 
-    # *** CHANGE ORDER ID AS NEEDED *** 
+# *** CHANGE ORDER ID AS NEEDED *** 
+# *** CHANGE CONTRACT ADDRESS IS ENV WITH EACH DEPLOYMENT 
