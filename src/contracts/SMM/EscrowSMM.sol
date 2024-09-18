@@ -121,9 +121,12 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Allows the user to create an order.
+     * @dev Allows the user to create an order, if sending native ETH, it can be done through the msg.value,
+     * with an empty _tokenAddress and _amount otherwise when using erc20 _tokenAddress and _amount must be passed.
      * @param _usrDstAddress The destination address of the user.
      * @param _fee The fee for the market maker.
+     * @param _tokenAddress If using an erc20, here the address of the erc20 can be specified.
+     * @param _amount If using an erc20, here the amount can be specified.
      */
     function createOrder(address _usrDstAddress, uint256 _fee, address _tokenAddress, uint256 _amount)
         external
@@ -137,23 +140,28 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 bridgeAmount = 0;
 
         if (_tokenAddress == address(0)) {
-            // treat as native eth transfer
-            require(msg.value > 0, "Funds being sent must be greater than 0.");
-            require(msg.value > _fee, "Fee must be less than the total value sent");
-            bridgeAmount = msg.value - _fee; //no underflow since previous check is made
+            // native eth
+            bridgeAmount = msg.value;
         } else {
-            // treat as ERC20 transfer
-            require(_amount > 0, "Funds being sent must be greater than 0.");
-            require(_amount > _fee, "Fee must be less than the total value sent");
+            // ERC20
+            bridgeAmount = _amount;
+        }
+
+        // checks
+        require(bridgeAmount > 0, "Funds being sent must be greater than 0.");
+        require(bridgeAmount > _fee, "Fee must be less than the total value sent.");
+        uint256 receivedAmount = bridgeAmount - _fee; // subtract the fee from the amount received on the destination chain
+
+        // for erc20 - make the transfer
+        if (_tokenAddress != address(0)) {
             IERC20(USDC_ADDRESS).transferFrom(msg.sender, address(this), _amount);
-            bridgeAmount = _amount - _fee; // no underflow
         }
 
         orders[orderId] = InitialOrderData({
             orderId: orderId,
             usrDstAddress: _usrDstAddress,
             expirationTimestamp: _expirationTimestamp,
-            amount: bridgeAmount,
+            amount: receivedAmount,
             fee: _fee,
             tokenAddress: _tokenAddress
         });
@@ -161,13 +169,17 @@ contract Escrow is ReentrancyGuard, Pausable {
         orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PENDING});
 
         emit OrderPlaced(orderId, _usrDstAddress, bridgeAmount, _fee);
-        orderUpdates[orderId].status = OrderStatus.PENDING;
 
         orderId += 1;
     }
 
     /**
      * @dev Fetches and processes storage slot values from the FactsRegistry contract for a single order.
+     * @param _orderIdSlot Slot of the order Id.
+     * @param _dstAddressSlot Slot of the user's destination address.
+     * @param _expirationTimestampSlot Slot of the expiratoin timestamp.
+     * @param _amountSlot Slot of the amount.
+     * @param _blockNumber The blockNumber.
      */
     function getValuesFromSlots(
         bytes32 _orderIdSlot,
@@ -191,6 +203,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     /**
      * @dev Fetches and processes storage slot values for multiple orders in batch from the FactsRegistry contract.
      * And continues the flow of proving an order.
+     * @param _ordersToBeProved an array of orders of type OrderSlots.
      */
     function batchGetValuesFromSlots(OrderSlots[] memory _ordersToBeProved) public onlyAllowedAddress whenNotPaused {
         require(_ordersToBeProved.length > 0, "Orders to be proved array cannot be empty");
@@ -214,6 +227,10 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /**
      * @dev Converts bytes32 values to their native types.
+     * @param _orderIdValue A bytes32 value of the orderId.
+     * @param _dstAddressValue A bytes32 value of the dstAddress.
+     * @param _expirationTimestampValue A bytes32 value of the expiration timestamp.
+     * @param _amountValue A bytes32 value of the amount value.
      */
     function convertBytes32toNative(
         bytes32 _orderIdValue,
@@ -242,10 +259,17 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /**
      * @dev Validates the transaction proof, and updates the status of the order.
+     * @param _orderId The order's Id.
+     * @param _dstAddress The destination address of the order.
+     * @param _expirationTimestamp The expiration timestamp of the order.
+     * @param _amount The amount of the order.
      */
-    function proveBridgeTransaction(uint256 _orderId, address _dstAddress, uint256 _expirationTimestamp, uint256 _amount)
-        private
-    {
+    function proveBridgeTransaction(
+        uint256 _orderId,
+        address _dstAddress,
+        uint256 _expirationTimestamp,
+        uint256 _amount
+    ) private {
         InitialOrderData memory correctOrder = orders[_orderId];
         OrderStatusUpdates memory correctOrderStatus = orderUpdates[_orderId];
 
@@ -270,8 +294,10 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /**
      * @dev Allows the market maker to unlock the funds for a transaction fulfilled by them.
+     * @param _orderId The id of the order to be withdrawn.
+     * @param _tokenAddress The address of the erc20 which was locked, empty if native ETH.
      */
-    function withdrawProved(uint256 _orderId) external nonReentrant whenNotPaused {
+    function withdrawProved(uint256 _orderId, address _tokenAddress) external nonReentrant whenNotPaused {
         // get order from this contract's state
         InitialOrderData memory _order = orders[_orderId];
         OrderStatusUpdates memory _orderUpdates = orderUpdates[_orderId];
@@ -282,6 +308,8 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(_order.orderId != 0, "The following order doesn't exist");
         require(_orderUpdates.status == OrderStatus.PROVED, "This order has not been proved yet.");
         require(msg.sender == allowedRelayAddress, "Only the approved MM address can call to withdraw.");
+
+        require(_order.tokenAddress == _tokenAddress, "Can only withdraw the same type of asset that was locked."); // empty for native eth transfer
 
         // calculate payout
         uint256 transferAmountAndFee = _order.amount + _order.fee;
@@ -297,8 +325,14 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /**
      * @dev Allows the market maker to batch unlock the funds for a transaction fulfilled by them.
+     * @param _orderIds The ids of the orders to be withdrawn.
+     * @param _tokenAddresses The addresses of the tokens to be withdrawn, empty if native ETH.
      */
-    function batchWithdrawProved(uint256[] memory _orderIds) external nonReentrant whenNotPaused {
+    function batchWithdrawProved(uint256[] memory _orderIds, address[] memory _tokenAddresses)
+        external
+        nonReentrant
+        whenNotPaused
+    {
         uint256 amountToWithdraw = 0;
         for (uint256 i = 0; i < _orderIds.length; i++) {
             uint256 _orderId = _orderIds[i];
@@ -324,8 +358,13 @@ contract Escrow is ReentrancyGuard, Pausable {
         payable(allowedWithdrawalAddress).transfer(amountToWithdraw);
         emit WithdrawSuccessBatch(_orderIds);
     }
+    /**
+     * @dev Allows the user to withdraw their order if it has not been fulfilled by the exipration date.
+     * @param _orderId The Id of the order to be refunded.
+     * @param _tokenAddress The address of the token that was locked, empty if native ETH.
+     */
 
-    function refundOrder(uint256 _orderId) external payable nonReentrant whenNotPaused {
+    function refundOrder(uint256 _orderId, address _tokenAddress) external payable nonReentrant whenNotPaused {
         InitialOrderData memory _orderToRefund = orders[_orderId];
         OrderStatusUpdates memory _orderToRefundUpdates = orderUpdates[_orderId];
         require(
