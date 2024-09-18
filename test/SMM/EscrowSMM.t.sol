@@ -11,6 +11,9 @@ contract EscrowTest is Test {
     address mmAddress = address(3);
     address maliciousActor = address(4);
 
+    address ercEmptyTokenAddress = address(0);
+    uint256 ercEmptyAmount = 0;
+
     uint256 sendAmount;
     uint256 feeAmount;
 
@@ -24,16 +27,23 @@ contract EscrowTest is Test {
 
     function testCreateOrderSuccess() public {
         vm.startPrank(user);
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, ercEmptyTokenAddress, ercEmptyAmount);
 
-        (uint256 orderId, address usrDstAddress, uint256 expiryTimestamp, uint256 amount, uint256 fee) =
-            escrow.orders(1);
+        (
+            uint256 orderId,
+            address usrDstAddress,
+            uint256 expirationTimestamp,
+            uint256 amount,
+            uint256 fee,
+            address tokenAddress
+        ) = escrow.orders(1);
 
         assertEq(orderId, 1);
         assertEq(usrDstAddress, destinationAddress);
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
-        assert(expiryTimestamp > block.timestamp);
+        assertEq(tokenAddress, ercEmptyTokenAddress);
+        assert(expirationTimestamp > block.timestamp);
 
         vm.stopPrank();
     }
@@ -41,21 +51,21 @@ contract EscrowTest is Test {
     function testCreateOrderWithNoValue() public {
         vm.startPrank(user);
         vm.expectRevert("Funds being sent must be greater than 0.");
-        escrow.createOrder(destinationAddress, feeAmount); // calling with no value
+        escrow.createOrder(destinationAddress, feeAmount, ercEmptyTokenAddress, ercEmptyAmount); // calling with no value
         vm.stopPrank();
     }
 
     function testCreateOrderWithZeroValue() public {
         vm.startPrank(user);
         vm.expectRevert("Funds being sent must be greater than 0.");
-        escrow.createOrder{value: 0}(destinationAddress, feeAmount); // calling with no value
+        escrow.createOrder{value: 0}(destinationAddress, feeAmount, ercEmptyTokenAddress, ercEmptyAmount); // calling with no value
         vm.stopPrank();
     }
 
     function testCreateOrderWithFeeBiggerThanValueSent() public {
         vm.startPrank(user);
         vm.expectRevert("Fee must be less than the total value sent");
-        escrow.createOrder{value: sendAmount}(destinationAddress, 5 ether);
+        escrow.createOrder{value: sendAmount}(destinationAddress, 5 ether, ercEmptyTokenAddress, ercEmptyAmount);
         vm.stopPrank();
     }
 
@@ -66,7 +76,7 @@ contract EscrowTest is Test {
 
         vm.startPrank(user);
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()")); // Expect revert due to paused contract
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, ercEmptyTokenAddress, ercEmptyAmount);
         vm.stopPrank();
     }
 
@@ -76,39 +86,54 @@ contract EscrowTest is Test {
 
         vm.startPrank(user);
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()")); // Expect revert due to paused contract
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, ercEmptyTokenAddress, ercEmptyAmount);
         vm.stopPrank();
 
         vm.prank(address(this)); // this contract is the owner
         escrow.unpauseContract();
 
         vm.prank(user);
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, ercEmptyTokenAddress, ercEmptyAmount);
 
         // Assertions to check the order details
-        (uint256 id, address usrDstAddress, uint256 expiryTimestamp, uint256 amount, uint256 fee) = escrow.orders(1);
+        (
+            uint256 id,
+            address usrDstAddress,
+            uint256 expirationTimestamp,
+            uint256 amount,
+            uint256 fee,
+            address tokenAddress
+        ) = escrow.orders(1);
 
         assertEq(id, 1);
         assertEq(usrDstAddress, destinationAddress);
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
-        assert(expiryTimestamp > block.timestamp);
+        assertEq(tokenAddress, ercEmptyTokenAddress);
+        assert(expirationTimestamp > block.timestamp);
     }
 
-    function testExpiryTimestamp() public {
+    function testexpirationTimestamp() public {
         vm.startPrank(user);
         uint256 currentTimestamp = block.timestamp;
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, ercEmptyTokenAddress, ercEmptyAmount);
 
-        (uint256 orderId, address usrDstAddress, uint256 expiryTimestamp, uint256 amount, uint256 fee) =
-            escrow.orders(1);
+        (
+            uint256 orderId,
+            address usrDstAddress,
+            uint256 expirationTimestamp,
+            uint256 amount,
+            uint256 fee,
+            address tokenAddress
+        ) = escrow.orders(1);
 
         assertEq(orderId, 1);
         assertEq(usrDstAddress, destinationAddress);
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
-        assert(expiryTimestamp > block.timestamp);
-        assert(expiryTimestamp == currentTimestamp + 1 days);
+        assertEq(tokenAddress, ercEmptyTokenAddress);
+        assert(expirationTimestamp > block.timestamp);
+        assert(expirationTimestamp == currentTimestamp + 1 days);
 
         vm.stopPrank();
     }

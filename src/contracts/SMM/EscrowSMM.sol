@@ -31,6 +31,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public PAYMENT_REGISTRY_ADDRESS = 0xdA406E807424a8b49B4027dC5335304C00469821;
     address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
 
+    address constant USDC_ADDRESS = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48; // TODO: add proper address
+
     uint256 private orderId = 1;
 
     IFactsRegistry factsRegistry = IFactsRegistry(FACTS_REGISTRY_ADDRESS);
@@ -57,9 +59,10 @@ contract Escrow is ReentrancyGuard, Pausable {
     struct InitialOrderData {
         uint256 orderId;
         address usrDstAddress;
-        uint256 expiryTimestamp;
+        uint256 expirationTimestamp;
         uint256 amount;
         uint256 fee;
+        address tokenAddress;
     }
 
     // Suplementary information to be updated throughout the process
@@ -71,7 +74,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     struct OrderSlots {
         bytes32 orderIdSlot;
         bytes32 dstAddressSlot;
-        bytes32 expiryTimestamp;
+        bytes32 expirationTimestamp;
         bytes32 amountSlot;
         uint256 blockNumber;
     }
@@ -122,54 +125,37 @@ contract Escrow is ReentrancyGuard, Pausable {
      * @param _usrDstAddress The destination address of the user.
      * @param _fee The fee for the market maker.
      */
-    function createErc20Order(address _tokenAddress, uint256 _amount, address _usrDstAddress, uint256 _fee)
+    function createOrder(address _usrDstAddress, uint256 _fee, address _tokenAddress, uint256 _amount)
         external
+        payable
         nonReentrant
         whenNotPaused
     {
-        require(_amount > 0, "Funds being sent must be greater than 0.");
-        require(_amount > _fee, "Fee must be less than the total value sent");
-        
-        IERC20(_tokenAddress).transferFrom(msg.sender, address(this), _amount);
-
         uint256 currentTimestamp = block.timestamp;
-        uint256 _expiryTimestamp = currentTimestamp + 1 days;
+        uint256 _expirationTimestamp = currentTimestamp + 1 days;
 
-        uint256 bridgeAmount = _amount - _fee; //no underflow since previous check is made
+        uint256 bridgeAmount = 0;
+
+        if (_tokenAddress == address(0)) {
+            // treat as native eth transfer
+            require(msg.value > 0, "Funds being sent must be greater than 0.");
+            require(msg.value > _fee, "Fee must be less than the total value sent");
+            bridgeAmount = msg.value - _fee; //no underflow since previous check is made
+        } else {
+            // treat as ERC20 transfer
+            require(_amount > 0, "Funds being sent must be greater than 0.");
+            require(_amount > _fee, "Fee must be less than the total value sent");
+            IERC20(USDC_ADDRESS).transferFrom(msg.sender, address(this), _amount);
+            bridgeAmount = _amount - _fee; // no underflow
+        }
+
         orders[orderId] = InitialOrderData({
             orderId: orderId,
             usrDstAddress: _usrDstAddress,
-            expiryTimestamp: _expiryTimestamp,
+            expirationTimestamp: _expirationTimestamp,
             amount: bridgeAmount,
-            fee: _fee
-        });
-
-        orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PENDING});
-
-        emit OrderPlaced(orderId, _usrDstAddress, bridgeAmount, _fee);
-
-        orderId += 1;
-    }
-
-    /**
-     * @dev Allows the user to create an order.
-     * @param _usrDstAddress The destination address of the user.
-     * @param _fee The fee for the market maker.
-     */
-    function createOrder(address _usrDstAddress, uint256 _fee) external payable nonReentrant whenNotPaused {
-        require(msg.value > 0, "Funds being sent must be greater than 0.");
-        require(msg.value > _fee, "Fee must be less than the total value sent");
-
-        uint256 currentTimestamp = block.timestamp;
-        uint256 _expiryTimestamp = currentTimestamp + 1 days;
-
-        uint256 bridgeAmount = msg.value - _fee; //no underflow since previous check is made
-        orders[orderId] = InitialOrderData({
-            orderId: orderId,
-            usrDstAddress: _usrDstAddress,
-            expiryTimestamp: _expiryTimestamp,
-            amount: bridgeAmount,
-            fee: _fee
+            fee: _fee,
+            tokenAddress: _tokenAddress
         });
 
         orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PENDING});
@@ -186,7 +172,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     function getValuesFromSlots(
         bytes32 _orderIdSlot,
         bytes32 _dstAddressSlot,
-        bytes32 _expiryTimestampSlot,
+        bytes32 _expirationTimestampSlot,
         bytes32 _amountSlot,
         uint256 _blockNumber
     ) public onlyAllowedAddress whenNotPaused {
@@ -194,12 +180,12 @@ contract Escrow is ReentrancyGuard, Pausable {
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
         bytes32 _dstAddressValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _dstAddressSlot);
-        bytes32 _expiryTimestampValue =
-            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _expiryTimestampSlot);
+        bytes32 _expirationTimestampValue =
+            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _expirationTimestampSlot);
         bytes32 _amountValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
 
-        convertBytes32toNative(_orderIdValue, _dstAddressValue, _expiryTimestampValue, _amountValue);
+        convertBytes32toNative(_orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue);
     }
 
     /**
@@ -216,13 +202,13 @@ contract Escrow is ReentrancyGuard, Pausable {
             bytes32 _dstAddressValue = factsRegistry.accountStorageSlotValues(
                 PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.dstAddressSlot
             );
-            bytes32 _expiryTimestampValue = factsRegistry.accountStorageSlotValues(
-                PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.expiryTimestamp
+            bytes32 _expirationTimestampValue = factsRegistry.accountStorageSlotValues(
+                PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.expirationTimestamp
             );
             bytes32 _amountValue = factsRegistry.accountStorageSlotValues(
                 PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.amountSlot
             );
-            convertBytes32toNative(_orderIdValue, _dstAddressValue, _expiryTimestampValue, _amountValue);
+            convertBytes32toNative(_orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue);
         }
     }
 
@@ -232,13 +218,13 @@ contract Escrow is ReentrancyGuard, Pausable {
     function convertBytes32toNative(
         bytes32 _orderIdValue,
         bytes32 _dstAddressValue,
-        bytes32 _expiryTimestampValue,
+        bytes32 _expirationTimestampValue,
         bytes32 _amountValue
     ) private {
         // bytes32 to uint256
         uint256 _orderId = uint256(_orderIdValue);
         uint256 _amount = uint256(_amountValue);
-        uint256 _expiryTimestamp = uint256(_expiryTimestampValue);
+        uint256 _expirationTimestamp = uint256(_expirationTimestampValue);
 
         //bytes32 to address
         address _dstAddress = address(uint160(uint256(_dstAddressValue)));
@@ -251,13 +237,13 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         orderUpdates[_orderId].status = OrderStatus.PROVING;
 
-        proveBridgeTransaction(_orderId, _dstAddress, _expiryTimestamp, _amount);
+        proveBridgeTransaction(_orderId, _dstAddress, _expirationTimestamp, _amount);
     }
 
     /**
      * @dev Validates the transaction proof, and updates the status of the order.
      */
-    function proveBridgeTransaction(uint256 _orderId, address _dstAddress, uint256 _expiryTimestamp, uint256 _amount)
+    function proveBridgeTransaction(uint256 _orderId, address _dstAddress, uint256 _expirationTimestamp, uint256 _amount)
         private
     {
         InitialOrderData memory correctOrder = orders[_orderId];
@@ -266,12 +252,12 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(correctOrderStatus.status != OrderStatus.PROVED, "Cannot prove an order that has already been proved");
 
         uint256 currentTimestamp = block.timestamp;
-        require(correctOrder.expiryTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
+        require(correctOrder.expirationTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
 
         // make sure that proof data matches the contract's own data
         if (
             correctOrder.usrDstAddress == _dstAddress && correctOrder.amount == _amount
-                && correctOrder.expiryTimestamp == _expiryTimestamp
+                && correctOrder.expirationTimestamp == _expirationTimestamp
         ) {
             orderUpdates[_orderId].status = OrderStatus.PROVED;
 
@@ -348,7 +334,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(_orderToRefundUpdates.status == OrderStatus.PENDING, "Cannot refund an order if it is not pending.");
 
         uint256 currentTimestamp = block.timestamp;
-        require(currentTimestamp > _orderToRefund.expiryTimestamp, "Cannot refund an order that has not expired.");
+        require(currentTimestamp > _orderToRefund.expirationTimestamp, "Cannot refund an order that has not expired.");
 
         orderUpdates[_orderId].status = OrderStatus.RECLAIMED;
 

@@ -10,7 +10,7 @@ contract PaymentRegistryTest is Test {
     address mmDstAddress = address(2);
     address mmSrcAddress = address(3);
     uint256 orderId = 1;
-    uint256 expiryTimestamp = block.timestamp + 7 days;
+    uint256 expirationTimestamp = block.timestamp + 7 days;
 
     function setUp() public {
         paymentRegistry = new PaymentRegistry();
@@ -23,7 +23,7 @@ contract PaymentRegistryTest is Test {
     function testTransferTo() public {
         uint256 sendAmount = 1 ether;
         vm.prank(mmDstAddress);
-        paymentRegistry.transferTo{value: sendAmount}(orderId, destinationAddress, expiryTimestamp);
+        paymentRegistry.transferTo{value: sendAmount}(orderId, destinationAddress, expirationTimestamp);
 
         bytes32 index = keccak256(abi.encodePacked(orderId, destinationAddress, sendAmount));
         assertTrue(paymentRegistry.getTransfers(index).isUsed); // check that isUsed is true
@@ -34,17 +34,17 @@ contract PaymentRegistryTest is Test {
 
     function testTransferToFailsIfAlreadyProcessed() public {
         vm.startPrank(mmDstAddress);
-        paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress, expiryTimestamp);
+        paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress, expirationTimestamp);
 
         vm.expectRevert("Transfer already processed.");
-        paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress, expiryTimestamp);
+        paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress, expirationTimestamp);
         vm.stopPrank();
     }
 
     function testTransferToFailsIfNoValue() public {
         vm.prank(mmDstAddress);
         vm.expectRevert("Funds being sent must exceed 0.");
-        paymentRegistry.transferTo{value: 0}(orderId, destinationAddress, expiryTimestamp);
+        paymentRegistry.transferTo{value: 0}(orderId, destinationAddress, expirationTimestamp);
     }
 
     function testTransferToFailsOnExpiredOrder() public {

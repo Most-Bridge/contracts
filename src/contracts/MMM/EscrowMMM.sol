@@ -54,7 +54,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     struct InitialOrderData {
         uint256 orderId;
         address usrDstAddress;
-        uint256 expiryTimestamp;
+        uint256 expirationTimestamp;
         uint256 amount;
         uint256 fee;
     }
@@ -126,7 +126,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
         uint256 currentTimestamp = block.timestamp;
-        uint256 _expiryTimestamp = currentTimestamp + 7 days;
+        uint256 _expirationTimestamp = currentTimestamp + 7 days;
 
         uint256 bridgeAmount = msg.value - _fee; //no underflow since previous check is made
         orders[orderId] = InitialOrderData({
@@ -134,7 +134,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             usrDstAddress: _usrDstAddress,
             amount: bridgeAmount,
             fee: _fee,
-            expiryTimestamp: _expiryTimestamp
+            expirationTimestamp: _expirationTimestamp
         });
 
         orderUpdates[orderId] =
@@ -234,7 +234,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(correctOrderStatus.status != OrderStatus.PROVED, "Cannot prove an order that has already been proved");
 
         uint256 currentTimestamp = block.timestamp;
-        require(correctOrder.expiryTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
+        require(correctOrder.expirationTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
 
         // make sure that proof data matches the contract's own data
         if (correctOrder.usrDstAddress == _dstAddress && correctOrder.amount == _amount) {
@@ -314,7 +314,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(_orderToRefundUpdates.status == OrderStatus.PENDING, "Cannot refund an order if it is not pending.");
 
         uint256 currentTimestamp = block.timestamp;
-        require(currentTimestamp > _orderToRefund.expiryTimestamp, "Cannot refund an order that has not expired.");
+        require(currentTimestamp > _orderToRefund.expirationTimestamp, "Cannot refund an order that has not expired.");
 
         orderUpdates[_orderId].status = OrderStatus.RECLAIMED;
 

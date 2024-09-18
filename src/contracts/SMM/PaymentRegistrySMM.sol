@@ -20,7 +20,7 @@ contract PaymentRegistry is Pausable {
     struct TransferInfo {
         uint256 orderId;
         address usrDstAddress;
-        uint256 expiryTimestamp;
+        uint256 expirationTimestamp;
         uint256 amount;
         bool isUsed;
     }
@@ -59,8 +59,7 @@ contract PaymentRegistry is Pausable {
      * @param _orderId The order ID associated with the order being fulfilled.
      * @param _usrDstAddress The user's destination address to receive the funds.
      */
-    // TODO: add expiry timestamp
-    function transferTo(uint256 _orderId, address _usrDstAddress, uint256 _expiryTimestamp)
+    function transferTo(uint256 _orderId, address _usrDstAddress, uint256 _expirationTimestamp)
         external
         payable
         onlyAllowedAddress
@@ -69,7 +68,7 @@ contract PaymentRegistry is Pausable {
         require(msg.value > 0, "Funds being sent must exceed 0.");
         // require that the order is not expired.
         uint256 currentTimestamp = block.timestamp;
-        require(_expiryTimestamp > currentTimestamp, "Cannot fulifll an expired order.");
+        require(_expirationTimestamp > currentTimestamp, "Cannot fulifll an expired order.");
 
         bytes32 index = keccak256(abi.encodePacked(_orderId, _usrDstAddress, msg.value));
 
@@ -78,7 +77,7 @@ contract PaymentRegistry is Pausable {
         transfers[index] = TransferInfo({
             orderId: _orderId,
             usrDstAddress: _usrDstAddress,
-            expiryTimestamp: _expiryTimestamp,
+            expirationTimestamp: _expirationTimestamp,
             amount: msg.value,
             isUsed: true
         });
