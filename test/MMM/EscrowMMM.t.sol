@@ -26,14 +26,14 @@ contract EscrowTest is Test {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
 
-        (uint256 orderId, address usrDstAddress, uint256 expiryTimestamp, uint256 amount, uint256 fee) =
+        (uint256 orderId, address usrDstAddress, uint256 expirationTimestamp, uint256 amount, uint256 fee) =
             escrow.orders(1);
 
         assertEq(orderId, 1);
         assertEq(usrDstAddress, destinationAddress);
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
-        assert(expiryTimestamp > block.timestamp);
+        assert(expirationTimestamp > block.timestamp);
 
         vm.stopPrank();
     }
@@ -86,29 +86,29 @@ contract EscrowTest is Test {
         escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
 
         // Assertions to check the order details
-        (uint256 id, address usrDstAddress, uint256 expiryTimestamp, uint256 amount, uint256 fee) = escrow.orders(1);
+        (uint256 id, address usrDstAddress, uint256 expirationTimestamp, uint256 amount, uint256 fee) = escrow.orders(1);
 
         assertEq(id, 1);
         assertEq(usrDstAddress, destinationAddress);
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
-        assert(expiryTimestamp > block.timestamp);
+        assert(expirationTimestamp > block.timestamp);
     }
 
-    function testExpiryTimestamp() public {
+    function testexpirationTimestamp() public {
         vm.startPrank(user);
         uint256 currentTimestamp = block.timestamp;
         escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
 
-        (uint256 orderId, address usrDstAddress, uint256 expiryTimestamp, uint256 amount, uint256 fee) =
+        (uint256 orderId, address usrDstAddress, uint256 expirationTimestamp, uint256 amount, uint256 fee) =
             escrow.orders(1);
 
         assertEq(orderId, 1);
         assertEq(usrDstAddress, destinationAddress);
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
-        assert(expiryTimestamp > block.timestamp);
-        assert(expiryTimestamp == currentTimestamp + 1 days);
+        assert(expirationTimestamp > block.timestamp);
+        assert(expirationTimestamp == currentTimestamp + 1 days);
 
         vm.stopPrank();
     }

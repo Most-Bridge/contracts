@@ -56,7 +56,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     struct InitialOrderData {
         uint256 orderId;
         address usrDstAddress;
-        uint256 expiryTimestamp;
+        uint256 expirationTimestamp;
         uint256 amount;
         uint256 fee;
     }
@@ -70,7 +70,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     struct OrderSlots {
         bytes32 orderIdSlot;
         bytes32 dstAddressSlot;
-        bytes32 expiryTimestamp;
+        bytes32 expirationTimestamp;
         bytes32 amountSlot;
         uint256 blockNumber;
     }
@@ -127,13 +127,13 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
         uint256 currentTimestamp = block.timestamp;
-        uint256 _expiryTimestamp = currentTimestamp + 1 days;
+        uint256 _expirationTimestamp = currentTimestamp + 1 days;
 
         uint256 bridgeAmount = msg.value - _fee; //no underflow since previous check is made
         orders[orderId] = InitialOrderData({
             orderId: orderId,
             usrDstAddress: _usrDstAddress,
-            expiryTimestamp: _expiryTimestamp,
+            expirationTimestamp: _expirationTimestamp,
             amount: bridgeAmount,
             fee: _fee
         });
@@ -148,11 +148,16 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /**
      * @dev Fetches and processes storage slot values from the FactsRegistry contract for a single order.
+     * @param _orderIdSlot Slot of the order Id.
+     * @param _dstAddressSlot Slot of the user's destination address.
+     * @param _expirationTimestampSlot Slot of the expiratoin timestamp.
+     * @param _amountSlot Slot of the amount.
+     * @param _blockNumber The blockNumber.
      */
     function getValuesFromSlots(
         bytes32 _orderIdSlot,
         bytes32 _dstAddressSlot,
-        bytes32 _expiryTimestampSlot,
+        bytes32 _expirationTimestampSlot,
         bytes32 _amountSlot,
         uint256 _blockNumber
     ) public onlyAllowedAddress whenNotPaused {
@@ -160,17 +165,18 @@ contract Escrow is ReentrancyGuard, Pausable {
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
         bytes32 _dstAddressValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _dstAddressSlot);
-        bytes32 _expiryTimestampValue =
-            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _expiryTimestampSlot);
+        bytes32 _expirationTimestampValue =
+            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _expirationTimestampSlot);
         bytes32 _amountValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
 
-        convertBytes32toNative(_orderIdValue, _dstAddressValue, _expiryTimestampValue, _amountValue);
+        convertBytes32toNative(_orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue);
     }
 
     /**
      * @dev Fetches and processes storage slot values for multiple orders in batch from the FactsRegistry contract.
      * And continues the flow of proving an order.
+     * @param _ordersToBeProved an array of orders of type OrderSlots.
      */
     function batchGetValuesFromSlots(OrderSlots[] memory _ordersToBeProved) public onlyAllowedAddress whenNotPaused {
         require(_ordersToBeProved.length > 0, "Orders to be proved array cannot be empty");
@@ -182,29 +188,33 @@ contract Escrow is ReentrancyGuard, Pausable {
             bytes32 _dstAddressValue = factsRegistry.accountStorageSlotValues(
                 PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.dstAddressSlot
             );
-            bytes32 _expiryTimestampValue = factsRegistry.accountStorageSlotValues(
-                PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.expiryTimestamp
+            bytes32 _expirationTimestampValue = factsRegistry.accountStorageSlotValues(
+                PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.expirationTimestamp
             );
             bytes32 _amountValue = factsRegistry.accountStorageSlotValues(
                 PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.amountSlot
             );
-            convertBytes32toNative(_orderIdValue, _dstAddressValue, _expiryTimestampValue, _amountValue);
+            convertBytes32toNative(_orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue);
         }
     }
 
     /**
      * @dev Converts bytes32 values to their native types.
+     * @param _orderIdValue A bytes32 value of the orderId.
+     * @param _dstAddressValue A bytes32 value of the dstAddress.
+     * @param _expirationTimestampValue A bytes32 value of the expiration timestamp.
+     * @param _amountValue A bytes32 value of the amount value.
      */
     function convertBytes32toNative(
         bytes32 _orderIdValue,
         bytes32 _dstAddressValue,
-        bytes32 _expiryTimestampValue,
+        bytes32 _expirationTimestampValue,
         bytes32 _amountValue
     ) private {
         // bytes32 to uint256
         uint256 _orderId = uint256(_orderIdValue);
         uint256 _amount = uint256(_amountValue);
-        uint256 _expiryTimestamp = uint256(_expiryTimestampValue);
+        uint256 _expirationTimestamp = uint256(_expirationTimestampValue);
 
         //bytes32 to address
         address _dstAddress = address(uint160(uint256(_dstAddressValue)));
@@ -217,27 +227,34 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         orderUpdates[_orderId].status = OrderStatus.PROVING;
 
-        proveBridgeTransaction(_orderId, _dstAddress, _expiryTimestamp, _amount);
+        proveBridgeTransaction(_orderId, _dstAddress, _expirationTimestamp, _amount);
     }
 
     /**
      * @dev Validates the transaction proof, and updates the status of the order.
+     * @param _orderId The order's Id.
+     * @param _dstAddress The destination address of the order.
+     * @param _expirationTimestamp The expiration timestamp of the order.
+     * @param _amount The amount of the order.
      */
-    function proveBridgeTransaction(uint256 _orderId, address _dstAddress, uint256 _expiryTimestamp, uint256 _amount)
-        private
-    {
+    function proveBridgeTransaction(
+        uint256 _orderId,
+        address _dstAddress,
+        uint256 _expirationTimestamp,
+        uint256 _amount
+    ) private {
         InitialOrderData memory correctOrder = orders[_orderId];
         OrderStatusUpdates memory correctOrderStatus = orderUpdates[_orderId];
 
         require(correctOrderStatus.status != OrderStatus.PROVED, "Cannot prove an order that has already been proved");
 
         uint256 currentTimestamp = block.timestamp;
-        require(correctOrder.expiryTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
+        require(correctOrder.expirationTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
 
         // make sure that proof data matches the contract's own data
         if (
             correctOrder.usrDstAddress == _dstAddress && correctOrder.amount == _amount
-                && correctOrder.expiryTimestamp == _expiryTimestamp
+                && correctOrder.expirationTimestamp == _expirationTimestamp
         ) {
             orderUpdates[_orderId].status = OrderStatus.PROVED;
 
@@ -250,6 +267,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /**
      * @dev Allows the market maker to unlock the funds for a transaction fulfilled by them.
+     * @param _orderId The id of the order to be withdrawn.
      */
     function withdrawProved(uint256 _orderId) external nonReentrant whenNotPaused {
         // get order from this contract's state
@@ -277,6 +295,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /**
      * @dev Allows the market maker to batch unlock the funds for a transaction fulfilled by them.
+     * @param _orderIds The ids of the orders to be withdrawn.
      */
     function batchWithdrawProved(uint256[] memory _orderIds) external nonReentrant whenNotPaused {
         uint256 amountToWithdraw = 0;
@@ -305,6 +324,10 @@ contract Escrow is ReentrancyGuard, Pausable {
         emit WithdrawSuccessBatch(_orderIds);
     }
 
+    /**
+     * @dev Allows the user to withdraw their order if it has not been fulfilled by the exipration date.
+     * @param _orderId The Id of the order to be refunded.
+     */
     function refundOrder(uint256 _orderId) external payable nonReentrant whenNotPaused {
         InitialOrderData memory _orderToRefund = orders[_orderId];
         OrderStatusUpdates memory _orderToRefundUpdates = orderUpdates[_orderId];
@@ -314,7 +337,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(_orderToRefundUpdates.status == OrderStatus.PENDING, "Cannot refund an order if it is not pending.");
 
         uint256 currentTimestamp = block.timestamp;
-        require(currentTimestamp > _orderToRefund.expiryTimestamp, "Cannot refund an order that has not expired.");
+        require(currentTimestamp > _orderToRefund.expirationTimestamp, "Cannot refund an order that has not expired.");
 
         orderUpdates[_orderId].status = OrderStatus.RECLAIMED;
 
