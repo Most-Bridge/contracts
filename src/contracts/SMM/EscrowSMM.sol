@@ -59,6 +59,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 expirationTimestamp;
         uint256 amount;
         uint256 fee;
+        address usrSrcAddress;
     }
 
     // Suplementary information to be updated throughout the process
@@ -135,7 +136,8 @@ contract Escrow is ReentrancyGuard, Pausable {
             usrDstAddress: _usrDstAddress,
             expirationTimestamp: _expirationTimestamp,
             amount: bridgeAmount,
-            fee: _fee
+            fee: _fee,
+            usrSrcAddress: msg.sender
         });
 
         orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PLACED});
@@ -331,9 +333,10 @@ contract Escrow is ReentrancyGuard, Pausable {
     function refundOrder(uint256 _orderId) external payable nonReentrant whenNotPaused {
         InitialOrderData memory _orderToRefund = orders[_orderId];
         OrderStatusUpdates memory _orderToRefundUpdates = orderUpdates[_orderId];
-        require(
-            msg.sender == _orderToRefund.usrDstAddress, "Must cancel order with the same address used to create order"
-        );
+        // require(
+        //     msg.sender == _orderToRefund.usrSrcAddress,
+        //     "Can only refund with the same address that was used to create the order."
+        // );
         require(_orderToRefundUpdates.status == OrderStatus.PENDING, "Cannot refund an order if it is not pending.");
 
         uint256 currentTimestamp = block.timestamp;
@@ -342,7 +345,11 @@ contract Escrow is ReentrancyGuard, Pausable {
         orderUpdates[_orderId].status = OrderStatus.RECLAIMED;
 
         uint256 amountToRefund = _orderToRefund.amount + _orderToRefund.fee;
-        payable(msg.sender).transfer(amountToRefund);
+        require(address(this).balance >= amountToRefund, "Insufficient contract balance for refund");
+
+        (bool success,) = payable(msg.sender).call{value: amountToRefund}("");
+        require(success, "Transfer failed");
+
         emit OrderReclaimed(_orderId);
     }
 

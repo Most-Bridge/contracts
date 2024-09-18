@@ -26,13 +26,20 @@ contract EscrowTest is Test {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
 
-        (uint256 orderId, address usrDstAddress, uint256 expirationTimestamp, uint256 amount, uint256 fee) =
-            escrow.orders(1);
+        (
+            uint256 orderId,
+            address usrDstAddress,
+            uint256 expirationTimestamp,
+            uint256 amount,
+            uint256 fee,
+            address usrSrcAddress
+        ) = escrow.orders(1);
 
         assertEq(orderId, 1);
         assertEq(usrDstAddress, destinationAddress);
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
+        assertEq(usrSrcAddress, user);
         assert(expirationTimestamp > block.timestamp);
 
         vm.stopPrank();
@@ -86,12 +93,20 @@ contract EscrowTest is Test {
         escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
 
         // Assertions to check the order details
-        (uint256 id, address usrDstAddress, uint256 expirationTimestamp, uint256 amount, uint256 fee) = escrow.orders(1);
+        (
+            uint256 id,
+            address usrDstAddress,
+            uint256 expirationTimestamp,
+            uint256 amount,
+            uint256 fee,
+            address usrSrcAddress
+        ) = escrow.orders(1);
 
         assertEq(id, 1);
         assertEq(usrDstAddress, destinationAddress);
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
+        assertEq(usrSrcAddress, user);
         assert(expirationTimestamp > block.timestamp);
     }
 
@@ -100,16 +115,37 @@ contract EscrowTest is Test {
         uint256 currentTimestamp = block.timestamp;
         escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
 
-        (uint256 orderId, address usrDstAddress, uint256 expirationTimestamp, uint256 amount, uint256 fee) =
-            escrow.orders(1);
+        (
+            uint256 orderId,
+            address usrDstAddress,
+            uint256 expirationTimestamp,
+            uint256 amount,
+            uint256 fee,
+            address usrSrcAddress
+        ) = escrow.orders(1);
 
         assertEq(orderId, 1);
         assertEq(usrDstAddress, destinationAddress);
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
+        assertEq(usrSrcAddress, user);
         assert(expirationTimestamp > block.timestamp);
         assert(expirationTimestamp == currentTimestamp + 1 days);
 
         vm.stopPrank();
+    }
+
+    // test the refundOrder expired function
+    function testRefundOrder() public {
+        vm.startPrank(user);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount); // has an expiry date of 1 day
+        // balance of user should be 9 ether
+        assertEq(user.balance, 9 ether); // balance goes down after making an order
+        vm.warp(block.timestamp + 2 days); // order should now be expired
+        // call the refund order
+        escrow.refundOrder(1);
+        vm.stopPrank();
+        // balance should be 10 ether
+        assertEq(user.balance, 10 ether);
     }
 }
