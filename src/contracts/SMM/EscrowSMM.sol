@@ -38,7 +38,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     mapping(uint256 => OrderStatusUpdates) public orderUpdates;
 
     // Events
-    event OrderPlaced(uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee);
+    event OrderPlaced(uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee, uint256 expirationTimestamp);
     event ProveBridgeSuccess(uint256 orderId);
     event WithdrawSuccess(uint256 orderId);
     event WithdrawSuccessBatch(uint256[] orderIds);
@@ -140,7 +140,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PENDING});
 
-        emit OrderPlaced(orderId, _usrDstAddress, bridgeAmount, _fee);
+        emit OrderPlaced(orderId, _usrDstAddress, bridgeAmount, _fee, _expirationTimestamp);
 
         orderId += 1;
     }
