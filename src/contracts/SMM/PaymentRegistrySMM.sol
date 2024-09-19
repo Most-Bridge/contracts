@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 contract PaymentRegistry is Pausable {
     // State varaibles
     address public owner;
-    address public allowedMarketMakerAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address which will be fulfilling orders
+    address public allowedMarketMakerAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; 
 
     // Storage
     mapping(bytes32 => TransferInfo) public transfers;

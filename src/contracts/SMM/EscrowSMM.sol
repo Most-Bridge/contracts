@@ -25,10 +25,9 @@ contract Escrow is ReentrancyGuard, Pausable {
     // State variables
     address public owner;
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying slots to this contract
-    address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // TODO: add proper withdrawal address
-
-    address public PAYMENT_REGISTRY_ADDRESS = 0xdA406E807424a8b49B4027dC5335304C00469821;
-    address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
+    address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
+    address public PAYMENT_REGISTRY_ADDRESS = 0x24963fF9872Dad4526206b8C63aaB2Cee00263b3; 
+    address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd; 
 
     uint256 private orderId = 1;
 
@@ -78,7 +77,6 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     //Enums
     enum OrderStatus {
-        PLACED,
         PENDING,
         PROVING,
         PROVED,
@@ -140,10 +138,9 @@ contract Escrow is ReentrancyGuard, Pausable {
             usrSrcAddress: msg.sender
         });
 
-        orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PLACED});
+        orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PENDING});
 
         emit OrderPlaced(orderId, _usrDstAddress, bridgeAmount, _fee);
-        orderUpdates[orderId].status = OrderStatus.PENDING;
 
         orderId += 1;
     }
@@ -285,13 +282,15 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         // calculate payout
         uint256 transferAmountAndFee = _order.amount + _order.fee;
-        require(address(this).balance >= transferAmountAndFee, "Escrow: Insuffienct balance to withdraw");
+        require(address(this).balance >= transferAmountAndFee, "Withdraw Proved: Insuffienct balance to withdraw");
 
         // update status
         orderUpdates[_orderId].status = OrderStatus.COMPLETED;
 
         // payout MM
-        payable(allowedWithdrawalAddress).transfer(transferAmountAndFee);
+        (bool success,) = payable(allowedWithdrawalAddress).call{value: transferAmountAndFee}("");
+        require(success, "Withdraw Proved: Transfer failed");
+
         emit WithdrawSuccess(_orderId);
     }
 
@@ -322,7 +321,9 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
         // payout MM
         require(address(this).balance >= amountToWithdraw, "Escrow: Insuffienct balance to withdraw");
-        payable(allowedWithdrawalAddress).transfer(amountToWithdraw);
+        (bool success,) = payable(allowedWithdrawalAddress).call{value: amountToWithdraw}("");
+        require(success, "Batch Withdraw Proved: Transfer failed");
+
         emit WithdrawSuccessBatch(_orderIds);
     }
 
@@ -333,10 +334,10 @@ contract Escrow is ReentrancyGuard, Pausable {
     function refundOrder(uint256 _orderId) external payable nonReentrant whenNotPaused {
         InitialOrderData memory _orderToRefund = orders[_orderId];
         OrderStatusUpdates memory _orderToRefundUpdates = orderUpdates[_orderId];
-        // require(
-        //     msg.sender == _orderToRefund.usrSrcAddress,
-        //     "Can only refund with the same address that was used to create the order."
-        // );
+        require(
+            msg.sender == _orderToRefund.usrSrcAddress,
+            "Can only refund with the same address that was used to create the order."
+        );
         require(_orderToRefundUpdates.status == OrderStatus.PENDING, "Cannot refund an order if it is not pending.");
 
         uint256 currentTimestamp = block.timestamp;
@@ -348,7 +349,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(address(this).balance >= amountToRefund, "Insufficient contract balance for refund");
 
         (bool success,) = payable(msg.sender).call{value: amountToRefund}("");
-        require(success, "Transfer failed");
+        require(success, "Refund Order: Transfer failed");
 
         emit OrderReclaimed(_orderId);
     }
