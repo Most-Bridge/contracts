@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.20;
 
+import {Test, console} from "lib/forge-std/src/Test.sol";
+
 /*
 * Escrow along with the PaymentRegistry contract and a 3rd party service EventWatch 
 * make up the MVP of a unilateral bridge rom sepolia to sepolia with a single type of asset. 
@@ -19,7 +21,7 @@ interface IFactsRegistry {
         returns (bytes32);
 }
 
-contract MockEscrow {
+contract MockEscrow is Test {
     mapping(uint256 => InitialOrderData) public orders;
     mapping(uint256 => OrderStatusUpdates) public orderUpdates;
 
@@ -96,6 +98,44 @@ contract MockEscrow {
         orderId += 1;
     }
 
+    function calculateSlotsForFulfilledOrder(uint256 _orderId)
+        public
+        view
+        returns (
+            bytes32 _orderIdSlot,
+            bytes32 _usrDstAddressSlot,
+            bytes32 _expirationTimestampSlot,
+            bytes32 _amountSlot
+        )
+    {
+        // check that the order exists in the mapping
+        // require(orders[_orderId].orderId != 0, "Order does not exist");
+
+        // get the usrDstAddress, orderId and the amount
+        InitialOrderData memory correctOrder = orders[_orderId];
+
+        bytes32 transfersMappingSlot =
+            keccak256(abi.encodePacked(correctOrder.orderId, correctOrder.usrDstAddress, correctOrder.amount));
+        uint256 transfersMappigKey = 2; // Please check payment registry storage layout for changes before deployment
+        console.log("[MOCK ESCROW]: orderId");
+        console.logUint(correctOrder.orderId);
+        console.logAddress(correctOrder.usrDstAddress);
+        console.logUint(correctOrder.amount);
+
+        console.log("[MOCK ESCROW]: TRANSFER MAPPING SLOT");
+        console.logBytes32(transfersMappingSlot);
+
+        bytes32 baseStorageSlot = keccak256(abi.encodePacked(transfersMappingSlot, transfersMappigKey));
+
+        bytes32 _orderIdSlot1 = baseStorageSlot;
+        bytes32 _usrDstAddressSlot1 = bytes32(uint256(baseStorageSlot) + 1);
+        bytes32 _expirationTimestampSlot1 = bytes32(uint256(baseStorageSlot) + 2);
+        bytes32 _amountSlot1 = bytes32(uint256(baseStorageSlot) + 3);
+
+        // getValuesFromSlots(_orderIdSlot1, _usrDstAddressSlot1, _expirationTimestampSlot1, _amountSlot1, _blockNumber);
+        return (_orderIdSlot1, _usrDstAddressSlot1, _expirationTimestampSlot1, _amountSlot1);
+    }
+
     function getValuesFromSlots(
         bytes32 _orderIdSlot,
         bytes32 _dstAddressSlot,
@@ -164,7 +204,7 @@ contract MockEscrow {
     }
 
     function proveBridgeTransaction(uint256 _orderId, address _dstAddress, address _mmSrcAddress, uint256 _amount)
-        public 
+        public
     {
         InitialOrderData memory correctOrder = orders[_orderId];
         // make sure that proof data matches the contract's own data

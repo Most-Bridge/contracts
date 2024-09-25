@@ -238,6 +238,52 @@ contract MockEscrowTest is Test {
         // verify that the correct amount was sent to MM
         assertEq(mmSrcAddress.balance, (sendAmount + fee) * orderIds.length);
     }
+
+    function testCalculateSlots() public {
+        address testUser = address(0x3814f9F424874860ffCD9f70f0D4B74b81e791E8);
+        address testDstAddress = address(0x3814f9F424874860ffCD9f70f0D4B74b81e791E8);
+        uint256 testAmount = 1 ether;
+        uint256 testFee = 0.1 ether;
+        vm.deal(testUser, 10 ether);
+
+        vm.startPrank(testUser);
+        mockEscrow.createOrder{value: testAmount}(testDstAddress, testFee); // orderId #1
+
+        (bytes32 _orderIdSlot, bytes32 _usrDstAddressSlot, bytes32 _expirationTimestampSlot, bytes32 _amountSlot) =
+            mockEscrow.calculateSlotsForFulfilledOrder(1);
+
+        assertEq(_orderIdSlot, bytes32(0x48922ff644596f89525405cfb68628c719bd89b667d7df03231de924654e6b09));
+        assertEq(_usrDstAddressSlot, bytes32(0x48922ff644596f89525405cfb68628c719bd89b667d7df03231de924654e6b0a));
+        assertEq(_expirationTimestampSlot, bytes32(0x48922ff644596f89525405cfb68628c719bd89b667d7df03231de924654e6b0b));
+        assertEq(_amountSlot, bytes32(0x48922ff644596f89525405cfb68628c719bd89b667d7df03231de924654e6b0c));
+        // assertEq(aBlockNumber, bytes32());
+    }
+
+    function testquickCalculation() public view {
+        uint256 orderId = 1;
+        address usrDstAddress = 0x3814f9F424874860ffCD9f70f0D4B74b81e791E8;
+        uint256 transfersMappingKey = 2;
+        uint256 amount = 0.9 ether;
+        bytes32 transfersMappigSlot = keccak256(abi.encodePacked(orderId, usrDstAddress, amount));
+        console.log("transfer mapping slot");
+        console.logBytes32(transfersMappigSlot);
+
+        bytes32 baseStorageSlot = keccak256(abi.encodePacked(transfersMappigSlot, transfersMappingKey));
+
+        console.log("base storage slot");
+        console.logBytes32(baseStorageSlot);
+
+        bytes32 _orderIdSlot1 = baseStorageSlot;
+        bytes32 _usrDstAddressSlot1 = bytes32(uint256(baseStorageSlot) + 1);
+        bytes32 _expirationTimestampSlot1 = bytes32(uint256(baseStorageSlot) + 2);
+        bytes32 _amountSlot1 = bytes32(uint256(baseStorageSlot) + 3);
+
+        // comparison done based on off chain storage slot calculation
+        console.logBytes32(_orderIdSlot1);
+        console.logBytes32(_usrDstAddressSlot1);
+        console.logBytes32(_expirationTimestampSlot1);
+        console.logBytes32(_amountSlot1);
+    }
 }
 
 contract MockFactsRegistry {

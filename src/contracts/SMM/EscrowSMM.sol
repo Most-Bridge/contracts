@@ -26,8 +26,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public owner;
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying slots to this contract
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
-    address public PAYMENT_REGISTRY_ADDRESS = 0x24963fF9872Dad4526206b8C63aaB2Cee00263b3; 
-    address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd; 
+    address public PAYMENT_REGISTRY_ADDRESS = 0x24963fF9872Dad4526206b8C63aaB2Cee00263b3;
+    address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
 
     uint256 private orderId = 1;
 
@@ -146,55 +146,68 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     /**
+     * @dev Calculates the slots which will be proven for the given orderId, at the given blockNumber.
+     * @param _orderId The order who's slots will be proven.
+     * @param _blockNumber The point in time in which the slot state will be accessed.
+     */
+    function calculateSlotsForFulfilledOrder(uint256 _orderId, uint256 _blockNumber) public {
+        // check that the order exists in the mapping
+        require(orders[_orderId].orderId != 0, "Order does not exist");
+
+        // get the usrDstAddress, orderId and the amount
+        InitialOrderData memory correctOrder = orders[_orderId];
+
+        bytes32 transfersMappingSlot =
+            keccak256(abi.encodePacked(correctOrder.orderId, correctOrder.usrDstAddress, correctOrder.amount));
+        uint256 transfersMappigKey = 2; // Please check payment registry storage layout for changes before deployment
+
+        bytes32 baseStorageSlot = keccak256(abi.encodePacked(transfersMappingSlot, transfersMappigKey));
+
+        bytes32 _orderIdSlot = baseStorageSlot;
+        bytes32 _usrDstAddressSlot = bytes32(uint256(baseStorageSlot) + 1);
+        bytes32 _expirationTimestampSlot = bytes32(uint256(baseStorageSlot) + 2);
+        bytes32 _amountSlot = bytes32(uint256(baseStorageSlot) + 3);
+
+        getValuesFromSlots(_orderIdSlot, _usrDstAddressSlot, _expirationTimestampSlot, _amountSlot, _blockNumber);
+    }
+
+    /**
+     * @dev Calculates the slots which will be proven for the given orderId, at the given blockNumber.
+     * @param _orderIds An array of orders who's slots will be proven.
+     * @param _blockNumber The point in time in which the slot state will be accessed.
+     */
+    function calculateSlotsForFulfilledOrderBatch(uint256[] memory _orderIds, uint256 _blockNumber) public {
+        // batch call calculateSlotsForFulfilledOrder
+        for (uint256 i = 0; i < _orderIds.length; i++) {
+            calculateSlotsForFulfilledOrder(_orderIds[i], _blockNumber);
+        }
+    }
+
+    /**
      * @dev Fetches and processes storage slot values from the FactsRegistry contract for a single order.
      * @param _orderIdSlot Slot of the order Id.
-     * @param _dstAddressSlot Slot of the user's destination address.
+     * @param _usrDstAddressSlot Slot of the user's destination address.
      * @param _expirationTimestampSlot Slot of the expiratoin timestamp.
      * @param _amountSlot Slot of the amount.
      * @param _blockNumber The blockNumber.
      */
     function getValuesFromSlots(
         bytes32 _orderIdSlot,
-        bytes32 _dstAddressSlot,
+        bytes32 _usrDstAddressSlot,
         bytes32 _expirationTimestampSlot,
         bytes32 _amountSlot,
         uint256 _blockNumber
-    ) public onlyAllowedAddress whenNotPaused {
+    ) private onlyAllowedAddress whenNotPaused {
         bytes32 _orderIdValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
         bytes32 _dstAddressValue =
-            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _dstAddressSlot);
+            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _usrDstAddressSlot);
         bytes32 _expirationTimestampValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _expirationTimestampSlot);
         bytes32 _amountValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
 
         convertBytes32toNative(_orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue);
-    }
-
-    /**
-     * @dev Fetches and processes storage slot values for multiple orders in batch from the FactsRegistry contract.
-     * And continues the flow of proving an order.
-     * @param _ordersToBeProved an array of orders of type OrderSlots.
-     */
-    function batchGetValuesFromSlots(OrderSlots[] memory _ordersToBeProved) public onlyAllowedAddress whenNotPaused {
-        require(_ordersToBeProved.length > 0, "Orders to be proved array cannot be empty");
-        for (uint256 i = 0; i < _ordersToBeProved.length; i++) {
-            OrderSlots memory singleOrder = _ordersToBeProved[i];
-            bytes32 _orderIdValue = factsRegistry.accountStorageSlotValues(
-                PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.orderIdSlot
-            );
-            bytes32 _dstAddressValue = factsRegistry.accountStorageSlotValues(
-                PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.dstAddressSlot
-            );
-            bytes32 _expirationTimestampValue = factsRegistry.accountStorageSlotValues(
-                PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.expirationTimestamp
-            );
-            bytes32 _amountValue = factsRegistry.accountStorageSlotValues(
-                PAYMENT_REGISTRY_ADDRESS, singleOrder.blockNumber, singleOrder.amountSlot
-            );
-            convertBytes32toNative(_orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue);
-        }
     }
 
     /**
