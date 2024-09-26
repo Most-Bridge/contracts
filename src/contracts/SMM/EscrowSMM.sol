@@ -172,7 +172,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Calculates the slots which will be proven for the given orderId, at the given blockNumber.
+     * @dev In a batch format, calculates the slots which will be proven for the given orderIds, at the given blockNumber.
      * @param _orderIds An array of orders who's slots will be proven.
      * @param _blockNumber The point in time in which the slot state will be accessed.
      */
@@ -311,7 +311,7 @@ contract Escrow is ReentrancyGuard, Pausable {
      * @dev Allows the market maker to batch unlock the funds for a transaction fulfilled by them.
      * @param _orderIds The ids of the orders to be withdrawn.
      */
-    function batchWithdrawProved(uint256[] memory _orderIds) external nonReentrant whenNotPaused {
+    function withdrawProvedBatch(uint256[] memory _orderIds) external nonReentrant whenNotPaused {
         uint256 amountToWithdraw = 0;
         for (uint256 i = 0; i < _orderIds.length; i++) {
             uint256 _orderId = _orderIds[i];
@@ -335,7 +335,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         // payout MM
         require(address(this).balance >= amountToWithdraw, "Escrow: Insuffienct balance to withdraw");
         (bool success,) = payable(allowedWithdrawalAddress).call{value: amountToWithdraw}("");
-        require(success, "Batch Withdraw Proved: Transfer failed");
+        require(success, "Withdraw Proved Batch: Transfer failed");
 
         emit WithdrawSuccessBatch(_orderIds);
     }
