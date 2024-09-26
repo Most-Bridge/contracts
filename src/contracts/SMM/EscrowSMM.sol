@@ -342,9 +342,10 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /**
      * @dev Allows the user to withdraw their order if it has not been fulfilled by the exipration date.
+     * Note: this function should never be pausalbe. 
      * @param _orderId The Id of the order to be refunded.
      */
-    function refundOrder(uint256 _orderId) external payable nonReentrant whenNotPaused {
+    function refundOrder(uint256 _orderId) external payable nonReentrant {
         InitialOrderData memory _orderToRefund = orders[_orderId];
         OrderStatusUpdates memory _orderToRefundUpdates = orderUpdates[_orderId];
         require(
