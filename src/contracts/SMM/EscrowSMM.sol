@@ -342,7 +342,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /**
      * @dev Allows the user to withdraw their order if it has not been fulfilled by the exipration date.
-     * Note: this function should never be pausalbe. 
+     * Note: this function should never be pausalbe.
      * @param _orderId The Id of the order to be refunded.
      */
     function refundOrder(uint256 _orderId) external payable nonReentrant {
@@ -375,12 +375,5 @@ contract Escrow is ReentrancyGuard, Pausable {
      */
     function setAllowedAddress(address _newAllowedAddress) public onlyOwner {
         allowedRelayAddress = _newAllowedAddress;
-    }
-
-    /**
-     * @dev Change the payment registry address.
-     */
-    function setPaymentRegistryAddress(address _newPaymentRegistryAddress) public onlyOwner {
-        PAYMENT_REGISTRY_ADDRESS = _newPaymentRegistryAddress;
     }
 }
