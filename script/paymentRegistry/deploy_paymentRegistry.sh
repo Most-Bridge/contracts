@@ -8,3 +8,8 @@ forge script script/paymentRegistry/DeployPaymentRegistry.s.sol:DeployPaymentReg
     --rpc-url $ETH_SEPOLIA_RPC \
     --broadcast \
     --private-key $DEPLOY_PRIVATE_KEY
+
+# and verify it 
+export ETHERSCAN_API_KEY=$ETH_ETHERSCAN_API_KEY
+
+forge verify-contract --chain-id 11155111 --compiler-version 0.8.26  ${PAYMENT_REGISTRY_ADDRESS} src/contracts/SMM/PaymentRegistrySMM.sol:PaymentRegistry
