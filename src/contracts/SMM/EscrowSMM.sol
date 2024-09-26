@@ -26,7 +26,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public owner;
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying slots to this contract
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
-    address public PAYMENT_REGISTRY_ADDRESS = 0x2501F3484794008D3F61d32FEC9DfDD6E5202578;
+    address public PAYMENT_REGISTRY_ADDRESS = 0xd56774f57caEa877a3A7F808aF189C8240252629;
     address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
 
     uint256 private orderId = 1;

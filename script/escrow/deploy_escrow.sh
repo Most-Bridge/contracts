@@ -12,4 +12,4 @@ forge script script/escrow/DeployEscrow.s.sol:DeployEscrow \
 # also verify right after lol 
 export ETHERSCAN_API_KEY=$OP_ETHERSCAN_API_KEY
 
-forge verify-contract --chain-id 11155420 --compiler-version 0.8.26  ${ESCROW_ADDRESS} src/contracts/SMM/EscrowSMM.sol:Escrow
+# forge verify-contract --chain-id 11155420 --compiler-version 0.8.26  $ESCROW_ADDRESS src/contracts/SMM/EscrowSMM.sol:Escrow
