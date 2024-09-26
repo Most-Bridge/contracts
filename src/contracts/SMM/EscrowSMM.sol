@@ -157,11 +157,11 @@ contract Escrow is ReentrancyGuard, Pausable {
         // get the usrDstAddress, orderId and the amount
         InitialOrderData memory correctOrder = orders[_orderId];
 
-        bytes32 transfersMappingSlot =
+        bytes32 transfersMappingKey =
             keccak256(abi.encodePacked(correctOrder.orderId, correctOrder.usrDstAddress, correctOrder.amount));
-        uint256 transfersMappigKey = 2; // Please check payment registry storage layout for changes before deployment
+        uint256 transfersMappigSlot = 2; // Please check payment registry storage layout for changes before deployment
 
-        bytes32 baseStorageSlot = keccak256(abi.encodePacked(transfersMappingSlot, transfersMappigKey));
+        bytes32 baseStorageSlot = keccak256(abi.encodePacked(transfersMappingKey, transfersMappigSlot));
 
         bytes32 _orderIdSlot = baseStorageSlot;
         bytes32 _usrDstAddressSlot = bytes32(uint256(baseStorageSlot) + 1);
