@@ -150,9 +150,19 @@ contract Escrow is ReentrancyGuard, Pausable {
      * @param _orderId The order who's slots will be proven.
      * @param _blockNumber The point in time in which the slot state will be accessed.
      */
-    function calculateSlotsForFulfilledOrder(uint256 _orderId, uint256 _blockNumber) public {
+    function calculateSlotsForFulfilledOrder(uint256 _orderId, uint256 _blockNumber)
+        public
+        onlyAllowedAddress
+        whenNotPaused
+    {
         // check that the order exists in the mapping
         require(orders[_orderId].orderId != 0, "Order does not exist");
+        require(
+            orderUpdates[_orderId].status == OrderStatus.PENDING,
+            "The order can only be in the PENDING status; any other status is invalid."
+        );
+
+        uint256 originalOrderId = _orderId;
 
         // get the usrDstAddress, orderId and the amount
         InitialOrderData memory correctOrder = orders[_orderId];
@@ -168,7 +178,11 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 _expirationTimestampSlot = bytes32(uint256(baseStorageSlot) + 2);
         bytes32 _amountSlot = bytes32(uint256(baseStorageSlot) + 3);
 
-        getValuesFromSlots(_orderIdSlot, _usrDstAddressSlot, _expirationTimestampSlot, _amountSlot, _blockNumber);
+        orderUpdates[_orderId].status = OrderStatus.PROVING;
+
+        getValuesFromSlots(
+            originalOrderId, _orderIdSlot, _usrDstAddressSlot, _expirationTimestampSlot, _amountSlot, _blockNumber
+        );
     }
 
     /**
@@ -176,7 +190,10 @@ contract Escrow is ReentrancyGuard, Pausable {
      * @param _orderIds An array of orders who's slots will be proven.
      * @param _blockNumber The point in time in which the slot state will be accessed.
      */
-    function calculateSlotsForFulfilledOrderBatch(uint256[] memory _orderIds, uint256 _blockNumber) public {
+    function calculateSlotsForFulfilledOrderBatch(uint256[] memory _orderIds, uint256 _blockNumber)
+        public
+        onlyAllowedAddress
+    {
         // batch call calculateSlotsForFulfilledOrder
         for (uint256 i = 0; i < _orderIds.length; i++) {
             calculateSlotsForFulfilledOrder(_orderIds[i], _blockNumber);
@@ -192,12 +209,13 @@ contract Escrow is ReentrancyGuard, Pausable {
      * @param _blockNumber The blockNumber.
      */
     function getValuesFromSlots(
+        uint256 originalOrderId,
         bytes32 _orderIdSlot,
         bytes32 _usrDstAddressSlot,
         bytes32 _expirationTimestampSlot,
         bytes32 _amountSlot,
         uint256 _blockNumber
-    ) private onlyAllowedAddress whenNotPaused {
+    ) private whenNotPaused {
         bytes32 _orderIdValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
         bytes32 _dstAddressValue =
@@ -207,7 +225,9 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 _amountValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
 
-        convertBytes32toNative(_orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue);
+        convertBytes32toNative(
+            originalOrderId, _orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue
+        );
     }
 
     /**
@@ -218,6 +238,7 @@ contract Escrow is ReentrancyGuard, Pausable {
      * @param _amountValue A bytes32 value of the amount value.
      */
     function convertBytes32toNative(
+        uint256 originalOrderId,
         bytes32 _orderIdValue,
         bytes32 _dstAddressValue,
         bytes32 _expirationTimestampValue,
@@ -231,15 +252,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         //bytes32 to address
         address _dstAddress = address(uint160(uint256(_dstAddressValue)));
 
-        require(orders[_orderId].orderId != 0, "This order does not exist");
-        require(
-            orderUpdates[_orderId].status == OrderStatus.PENDING,
-            "The order can only be in the PENDING status; any other status is invalid."
-        );
-
-        orderUpdates[_orderId].status = OrderStatus.PROVING;
-
-        proveBridgeTransaction(_orderId, _dstAddress, _expirationTimestamp, _amount);
+        proveBridgeTransaction(originalOrderId, _orderId, _dstAddress, _expirationTimestamp, _amount);
     }
 
     /**
@@ -250,13 +263,14 @@ contract Escrow is ReentrancyGuard, Pausable {
      * @param _amount The amount of the order.
      */
     function proveBridgeTransaction(
+        uint256 originalOrderId,
         uint256 _orderId,
         address _dstAddress,
         uint256 _expirationTimestamp,
         uint256 _amount
     ) private {
-        InitialOrderData memory correctOrder = orders[_orderId];
-        OrderStatusUpdates memory correctOrderStatus = orderUpdates[_orderId];
+        InitialOrderData memory correctOrder = orders[originalOrderId];
+        OrderStatusUpdates memory correctOrderStatus = orderUpdates[originalOrderId];
 
         require(correctOrderStatus.status != OrderStatus.PROVED, "Cannot prove an order that has already been proved");
 
@@ -265,7 +279,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         // make sure that proof data matches the contract's own data
         if (
-            correctOrder.usrDstAddress == _dstAddress && correctOrder.amount == _amount
+            originalOrderId == _orderId && correctOrder.usrDstAddress == _dstAddress && correctOrder.amount == _amount
                 && correctOrder.expirationTimestamp == _expirationTimestamp
         ) {
             orderUpdates[_orderId].status = OrderStatus.PROVED;
@@ -357,10 +371,10 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 currentTimestamp = block.timestamp;
         require(currentTimestamp > _orderToRefund.expirationTimestamp, "Cannot refund an order that has not expired.");
 
-        orderUpdates[_orderId].status = OrderStatus.RECLAIMED;
-
         uint256 amountToRefund = _orderToRefund.amount + _orderToRefund.fee;
         require(address(this).balance >= amountToRefund, "Insufficient contract balance for refund");
+        
+        orderUpdates[_orderId].status = OrderStatus.RECLAIMED;
 
         (bool success,) = payable(msg.sender).call{value: amountToRefund}("");
         require(success, "Refund Order: Transfer failed");
