@@ -150,11 +150,7 @@ contract Escrow is ReentrancyGuard, Pausable {
      * @param _orderId The order who's slots will be proven.
      * @param _blockNumber The point in time in which the slot state will be accessed.
      */
-    function calculateSlotsForFulfilledOrder(uint256 _orderId, uint256 _blockNumber)
-        public
-        onlyAllowedAddress
-        whenNotPaused
-    {
+    function proveOrderFulfillment(uint256 _orderId, uint256 _blockNumber) public onlyAllowedAddress whenNotPaused {
         // check that the order exists in the mapping
         require(orders[_orderId].orderId != 0, "Order does not exist");
         require(
@@ -162,9 +158,11 @@ contract Escrow is ReentrancyGuard, Pausable {
             "The order can only be in the PENDING status; any other status is invalid."
         );
 
-        // get the usrDstAddress, orderId and the amount
+        // get the stored order data
         InitialOrderData memory correctOrder = orders[_orderId];
+        OrderStatusUpdates memory correctOrderStatus = orderUpdates[_orderId];
 
+        // STEP 1: CALCULATING THE STORAGE SLOTS
         bytes32 transfersMappingKey =
             keccak256(abi.encodePacked(correctOrder.orderId, correctOrder.usrDstAddress, correctOrder.amount));
         uint256 transfersMappigSlot = 2; // Please check payment registry storage layout for changes before deployment
@@ -178,42 +176,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         orderUpdates[_orderId].status = OrderStatus.PROVING;
 
-        getValuesFromSlots(
-            _orderId, _orderIdSlot, _usrDstAddressSlot, _expirationTimestampSlot, _amountSlot, _blockNumber
-        );
-    }
-
-    /**
-     * @dev In a batch format, calculates the slots which will be proven for the given orderIds, at the given blockNumber.
-     * @param _orderIds An array of orders who's slots will be proven.
-     * @param _blockNumber The point in time in which the slot state will be accessed.
-     */
-    function calculateSlotsForFulfilledOrderBatch(uint256[] memory _orderIds, uint256 _blockNumber)
-        public
-        onlyAllowedAddress
-    {
-        // batch call calculateSlotsForFulfilledOrder
-        for (uint256 i = 0; i < _orderIds.length; i++) {
-            calculateSlotsForFulfilledOrder(_orderIds[i], _blockNumber);
-        }
-    }
-
-    /**
-     * @dev Fetches and processes storage slot values from the FactsRegistry contract for a single order.
-     * @param _orderIdSlot Slot of the order Id.
-     * @param _usrDstAddressSlot Slot of the user's destination address.
-     * @param _expirationTimestampSlot Slot of the expiratoin timestamp.
-     * @param _amountSlot Slot of the amount.
-     * @param _blockNumber The blockNumber.
-     */
-    function getValuesFromSlots(
-        uint256 originalOrderId,
-        bytes32 _orderIdSlot,
-        bytes32 _usrDstAddressSlot,
-        bytes32 _expirationTimestampSlot,
-        bytes32 _amountSlot,
-        uint256 _blockNumber
-    ) private whenNotPaused {
+        // STEP 2: GET THE VALUES OF THE STORAGE SLOTS
         bytes32 _orderIdValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
         bytes32 _dstAddressValue =
@@ -223,53 +186,11 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 _amountValue =
             factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
 
-        convertBytes32toNative(
-            originalOrderId, _orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue
-        );
-    }
+        // STEP 3: CONVERT THE VALUES TO THEIR NATIVE TYPES
+        (uint256 orderIdNative, address dstAddressNative, uint256 expirationTimestampNative, uint256 amountNative) =
+            convertBytes32toNative(_orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue);
 
-    /**
-     * @dev Converts bytes32 values to their native types.
-     * @param _orderIdValue A bytes32 value of the orderId.
-     * @param _dstAddressValue A bytes32 value of the dstAddress.
-     * @param _expirationTimestampValue A bytes32 value of the expiration timestamp.
-     * @param _amountValue A bytes32 value of the amount value.
-     */
-    function convertBytes32toNative(
-        uint256 originalOrderId,
-        bytes32 _orderIdValue,
-        bytes32 _dstAddressValue,
-        bytes32 _expirationTimestampValue,
-        bytes32 _amountValue
-    ) private {
-        // bytes32 to uint256
-        uint256 _orderId = uint256(_orderIdValue);
-        uint256 _amount = uint256(_amountValue);
-        uint256 _expirationTimestamp = uint256(_expirationTimestampValue);
-
-        //bytes32 to address
-        address _dstAddress = address(uint160(uint256(_dstAddressValue)));
-
-        proveBridgeTransaction(originalOrderId, _orderId, _dstAddress, _expirationTimestamp, _amount);
-    }
-
-    /**
-     * @dev Validates the transaction proof, and updates the status of the order.
-     * @param _orderId The order's Id.
-     * @param _dstAddress The destination address of the order.
-     * @param _expirationTimestamp The expiration timestamp of the order.
-     * @param _amount The amount of the order.
-     */
-    function proveBridgeTransaction(
-        uint256 originalOrderId,
-        uint256 _orderId,
-        address _dstAddress,
-        uint256 _expirationTimestamp,
-        uint256 _amount
-    ) private {
-        InitialOrderData memory correctOrder = orders[originalOrderId];
-        OrderStatusUpdates memory correctOrderStatus = orderUpdates[originalOrderId];
-
+        // STEP 4: COMPARE ORDER FULFILLMENT DATA
         require(correctOrderStatus.status != OrderStatus.PROVED, "Cannot prove an order that has already been proved");
 
         uint256 currentTimestamp = block.timestamp;
@@ -277,8 +198,8 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         // make sure that proof data matches the contract's own data
         if (
-            originalOrderId == _orderId && correctOrder.usrDstAddress == _dstAddress && correctOrder.amount == _amount
-                && correctOrder.expirationTimestamp == _expirationTimestamp
+            correctOrder.orderId == orderIdNative && correctOrder.usrDstAddress == dstAddressNative
+                && correctOrder.amount == amountNative && correctOrder.expirationTimestamp == expirationTimestampNative
         ) {
             orderUpdates[_orderId].status = OrderStatus.PROVED;
 
@@ -288,6 +209,113 @@ contract Escrow is ReentrancyGuard, Pausable {
             orderUpdates[_orderId].status = OrderStatus.PENDING;
         }
     }
+
+    /**
+     * @dev In a batch format, calculates the slots which will be proven for the given orderIds, at the given blockNumber.
+     * @param _orderIds An array of orders who's slots will be proven.
+     * @param _blockNumber The point in time in which the slot state will be accessed.
+     */
+    function proveOrderFulfillmentBatch(uint256[] memory _orderIds, uint256 _blockNumber) public onlyAllowedAddress {
+        // batch call proveOrderFulfillment
+        for (uint256 i = 0; i < _orderIds.length; i++) {
+            proveOrderFulfillment(_orderIds[i], _blockNumber);
+        }
+    }
+
+    // /**
+    //  * @dev Fetches and processes storage slot values from the FactsRegistry contract for a single order.
+    //  * @param _orderIdSlot Slot of the order Id.
+    //  * @param _usrDstAddressSlot Slot of the user's destination address.
+    //  * @param _expirationTimestampSlot Slot of the expiratoin timestamp.
+    //  * @param _amountSlot Slot of the amount.
+    //  * @param _blockNumber The blockNumber.
+    //  */
+    // function getValuesFromSlots(
+    //     uint256 originalOrderId,
+    //     bytes32 _orderIdSlot,
+    //     bytes32 _usrDstAddressSlot,
+    //     bytes32 _expirationTimestampSlot,
+    //     bytes32 _amountSlot,
+    //     uint256 _blockNumber
+    // ) private whenNotPaused {
+    //     bytes32 _orderIdValue =
+    //         factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
+    //     bytes32 _dstAddressValue =
+    //         factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _usrDstAddressSlot);
+    //     bytes32 _expirationTimestampValue =
+    //         factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _expirationTimestampSlot);
+    //     bytes32 _amountValue =
+    //         factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
+
+    //     convertBytes32toNative(
+    //         originalOrderId, _orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue
+    //     );
+    // }
+
+    /**
+     * @dev Converts bytes32 values to their native types.
+     * @param _orderIdValue A bytes32 value of the orderId.
+     * @param _dstAddressValue A bytes32 value of the dstAddress.
+     * @param _expirationTimestampValue A bytes32 value of the expiration timestamp.
+     * @param _amountValue A bytes32 value of the amount value.
+     *
+     * @return _orderId The order ID as a `uint256`.
+     * @return _dstAddress The destination address as an `address`.
+     * @return _expirationTimestamp The expiration timestamp as a `uint256`.
+     * @return _amount The amount as a `uint256`.
+     */
+    function convertBytes32toNative(
+        bytes32 _orderIdValue,
+        bytes32 _dstAddressValue,
+        bytes32 _expirationTimestampValue,
+        bytes32 _amountValue
+    ) internal pure returns (uint256 _orderId, address _dstAddress, uint256 _expirationTimestamp, uint256 _amount) {
+        // bytes32 to uint256
+        _orderId = uint256(_orderIdValue);
+        _amount = uint256(_amountValue);
+        _expirationTimestamp = uint256(_expirationTimestampValue);
+
+        // bytes32 to address
+        _dstAddress = address(uint160(uint256(_dstAddressValue)));
+
+        return (_orderId, _dstAddress, _expirationTimestamp, _amount);
+    }
+
+    // /**
+    //  * @dev Validates the transaction proof, and updates the status of the order.
+    //  * @param _orderId The order's Id.
+    //  * @param _dstAddress The destination address of the order.
+    //  * @param _expirationTimestamp The expiration timestamp of the order.
+    //  * @param _amount The amount of the order.
+    //  */
+    // function proveBridgeTransaction(
+    //     uint256 originalOrderId,
+    //     uint256 _orderId,
+    //     address _dstAddress,
+    //     uint256 _expirationTimestamp,
+    //     uint256 _amount
+    // ) private {
+    //     InitialOrderData memory correctOrder = orders[originalOrderId];
+    //     OrderStatusUpdates memory correctOrderStatus = orderUpdates[originalOrderId];
+
+    //     require(correctOrderStatus.status != OrderStatus.PROVED, "Cannot prove an order that has already been proved");
+
+    //     uint256 currentTimestamp = block.timestamp;
+    //     require(correctOrder.expirationTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
+
+    //     // make sure that proof data matches the contract's own data
+    //     if (
+    //         originalOrderId == _orderId && correctOrder.usrDstAddress == _dstAddress && correctOrder.amount == _amount
+    //             && correctOrder.expirationTimestamp == _expirationTimestamp
+    //     ) {
+    //         orderUpdates[_orderId].status = OrderStatus.PROVED;
+
+    //         emit ProveBridgeSuccess(_orderId);
+    //     } else {
+    //         // if the proof fails, this will allow the order to be proved again
+    //         orderUpdates[_orderId].status = OrderStatus.PENDING;
+    //     }
+    // }
 
     /**
      * @dev Allows the market maker to unlock the funds for a transaction fulfilled by them.
