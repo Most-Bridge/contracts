@@ -222,36 +222,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
     }
 
-    // /**
-    //  * @dev Fetches and processes storage slot values from the FactsRegistry contract for a single order.
-    //  * @param _orderIdSlot Slot of the order Id.
-    //  * @param _usrDstAddressSlot Slot of the user's destination address.
-    //  * @param _expirationTimestampSlot Slot of the expiratoin timestamp.
-    //  * @param _amountSlot Slot of the amount.
-    //  * @param _blockNumber The blockNumber.
-    //  */
-    // function getValuesFromSlots(
-    //     uint256 originalOrderId,
-    //     bytes32 _orderIdSlot,
-    //     bytes32 _usrDstAddressSlot,
-    //     bytes32 _expirationTimestampSlot,
-    //     bytes32 _amountSlot,
-    //     uint256 _blockNumber
-    // ) private whenNotPaused {
-    //     bytes32 _orderIdValue =
-    //         factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
-    //     bytes32 _dstAddressValue =
-    //         factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _usrDstAddressSlot);
-    //     bytes32 _expirationTimestampValue =
-    //         factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _expirationTimestampSlot);
-    //     bytes32 _amountValue =
-    //         factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
-
-    //     convertBytes32toNative(
-    //         originalOrderId, _orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue
-    //     );
-    // }
-
     /**
      * @dev Converts bytes32 values to their native types.
      * @param _orderIdValue A bytes32 value of the orderId.
@@ -280,42 +250,6 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         return (_orderId, _dstAddress, _expirationTimestamp, _amount);
     }
-
-    // /**
-    //  * @dev Validates the transaction proof, and updates the status of the order.
-    //  * @param _orderId The order's Id.
-    //  * @param _dstAddress The destination address of the order.
-    //  * @param _expirationTimestamp The expiration timestamp of the order.
-    //  * @param _amount The amount of the order.
-    //  */
-    // function proveBridgeTransaction(
-    //     uint256 originalOrderId,
-    //     uint256 _orderId,
-    //     address _dstAddress,
-    //     uint256 _expirationTimestamp,
-    //     uint256 _amount
-    // ) private {
-    //     InitialOrderData memory correctOrder = orders[originalOrderId];
-    //     OrderStatusUpdates memory correctOrderStatus = orderUpdates[originalOrderId];
-
-    //     require(correctOrderStatus.status != OrderStatus.PROVED, "Cannot prove an order that has already been proved");
-
-    //     uint256 currentTimestamp = block.timestamp;
-    //     require(correctOrder.expirationTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
-
-    //     // make sure that proof data matches the contract's own data
-    //     if (
-    //         originalOrderId == _orderId && correctOrder.usrDstAddress == _dstAddress && correctOrder.amount == _amount
-    //             && correctOrder.expirationTimestamp == _expirationTimestamp
-    //     ) {
-    //         orderUpdates[_orderId].status = OrderStatus.PROVED;
-
-    //         emit ProveBridgeSuccess(_orderId);
-    //     } else {
-    //         // if the proof fails, this will allow the order to be proved again
-    //         orderUpdates[_orderId].status = OrderStatus.PENDING;
-    //     }
-    // }
 
     /**
      * @dev Allows the market maker to unlock the funds for a transaction fulfilled by them.
