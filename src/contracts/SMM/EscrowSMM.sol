@@ -24,7 +24,7 @@ interface IFactsRegistry {
 contract Escrow is ReentrancyGuard, Pausable {
     // State variables
     address public owner;
-    address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying slots to this contract
+    address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders 
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
     address public PAYMENT_REGISTRY_ADDRESS = 0xd56774f57caEa877a3A7F808aF189C8240252629;
     address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
@@ -46,9 +46,9 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     // for debugging purposes
     // event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, uint256 blockNumber);
+    // event SlotsReceivedBatch(OrderSlots[] ordersToBeProved);
     // event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount);
     // event ValuesReceivedBatch(OrderSlots[] ordersToBeProved);
-    // event SlotsReceivedBatch(OrderSlots[] ordersToBeProved);
 
     // Structs
     // Contains all information that is available during the order creation
