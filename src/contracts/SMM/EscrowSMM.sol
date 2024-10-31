@@ -162,8 +162,6 @@ contract Escrow is ReentrancyGuard, Pausable {
             "The order can only be in the PENDING status; any other status is invalid."
         );
 
-        uint256 originalOrderId = _orderId;
-
         // get the usrDstAddress, orderId and the amount
         InitialOrderData memory correctOrder = orders[_orderId];
 
@@ -181,7 +179,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         orderUpdates[_orderId].status = OrderStatus.PROVING;
 
         getValuesFromSlots(
-            originalOrderId, _orderIdSlot, _usrDstAddressSlot, _expirationTimestampSlot, _amountSlot, _blockNumber
+            _orderId, _orderIdSlot, _usrDstAddressSlot, _expirationTimestampSlot, _amountSlot, _blockNumber
         );
     }
 
@@ -373,7 +371,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         uint256 amountToRefund = _orderToRefund.amount + _orderToRefund.fee;
         require(address(this).balance >= amountToRefund, "Insufficient contract balance for refund");
-        
+
         orderUpdates[_orderId].status = OrderStatus.RECLAIMED;
 
         (bool success,) = payable(msg.sender).call{value: amountToRefund}("");
