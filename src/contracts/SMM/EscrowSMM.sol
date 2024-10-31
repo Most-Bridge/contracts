@@ -146,8 +146,13 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Calculates the slots which will be proven for the given orderId, at the given blockNumber.
-     * @param _orderId The order who's slots will be proven.
+     * @dev Proves the fulfillment of an order by verifying order data stored on the Payment Registry contract at a specific block.
+     *
+     * This function calculates the storage slots associated with the order, retrieves the values from those slots,
+     * converts them to their native types, and compares them with the stored order information to confirm fulfillment.
+     * If the data matches, the order status is updated to "PROVED"; otherwise, it remains "PENDING."
+     *
+     * @param _orderId The order ID of the order to be proven.
      * @param _blockNumber The point in time in which the slot state will be accessed.
      */
     function proveOrderFulfillment(uint256 _orderId, uint256 _blockNumber) public onlyAllowedAddress whenNotPaused {
