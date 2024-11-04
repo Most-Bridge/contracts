@@ -22,9 +22,9 @@ interface IFactsRegistry {
 }
 
 contract MockEscrow is Test {
-// State variables
+    // State variables
     address public owner;
-    address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders 
+    address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
     address public PAYMENT_REGISTRY_ADDRESS = 0xd56774f57caEa877a3A7F808aF189C8240252629;
     address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
@@ -105,23 +105,23 @@ contract MockEscrow is Test {
     /**
      * @dev Pause the contract in case of an error.
      */
-    function pauseContract() external onlyAllowedAddress {
-        _pause();
-    }
+    // function pauseContract() external onlyAllowedAddress {
+    //     _pause();
+    // }
 
-    /**
-     * @dev Unpauses the contract.
-     */
-    function unpauseContract() external onlyAllowedAddress {
-        _unpause();
-    }
+    // /**
+    //  * @dev Unpauses the contract.
+    //  */
+    // function unpauseContract() external onlyAllowedAddress {
+    //     _unpause();
+    // }
 
     /**
      * @dev Allows the user to create an order.
      * @param _usrDstAddress The destination address of the user.
      * @param _fee The fee for the market maker.
      */
-    function createOrder(address _usrDstAddress, uint256 _fee) external payable nonReentrant whenNotPaused {
+    function createOrder(address _usrDstAddress, uint256 _fee) external payable {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
@@ -155,7 +155,7 @@ contract MockEscrow is Test {
      * @param _orderId The order ID of the order to be proven.
      * @param _blockNumber The point in time in which the slot state will be accessed.
      */
-    function proveOrderFulfillment(uint256 _orderId, uint256 _blockNumber) public onlyAllowedAddress whenNotPaused {
+    function proveOrderFulfillment(uint256 _orderId, uint256 _blockNumber) public onlyAllowedAddress {
         // check that the order exists in the mapping
         require(orders[_orderId].orderId != 0, "Order does not exist");
         require(
@@ -260,7 +260,7 @@ contract MockEscrow is Test {
      * @dev Allows the market maker to unlock the funds for a transaction fulfilled by them.
      * @param _orderId The id of the order to be withdrawn.
      */
-    function withdrawProved(uint256 _orderId) external nonReentrant whenNotPaused {
+    function withdrawProved(uint256 _orderId) external {
         // get order from this contract's state
         InitialOrderData memory _order = orders[_orderId];
         OrderStatusUpdates memory _orderUpdates = orderUpdates[_orderId];
@@ -290,7 +290,7 @@ contract MockEscrow is Test {
      * @dev Allows the market maker to batch unlock the funds for a transaction fulfilled by them.
      * @param _orderIds The ids of the orders to be withdrawn.
      */
-    function withdrawProvedBatch(uint256[] memory _orderIds) external nonReentrant whenNotPaused {
+    function withdrawProvedBatch(uint256[] memory _orderIds) external {
         uint256 amountToWithdraw = 0;
         for (uint256 i = 0; i < _orderIds.length; i++) {
             uint256 _orderId = _orderIds[i];
@@ -324,7 +324,7 @@ contract MockEscrow is Test {
      * Note: this function should never be pausalbe.
      * @param _orderId The Id of the order to be refunded.
      */
-    function refundOrder(uint256 _orderId) external payable nonReentrant {
+    function refundOrder(uint256 _orderId) external payable {
         InitialOrderData memory _orderToRefund = orders[_orderId];
         OrderStatusUpdates memory _orderToRefundUpdates = orderUpdates[_orderId];
         require(
@@ -355,8 +355,6 @@ contract MockEscrow is Test {
     function setAllowedAddress(address _newAllowedAddress) public onlyOwner {
         allowedRelayAddress = _newAllowedAddress;
     }
-}
-
 
     /*
     * FOR TESTING PURPOSES ONLY 
@@ -368,10 +366,6 @@ contract MockEscrow is Test {
 
     function getOrderUpdates(uint256 _orderId) public view returns (OrderStatusUpdates memory) {
         return orderUpdates[_orderId];
-    }
-
-    function updatemmSrcAddress(uint256 _orderId, address _newAddress) public {
-        orderUpdates[_orderId].mmSrcAddress = _newAddress;
     }
 
     function updateOrderStatus(uint256 _orderId, OrderStatus _newStatus) public {
