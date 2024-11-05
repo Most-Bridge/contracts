@@ -227,6 +227,45 @@ contract MockEscrow is Test {
         }
     }
 
+    function compareStorageValueSlots(
+        uint256 orderIdNative,
+        address dstAddressNative,
+        uint256 amountNative,
+        uint256 expirationTimestampNative
+    ) public {
+        InitialOrderData memory correctOrder = orders[orderIdNative];
+        if (
+            correctOrder.orderId == orderIdNative && correctOrder.usrDstAddress == dstAddressNative
+                && correctOrder.amount == amountNative && correctOrder.expirationTimestamp == expirationTimestampNative
+        ) {
+            orderUpdates[orderIdNative].status = OrderStatus.PROVED;
+
+            emit ProveBridgeSuccess(orderIdNative);
+        } else {
+            // if the proof fails, this will allow the order to be proved again
+            orderUpdates[orderIdNative].status = OrderStatus.PENDING;
+        }
+    }
+
+    // Pulling out of the big `proveOrderFulfillment` function for testing purposes
+    function calculateStorageSlots(uint256 _orderId) public view returns (bytes32, bytes32, bytes32, bytes32) {
+        // get the stored order data
+        InitialOrderData memory correctOrder = orders[_orderId];
+        // STEP 1: CALCULATING THE STORAGE SLOTS
+        bytes32 transfersMappingKey =
+            keccak256(abi.encodePacked(correctOrder.orderId, correctOrder.usrDstAddress, correctOrder.amount));
+        uint256 transfersMappigSlot = 2; // Please check payment registry storage layout for changes before deployment
+
+        bytes32 baseStorageSlot = keccak256(abi.encodePacked(transfersMappingKey, transfersMappigSlot));
+
+        bytes32 _orderIdSlot = baseStorageSlot;
+        bytes32 _usrDstAddressSlot = bytes32(uint256(baseStorageSlot) + 1);
+        bytes32 _expirationTimestampSlot = bytes32(uint256(baseStorageSlot) + 2);
+        bytes32 _amountSlot = bytes32(uint256(baseStorageSlot) + 3);
+
+        return (_orderIdSlot, _usrDstAddressSlot, _expirationTimestampSlot, _amountSlot);
+    }
+
     /**
      * @dev Converts bytes32 values to their native types.
      * @param _orderIdValue A bytes32 value of the orderId.
@@ -244,7 +283,7 @@ contract MockEscrow is Test {
         bytes32 _dstAddressValue,
         bytes32 _expirationTimestampValue,
         bytes32 _amountValue
-    ) internal pure returns (uint256 _orderId, address _dstAddress, uint256 _expirationTimestamp, uint256 _amount) {
+    ) public pure returns (uint256 _orderId, address _dstAddress, uint256 _expirationTimestamp, uint256 _amount) {
         // bytes32 to uint256
         _orderId = uint256(_orderIdValue);
         _amount = uint256(_amountValue);
