@@ -99,10 +99,6 @@ contract MockEscrowTest is Test {
         assertEq(amount, expectedAmount);
     }
 
-    // TODO: test that the allowed withdraw address gets its balance increased for a batch successful withdrawal
-    // TODO: compareStorageValues slots pass
-    // TODO: compareStorageValues slots fail
-
     function testSuccessfulWithdrawalBalanceIncrease() public {
         assertEq(allowedWithdrawalAddress.balance, 0 ether);
 
@@ -122,31 +118,29 @@ contract MockEscrowTest is Test {
     }
 
     function testSuccessfulWithdrawalBalanceIncreaseBatch() public {
-        uint256 counter = 0;
+        uint256 counter = 1;
 
-        // creating and proving 3 orders
-        while (counter < 3) {
+        // creating and proving 3 orders starting at 1
+        while (counter < 4) {
             vm.startPrank(user);
             (bool success,) = address(mockEscrow).call{value: sendAmount}(
                 abi.encodeWithSelector(mockEscrow.createOrder.selector, destinationAddress, fee)
             );
             assertTrue(success, "createOrder transaction failed");
-            mockEscrow.updateOrderStatus(1, MockEscrow.OrderStatus.PROVED);
+            mockEscrow.updateOrderStatus(counter, MockEscrow.OrderStatus.PROVED);
             vm.stopPrank();
             counter++;
         }
 
-        uint256[] calldata orderIds = [1, 2, 3];
-
-        // Assign values to each index
-        // orderIds[0] = 1;
-        // orderIds[1] = 2;
-        // orderIds[2] = 3;
+        uint256[] memory orderIds = new uint256[](3);
+        orderIds[0] = uint256(1);
+        orderIds[1] = uint256(2);
+        orderIds[2] = uint256(3);
 
         vm.prank(allowedRelayAddress);
-        // mockEscrow.withdrawProvedBatch(orderIds);
+        mockEscrow.withdrawProvedBatch(orderIds);
 
-        // assertEq(allowedWithdrawalAddress, 3 ether);
+        assertEq(allowedWithdrawalAddress.balance, 3 ether);
     }
 
     function testCalculateSlots() public {
@@ -166,6 +160,36 @@ contract MockEscrowTest is Test {
         assertEq(_usrDstAddressSlot, bytes32(0x48922ff644596f89525405cfb68628c719bd89b667d7df03231de924654e6b0a));
         assertEq(_expirationTimestampSlot, bytes32(0x48922ff644596f89525405cfb68628c719bd89b667d7df03231de924654e6b0b));
         assertEq(_amountSlot, bytes32(0x48922ff644596f89525405cfb68628c719bd89b667d7df03231de924654e6b0c));
+    }
+
+    function testCompareValueSlotsPass() public {
+        vm.startPrank(user);
+        (bool success,) = address(mockEscrow).call{value: sendAmount}(
+            abi.encodeWithSelector(mockEscrow.createOrder.selector, destinationAddress, fee)
+        );
+        assertTrue(success, "createOrder transaction failed");
+
+        MockEscrow.InitialOrderData memory correctOrder = mockEscrow.getInitialOrderData(1);
+
+        bool compareSuccess = mockEscrow.compareStorageValueSlots(
+            1, destinationAddress, sendAmount - fee, correctOrder.expirationTimestamp
+        );
+        assertTrue(compareSuccess, "compare storage value slots failed");
+    }
+
+    function testCompareValueSlotsFail() public {
+        vm.startPrank(user);
+        (bool success,) = address(mockEscrow).call{value: sendAmount}(
+            abi.encodeWithSelector(mockEscrow.createOrder.selector, destinationAddress, fee)
+        );
+        assertTrue(success, "createOrder transaction failed");
+
+        MockEscrow.InitialOrderData memory correctOrder = mockEscrow.getInitialOrderData(1);
+
+        // here the fee is not subtracted from the sendAmount, which will result in a failure
+        bool compareSuccess =
+            mockEscrow.compareStorageValueSlots(1, destinationAddress, sendAmount, correctOrder.expirationTimestamp);
+        assertFalse(compareSuccess, "compare storage value slots passed when it should have failed");
     }
 }
 

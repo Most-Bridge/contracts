@@ -232,7 +232,7 @@ contract MockEscrow is Test {
         address dstAddressNative,
         uint256 amountNative,
         uint256 expirationTimestampNative
-    ) public {
+    ) public returns (bool compareSuccess) {
         InitialOrderData memory correctOrder = orders[orderIdNative];
         if (
             correctOrder.orderId == orderIdNative && correctOrder.usrDstAddress == dstAddressNative
@@ -241,6 +241,7 @@ contract MockEscrow is Test {
             orderUpdates[orderIdNative].status = OrderStatus.PROVED;
 
             emit ProveBridgeSuccess(orderIdNative);
+            return true;
         } else {
             // if the proof fails, this will allow the order to be proved again
             orderUpdates[orderIdNative].status = OrderStatus.PENDING;
