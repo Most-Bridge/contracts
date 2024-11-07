@@ -24,9 +24,9 @@ interface IFactsRegistry {
 contract Escrow is ReentrancyGuard, Pausable {
     // State variables
     address public owner;
-    address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders 
+    address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
-    address public PAYMENT_REGISTRY_ADDRESS = 0xd56774f57caEa877a3A7F808aF189C8240252629;
+    address public PAYMENT_REGISTRY_ADDRESS = 0x6B911a94ee908BF9503143863A52Ea6c1f38b50A;
     address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
 
     uint256 private orderId = 1;
