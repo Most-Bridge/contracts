@@ -28,6 +28,14 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
     address public PAYMENT_REGISTRY_ADDRESS = 0x6B911a94ee908BF9503143863A52Ea6c1f38b50A;
     address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
+    address public HDP_EXECUTION_STORE_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
+    bytes32 public HDP_PROGRAM_HASH = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
+    bytes32 public STARKNET_MAINNET_NETWORK_ID = 0x534e5f4d41494e;
+    bytes32 public ETHEREUM_MAINNET_NETWORK_ID = 1;
+    bytes32 public STARKNET_SEPOLIA_NETWORK_ID = 0x534e5f5345504f4c4941;
+    bytes32 public ETHEREUM_SEPOLIA_NETWORK_ID = 11155111;
+    
+
 
     uint256 private orderId = 1;
 
@@ -38,7 +46,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     mapping(uint256 => OrderStatusUpdates) public orderUpdates;
 
     // Events
-    event OrderPlaced(uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee, uint256 expirationTimestamp);
+    event OrderPlaced(uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee, uint256 expirationTimestamp, bytes32 destinationChainId);
     event ProveBridgeSuccess(uint256 orderId);
     event WithdrawSuccess(uint256 orderId);
     event WithdrawSuccessBatch(uint256[] orderIds);
@@ -59,6 +67,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 amount;
         uint256 fee;
         address usrSrcAddress;
+        bytes32 destinationChainId;
     }
 
     // Suplementary information to be updated throughout the process
@@ -121,7 +130,7 @@ contract Escrow is ReentrancyGuard, Pausable {
      * @param _usrDstAddress The destination address of the user.
      * @param _fee The fee for the market maker.
      */
-    function createOrder(address _usrDstAddress, uint256 _fee) external payable nonReentrant whenNotPaused {
+    function createOrder(address _usrDstAddress, uint256 _fee, bytes32 _destinationChainId) external payable nonReentrant whenNotPaused {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
@@ -135,7 +144,8 @@ contract Escrow is ReentrancyGuard, Pausable {
             expirationTimestamp: _expirationTimestamp,
             amount: bridgeAmount,
             fee: _fee,
-            usrSrcAddress: msg.sender
+            usrSrcAddress: msg.sender,
+            destinationChainId: _destinationChainId,
         });
 
         orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PENDING});
@@ -166,30 +176,41 @@ contract Escrow is ReentrancyGuard, Pausable {
         // get the stored order data
         InitialOrderData memory correctOrder = orders[_orderId];
         OrderStatusUpdates memory correctOrderStatus = orderUpdates[_orderId];
+        
+        if (correctOrder.destinationChainId == ETHEREUM_SEPOLIA_NETWORK_ID) {
 
-        // STEP 1: CALCULATING THE STORAGE SLOTS
-        bytes32 transfersMappingKey =
-            keccak256(abi.encodePacked(correctOrder.orderId, correctOrder.usrDstAddress, correctOrder.amount));
-        uint256 transfersMappigSlot = 2; // Please check payment registry storage layout for changes before deployment
+            // If the destination chain is EVM based we use Storage Proofs and Fact Registry to prove correct order fulfillment
+            
+            // STEP 1: CALCULATING THE STORAGE SLOTS
+            bytes32 transfersMappingKey =
+                keccak256(abi.encodePacked(correctOrder.orderId, correctOrder.usrDstAddress, correctOrder.amount));
+            uint256 transfersMappigSlot = 2; // Please check payment registry storage layout for changes before deployment
 
-        bytes32 baseStorageSlot = keccak256(abi.encodePacked(transfersMappingKey, transfersMappigSlot));
+            bytes32 baseStorageSlot = keccak256(abi.encodePacked(transfersMappingKey, transfersMappigSlot));
 
-        bytes32 _orderIdSlot = baseStorageSlot;
-        bytes32 _usrDstAddressSlot = bytes32(uint256(baseStorageSlot) + 1);
-        bytes32 _expirationTimestampSlot = bytes32(uint256(baseStorageSlot) + 2);
-        bytes32 _amountSlot = bytes32(uint256(baseStorageSlot) + 3);
+            bytes32 _orderIdSlot = baseStorageSlot;
+            bytes32 _usrDstAddressSlot = bytes32(uint256(baseStorageSlot) + 1);
+            bytes32 _expirationTimestampSlot = bytes32(uint256(baseStorageSlot) + 2);
+            bytes32 _amountSlot = bytes32(uint256(baseStorageSlot) + 3);
 
-        orderUpdates[_orderId].status = OrderStatus.PROVING;
+            orderUpdates[_orderId].status = OrderStatus.PROVING;
 
-        // STEP 2: GET THE VALUES OF THE STORAGE SLOTS
-        bytes32 _orderIdValue =
-            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
-        bytes32 _dstAddressValue =
-            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _usrDstAddressSlot);
-        bytes32 _expirationTimestampValue =
-            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _expirationTimestampSlot);
-        bytes32 _amountValue =
-            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
+            // STEP 2: GET THE VALUES OF THE STORAGE SLOTS
+            bytes32 _orderIdValue =
+                factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
+            bytes32 _dstAddressValue =
+                factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _usrDstAddressSlot);
+            bytes32 _expirationTimestampValue =
+                factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _expirationTimestampSlot);
+            bytes32 _amountValue =
+                factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
+
+        } else if (correctOrder.destinationChainId == STARKNET_SEPOLIA_NETWORK_ID) {
+            // If the destination chain is CairoVM based we use Herodotus Data Proccesor and its Execution Store to prove correct order fulfillment
+            
+            // Basing on the inputs we calculate the fact hash that will be requested from HDP Execution Store Contract
+        }
+       
 
         // STEP 3: CONVERT THE VALUES TO THEIR NATIVE TYPES
         (uint256 orderIdNative, address dstAddressNative, uint256 expirationTimestampNative, uint256 amountNative) =
