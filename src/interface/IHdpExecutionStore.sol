@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.4;
 
-import {ComputationalTask} from "hdp-solidity/datatypes/datalake/ComputeCodecs.sol";
-import {ModuleTask} from "hdp-solidity/datatypes/module/ModuleCodecs.sol";
-import {IFactsRegistry} from "hdp-solidity/interfaces/IFactsRegistry.sol";
-import {IAggregatorsFactory} from "hdp-solidity/interfaces/IAggregatorsFactory.sol";
+import {ComputationalTask} from "lib/hdp-solidity/src/datatypes/datalake/ComputeCodecs.sol";
+import {ModuleTask} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.sol";
+import {IFactsRegistry} from "lib/hdp-solidity/src/interfaces/IFactsRegistry.sol";
+import {IAggregatorsFactory} from "lib/hdp-solidity/src/interfaces/IAggregatorsFactory.sol";
 
 interface IHdpExecutionStore {
     enum TaskStatus {
