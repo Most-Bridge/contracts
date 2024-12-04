@@ -17,7 +17,7 @@ source .env && \
 
 # call the create order function on the escrow contract - order from OP to STARKNET    
 cast send \
-    --rpc-url $OP_SEPOLIA_RPC \
+    --rpc-url $ETH_SEPOLIA_RPC \
     --private-key $USR_SRC_PRIVATE_KEY \
     $ESCROW_ADDRESS \
     "createOrder(uint256,uint256,bytes32)" \
