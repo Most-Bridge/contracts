@@ -19,14 +19,7 @@ interface IHdpExecutionStore {
     }
 
     event MmrRootCached(uint256 mmrId, uint256 mmrSize, bytes32 mmrRoot);
-    event TaskWithBlockSampledDatalakeScheduled(
-        BlockSampledDatalake datalake,
-        ComputationalTask task
-    );
-    event TaskWithTransactionsInBlockDatalakeScheduled(
-        TransactionsInBlockDatalake datalake,
-        ComputationalTask task
-    );
+    
     event ModuleTaskScheduled(ModuleTask moduleTask);
 
     function PROGRAM_HASH() external view returns (bytes32);
