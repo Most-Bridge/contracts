@@ -4,6 +4,12 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
+import {ModuleTask} from "hdp-solidity/datatypes/module/ModuleCodecs.sol";
+import {ModuleCodecs} from "hdp-solidity/datatypes/module/ModuleCodecs.sol";\
+import {TaskCode} from "hdp-solidity/datatypes/Task.sol";
+
+import {IHdpExecutionStore} from "../interface/IHdpExecutionStore.sol";
+
 /**
  * @title Escrow Contract SMM (Single Market Maker)
  * @dev Handles the bridging of assets between two chains, in conjunction with Payment Registry and a 3rd party
@@ -22,6 +28,8 @@ interface IFactsRegistry {
 }
 
 contract Escrow is ReentrancyGuard, Pausable {
+    using ModuleCodecs for ModuleTask;
+
     // State variables
     address public owner;
     uint256 private orderId = 1;
@@ -35,7 +43,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     bytes32 public ETHEREUM_SEPOLIA_NETWORK_ID = 11155111;
 
     // Starknet
-    address public HDP_EXECUTION_STORE_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
+    address public HDP_EXECUTION_STORE_ADDRESS = 0x68a011d3790e7f9038c9b9a4da7cd60889eeca70;
     bytes32 public HDP_PROGRAM_HASH = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
     bytes32 public STARKNET_MAINNET_NETWORK_ID = 0x534e5f4d41494e;
     bytes32 public STARKNET_SEPOLIA_NETWORK_ID = 0x534e5f5345504f4c4941;
@@ -192,6 +200,13 @@ contract Escrow is ReentrancyGuard, Pausable {
         InitialOrderData memory correctOrder = orders[_orderId];
         OrderStatusUpdates memory correctOrderStatus = orderUpdates[_orderId];
 
+        // Check if prove conditions met
+        require(correctOrderStatus.status != OrderStatus.PROVED, "Cannot prove an order that has already been proved");
+
+        uint256 currentTimestamp = block.timestamp;
+        require(correctOrder.expirationTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
+
+
         if (correctOrder.destinationChainId == ETHEREUM_SEPOLIA_NETWORK_ID) {
             // If the destination chain is EVM based we use Storage Proofs and Fact Registry to prove correct order fulfillment
 
@@ -218,34 +233,62 @@ contract Escrow is ReentrancyGuard, Pausable {
                 factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _expirationTimestampSlot);
             bytes32 _amountValue =
                 factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
+
+            // STEP 3: CONVERT THE VALUES TO THEIR NATIVE TYPES
+            (uint256 orderIdNative, address dstAddressNative, uint256 expirationTimestampNative, uint256 amountNative) =
+                convertBytes32toNative(_orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue);
+
+            // STEP 4: COMPARE ORDER FULFILLMENT DATA
+            // make sure that proof data matches the contract's own data
+            if (
+                correctOrder.orderId == orderIdNative && correctOrder.usrDstAddress == dstAddressNative
+                    && correctOrder.amount == amountNative && correctOrder.expirationTimestamp == expirationTimestampNative
+            ) {
+                orderUpdates[_orderId].status = OrderStatus.PROVED;
+
+                emit ProveBridgeSuccess(_orderId);
+            } else {
+                // if the proof fails, this will allow the order to be proved again
+                orderUpdates[_orderId].status = OrderStatus.PENDING;
+            }
+
         } else if (correctOrder.destinationChainId == STARKNET_SEPOLIA_NETWORK_ID) {
             // If the destination chain is CairoVM based we use Herodotus Data Processor and its Execution Store to prove correct order fulfillment
+            // We do not calculate the storage slot for starknet inside EVM, because this is not gas efficient, instead we calculate this storage slot inside HDP module
 
-            // Basing on the inputs we calculate the fact hash that will be requested from HDP Execution Store Contract
-        }
+            hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
 
-        // STEP 3: CONVERT THE VALUES TO THEIR NATIVE TYPES
-        (uint256 orderIdNative, address dstAddressNative, uint256 expirationTimestampNative, uint256 amountNative) =
-            convertBytes32toNative(_orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue);
+            bytes32[] taskInputs = [
+                _orderId,
+                correctOrder.usrDstAddress,
+                correctOrder.expirationTimestamp,
+                correctOrder.amount,
+                correctOrder.fee,
+                correctOrder.usrSrcAddress,
+                correctOrder.destinationChainId
+            ];
 
-        // STEP 4: COMPARE ORDER FULFILLMENT DATA
-        require(correctOrderStatus.status != OrderStatus.PROVED, "Cannot prove an order that has already been proved");
+            hdpModuleTask = ModuleTask({
+                programHash: HDP_PROGRAM_HASH,
+                inputs: taskInputs
+            });
 
-        uint256 currentTimestamp = block.timestamp;
-        require(correctOrder.expirationTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
+            bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
 
-        // make sure that proof data matches the contract's own data
-        if (
-            correctOrder.orderId == orderIdNative && correctOrder.usrDstAddress == dstAddressNative
-                && correctOrder.amount == amountNative && correctOrder.expirationTimestamp == expirationTimestampNative
-        ) {
+            require(hdpExecutionStore.cachedTasksResult(taskCommitment).status == IHdpExecutionStore.TaskStatus.FINALIZED, "HDP Task is not finalized");
+
+            // Inside sound HDP module program, we calculating the Pedersen hash of the incoming task inputs (order parameters) and checking if it equals with the hash stored inside Cairo PaymentRegistry contract
+
+            require(hdpExecutionStore.getFinalizedTaskResult(taskCommitment) != 0, "Unable to prove PaymentRegistry transfer execution");
+
+            // If this passes, we can proceed next
+
             orderUpdates[_orderId].status = OrderStatus.PROVED;
 
             emit ProveBridgeSuccess(_orderId);
-        } else {
-            // if the proof fails, this will allow the order to be proved again
-            orderUpdates[_orderId].status = OrderStatus.PENDING;
         }
+
+        
     }
 
     /**
@@ -271,7 +314,7 @@ contract Escrow is ReentrancyGuard, Pausable {
      * @return _dstAddress The destination address as an `address`.
      * @return _expirationTimestamp The expiration timestamp as a `uint256`.
      * @return _amount The amount as a `uint256`.
-     */
+     */taskMerkleRootHigh
     function convertBytes32toNative(
         bytes32 _orderIdValue,
         bytes32 _dstAddressValue,
