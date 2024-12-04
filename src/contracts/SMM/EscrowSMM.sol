@@ -259,6 +259,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
 
             bytes32[] taskInputs = [
+                _blockNumber
                 _orderId,
                 correctOrder.usrDstAddress,
                 correctOrder.expirationTimestamp,
