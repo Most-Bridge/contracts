@@ -39,14 +39,14 @@ contract Escrow is ReentrancyGuard, Pausable {
     // Ethereum
     address public PAYMENT_REGISTRY_ADDRESS = 0x6B911a94ee908BF9503143863A52Ea6c1f38b50A;
     address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
-    bytes32 public ETHEREUM_MAINNET_NETWORK_ID = 1;
-    bytes32 public ETHEREUM_SEPOLIA_NETWORK_ID = 11155111;
+    bytes32 public ETHEREUM_MAINNET_NETWORK_ID = bytes32(uint256(0x1));
+    bytes32 public ETHEREUM_SEPOLIA_NETWORK_ID = bytes32(uint256(0xAA36A7));
 
     // Starknet
     address public HDP_EXECUTION_STORE_ADDRESS = 0x68a011d3790e7F9038C9B9A4Da7CD60889EECa70;
-    bytes32 public HDP_PROGRAM_HASH = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
-    bytes32 public STARKNET_MAINNET_NETWORK_ID = 0x534e5f4d41494e;
-    bytes32 public STARKNET_SEPOLIA_NETWORK_ID = 0x534e5f5345504f4c4941;
+    uint256 public HDP_PROGRAM_HASH = 0x62c37715e000abfc6f931ee05a4ff1be9d7832390b31e5de29d197814db8156;
+    bytes32 public STARKNET_MAINNET_NETWORK_ID = bytes32(uint256(0x534e5f4d41494e));
+    bytes32 public STARKNET_SEPOLIA_NETWORK_ID = bytes32(uint256(0x534e5f5345504f4c4941));
 
     // Interfaces
     IFactsRegistry factsRegistry = IFactsRegistry(FACTS_REGISTRY_ADDRESS);
@@ -173,7 +173,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PENDING});
 
-        emit OrderPlaced(orderId, _usrDstAddress, bridgeAmount, _fee, _expirationTimestamp);
+        emit OrderPlaced(orderId, _usrDstAddress, bridgeAmount, _fee, _expirationTimestamp, _destinationChainId);
 
         orderId += 1;
     }
@@ -254,20 +254,20 @@ contract Escrow is ReentrancyGuard, Pausable {
             // If the destination chain is CairoVM based we use Herodotus Data Processor and its Execution Store to prove correct order fulfillment
             // We do not calculate the storage slot for starknet inside EVM, because this is not gas efficient, instead we calculate this storage slot inside HDP module
 
-            hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
+            IHdpExecutionStore hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
 
-            bytes32[] taskInputs = [
-                _blockNumber,
-                _orderId,
-                correctOrder.usrDstAddress,
-                correctOrder.expirationTimestamp,
-                correctOrder.amount,
-                correctOrder.fee,
-                correctOrder.usrSrcAddress,
-                correctOrder.destinationChainId
-            ];
+            bytes32[] memory taskInputs;
+            taskInputs[0] = bytes32(_blockNumber);
+            taskInputs[1] = bytes32(_orderId);
+            taskInputs[2] = bytes32(uint256(uint160(correctOrder.usrDstAddress)));
+            taskInputs[3] = bytes32(correctOrder.expirationTimestamp);
+            taskInputs[4] = bytes32(correctOrder.amount);
+            //taskInputs[5] = bytes32(correctOrder.fee);
+            //taskInputs[6] = bytes32(correctOrder.usrSrcAddress);
+            taskInputs[5] = correctOrder.destinationChainId;
 
-            hdpModuleTask = ModuleTask({programHash: HDP_PROGRAM_HASH, inputs: taskInputs});
+
+            ModuleTask memory hdpModuleTask = ModuleTask({programHash: bytes32(HDP_PROGRAM_HASH), inputs: taskInputs});
 
             bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
 
