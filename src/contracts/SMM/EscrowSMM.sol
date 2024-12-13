@@ -286,7 +286,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             require(
                 hdpExecutionStore.getFinalizedTaskResult(taskCommitment) != 0,
                 "Unable to prove PaymentRegistry transfer execution"
-            );uint128(
+            );
 
             // If this passes, we can proceed next
 
