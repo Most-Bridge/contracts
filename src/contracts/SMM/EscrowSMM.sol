@@ -314,16 +314,16 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         bytes32[] memory taskInputs;
 
+        taskInputs[0] = bytes32(_blockNumber); // At first input we passing block number at which we should prove order execution
+
         for (uint256 i = 0; i < _orderIds.length; i++) {
-            uint256 index = 0;
+            uint256 index = 1; // Starting from 1 because first param used for block number
 
             InitialOrderData memory correctOrder = orders[_orderIds[i]];
 
             bytes16 bridge_amount_high = bytes16(uint128(correctOrder.amount >> 128));
             bytes16 bridge_amount_low = bytes16(uint128(correctOrder.amount));
-
             
-            taskInputs[index] = bytes32(_blockNumber);
             taskInputs[index+1] = bytes32(_orderIds[i]);
             taskInputs[index+2] = bytes32(uint256(uint160(correctOrder.usrDstAddress)));
             taskInputs[index+3] = bytes32(correctOrder.expirationTimestamp);
@@ -332,6 +332,8 @@ contract Escrow is ReentrancyGuard, Pausable {
             //taskInputs[5] = bytes32(correctOrder.fee);
             //taskInputs[6] = bytes32(correctOrder.usrSrcAddress);
             taskInputs[index+6] = correctOrder.destinationChainId;
+
+            index += 6; // HDP task inputs per order 
         }
 
         IHdpExecutionStore hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
