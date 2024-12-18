@@ -45,6 +45,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     // Starknet
     address public HDP_EXECUTION_STORE_ADDRESS = 0x68a011d3790e7F9038C9B9A4Da7CD60889EECa70;
     uint256 public HDP_PROGRAM_HASH = 0x62c37715e000abfc6f931ee05a4ff1be9d7832390b31e5de29d197814db8156;
+    uint256 public HDP_PROGRAM_HASH_AGGREGATED_VERSION = 0x62c37715e000abfc6f931ee05a4ff1be9d7832390b31e5de29d197814db8156;
     bytes32 public STARKNET_MAINNET_NETWORK_ID = bytes32(uint256(0x534e5f4d41494e));
     bytes32 public STARKNET_SEPOLIA_NETWORK_ID = bytes32(uint256(0x534e5f5345504f4c4941));
 
@@ -58,7 +59,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     // Events
     event OrderPlaced(
         uint256 orderId,
-        address usrDstAddress,
+        uint256 usrDstAddress,
         uint256 amount,
         uint256 fee,
         uint256 expirationTimestamp,
@@ -80,7 +81,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     // Contains all information that is available during the order creation
     struct InitialOrderData {
         uint256 orderId;
-        address usrDstAddress;
+        uint256 usrDstAddress;
         uint256 expirationTimestamp;
         uint256 amount;
         uint256 fee;
@@ -148,7 +149,7 @@ contract Escrow is ReentrancyGuard, Pausable {
      * @param _usrDstAddress The destination address of the user.
      * @param _fee The fee for the market maker.
      */
-    function createOrder(address _usrDstAddress, uint256 _fee, bytes32 _destinationChainId)
+    function createOrder(uint256 _usrDstAddress, uint256 _fee, bytes32 _destinationChainId)
         external
         payable
         nonReentrant
@@ -235,7 +236,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                 factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
 
             // STEP 3: CONVERT THE VALUES TO THEIR NATIVE TYPES
-            (uint256 orderIdNative, address dstAddressNative, uint256 expirationTimestampNative, uint256 amountNative) =
+            (uint256 orderIdNative, uint256 dstAddressNative, uint256 expirationTimestampNative, uint256 amountNative) =
                 convertBytes32toNative(_orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue);
 
             // STEP 4: COMPARE ORDER FULFILLMENT DATA
@@ -263,7 +264,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             bytes32[] memory taskInputs;
             taskInputs[0] = bytes32(_blockNumber);
             taskInputs[1] = bytes32(_orderId);
-            taskInputs[2] = bytes32(uint256(uint160(correctOrder.usrDstAddress)));
+            taskInputs[2] = bytes32(uint256(correctOrder.usrDstAddress));
             taskInputs[3] = bytes32(correctOrder.expirationTimestamp);
             taskInputs[4] = bytes32(bridge_amount_low);
             taskInputs[5] = bytes32(bridge_amount_high);
@@ -325,7 +326,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             bytes16 bridge_amount_low = bytes16(uint128(correctOrder.amount));
             
             taskInputs[index+1] = bytes32(_orderIds[i]);
-            taskInputs[index+2] = bytes32(uint256(uint160(correctOrder.usrDstAddress)));
+            taskInputs[index+2] = bytes32(uint256(correctOrder.usrDstAddress));
             taskInputs[index+3] = bytes32(correctOrder.expirationTimestamp);
             taskInputs[index+4] = bytes32(bridge_amount_low);
             taskInputs[index+5] = bytes32(bridge_amount_high);
@@ -338,7 +339,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         IHdpExecutionStore hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
 
-        ModuleTask memory hdpModuleTask = ModuleTask({programHash: bytes32(HDP_PROGRAM_HASH), inputs: taskInputs});
+        ModuleTask memory hdpModuleTask = ModuleTask({programHash: bytes32(HDP_PROGRAM_HASH_AGGREGATED_VERSION), inputs: taskInputs});
 
         bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
 
@@ -378,14 +379,14 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 _dstAddressValue,
         bytes32 _expirationTimestampValue,
         bytes32 _amountValue
-    ) internal pure returns (uint256 _orderId, address _dstAddress, uint256 _expirationTimestamp, uint256 _amount) {
+    ) internal pure returns (uint256 _orderId, uint256 _dstAddress, uint256 _expirationTimestamp, uint256 _amount) {
         // bytes32 to uint256
         _orderId = uint256(_orderIdValue);
         _amount = uint256(_amountValue);
         _expirationTimestamp = uint256(_expirationTimestampValue);
 
         // bytes32 to address
-        _dstAddress = address(uint160(uint256(_dstAddressValue)));
+        _dstAddress = uint256(_dstAddressValue);
 
         return (_orderId, _dstAddress, _expirationTimestamp, _amount);
     }

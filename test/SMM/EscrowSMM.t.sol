@@ -7,7 +7,7 @@ import {Escrow} from "../../src/contracts/SMM/EscrowSMM.sol";
 contract EscrowTest is Test {
     Escrow escrow;
     address user = address(1);
-    address destinationAddress = address(2);
+    uint256 destinationAddress = uint256(2);
     address mmAddress = address(3);
     address maliciousActor = address(4);
 
@@ -30,7 +30,7 @@ contract EscrowTest is Test {
 
         (
             uint256 orderId,
-            address usrDstAddress,
+            uint256 usrDstAddress,
             uint256 expirationTimestamp,
             uint256 amount,
             uint256 fee,
@@ -98,7 +98,7 @@ contract EscrowTest is Test {
         // Assertions to check the order details
         (
             uint256 id,
-            address usrDstAddress,
+            uint256 usrDstAddress,
             uint256 expirationTimestamp,
             uint256 amount,
             uint256 fee,
@@ -121,7 +121,7 @@ contract EscrowTest is Test {
 
         (
             uint256 orderId,
-            address usrDstAddress,
+            uint256 usrDstAddress,
             uint256 expirationTimestamp,
             uint256 amount,
             uint256 fee,
