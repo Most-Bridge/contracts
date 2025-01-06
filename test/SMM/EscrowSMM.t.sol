@@ -35,7 +35,7 @@ contract EscrowTest is Test {
             uint256 amount,
             uint256 fee,
             address usrSrcAddress,
-            bytes32 destinationChainId
+            bytes32 _destinationChainId
         ) = escrow.orders(1);
 
         assertEq(orderId, 1);
@@ -43,6 +43,7 @@ contract EscrowTest is Test {
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
         assertEq(usrSrcAddress, user);
+        assertEq(_destinationChainId, destinationChainId);
         assert(expirationTimestamp > block.timestamp);
 
         vm.stopPrank();
@@ -103,7 +104,7 @@ contract EscrowTest is Test {
             uint256 amount,
             uint256 fee,
             address usrSrcAddress,
-            bytes32 destinationChainId
+            bytes32 _destinationChainId
         ) = escrow.orders(1);
 
         assertEq(id, 1);
@@ -111,6 +112,7 @@ contract EscrowTest is Test {
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
         assertEq(usrSrcAddress, user);
+        assertEq(_destinationChainId, destinationChainId);
         assert(expirationTimestamp > block.timestamp);
     }
 
@@ -126,7 +128,7 @@ contract EscrowTest is Test {
             uint256 amount,
             uint256 fee,
             address usrSrcAddress,
-            bytes32 destinationChainId
+            bytes32 _destinationChainId
         ) = escrow.orders(1);
 
         assertEq(orderId, 1);
@@ -134,6 +136,7 @@ contract EscrowTest is Test {
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
         assertEq(usrSrcAddress, user);
+        assertEq(_destinationChainId, destinationChainId);
         assert(expirationTimestamp > block.timestamp);
         assert(expirationTimestamp == currentTimestamp + 1 days);
 
