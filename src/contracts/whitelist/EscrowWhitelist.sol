@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
- * @title Escrow Contract SMM (Single Market Maker)
+ * @title Escrow Contract Whitelist SMM (Single Market Maker)
  * @dev Handles the bridging of assets between two chains, in conjunction with Payment Registry and a 3rd party
  * facilitator service.
  * Terminology:
@@ -21,7 +21,7 @@ interface IFactsRegistry {
         returns (bytes32);
 }
 
-contract Escrow is ReentrancyGuard, Pausable {
+contract EscrowWhitelist is ReentrancyGuard, Pausable {
     // State variables
     address public owner;
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
@@ -36,6 +36,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     // Storage
     mapping(uint256 => InitialOrderData) public orders;
     mapping(uint256 => OrderStatusUpdates) public orderUpdates;
+    mapping(address => bool) private whitelist;
 
     // Events
     event OrderPlaced(uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee, uint256 expirationTimestamp);
@@ -43,12 +44,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     event WithdrawSuccess(uint256 orderId);
     event WithdrawSuccessBatch(uint256[] orderIds);
     event OrderReclaimed(uint256 orderId);
-
-    // for debugging purposes
-    // event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, uint256 blockNumber);
-    // event SlotsReceivedBatch(OrderSlots[] ordersToBeProved);
-    // event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount);
-    // event ValuesReceivedBatch(OrderSlots[] ordersToBeProved);
 
     // Structs
     // Contains all information that is available during the order creation
@@ -96,9 +91,18 @@ contract Escrow is ReentrancyGuard, Pausable {
         _;
     }
 
+    modifier onlyWhitelist() {
+        require(whitelist[msg.sender], "Caller is not on the whitelist");
+        _;
+    }
+
     // Constructor
     constructor() {
         owner = msg.sender;
+
+        // whitelist addresses
+        whitelist[0xe727dbADBB18c998e5DeE2faE72cBCFfF2e6d03D] = true;
+        whitelist[0x898e87f1f5DCabCCbF68f2C17E2929672c6CA7DC] = true;
     }
 
     // Functions
@@ -121,9 +125,18 @@ contract Escrow is ReentrancyGuard, Pausable {
      * @param _usrDstAddress The destination address of the user.
      * @param _fee The fee for the market maker.
      */
-    function createOrder(address _usrDstAddress, uint256 _fee) external payable nonReentrant whenNotPaused {
+    function createOrder(address _usrDstAddress, uint256 _fee)
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        onlyWhitelist
+    {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
+
+        // whitelist only requirement
+        require(msg.value <= 10 ** 14, "Amount exceeds whitelist limit"); // allow up to 0.00001 ether
 
         uint256 currentTimestamp = block.timestamp;
         uint256 _expirationTimestamp = currentTimestamp + 1 days;
@@ -354,5 +367,15 @@ contract Escrow is ReentrancyGuard, Pausable {
      */
     function setAllowedAddress(address _newAllowedAddress) external onlyOwner {
         allowedRelayAddress = _newAllowedAddress;
+    }
+
+    function addToWhitelist(address _address) external onlyOwner {
+        whitelist[_address] = true;
+    }
+
+    function batchAddToWhitelist(address[] calldata _addresses) external onlyOwner {
+        for (uint256 i = 0; i < _addresses.length; i++) {
+            whitelist[_addresses[i]] = true;
+        }
     }
 }
