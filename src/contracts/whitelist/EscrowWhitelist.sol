@@ -106,6 +106,9 @@ contract Escrow is ReentrancyGuard, Pausable {
     constructor() {
         owner = msg.sender;
 
+        // whitelist addresses
+        whitelist[0xe727dbADBB18c998e5DeE2faE72cBCFfF2e6d03D] = true;
+        whitelist[0x898e87f1f5DCabCCbF68f2C17E2929672c6CA7DC] = true;
     }
 
     // Functions
