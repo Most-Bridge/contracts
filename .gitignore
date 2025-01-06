@@ -3,8 +3,7 @@ cache/
 out/
 
 # Ignores development broadcast logs
-!/broadcast
-/broadcast/*/11155111/
+/broadcast
 
 # Docs
 docs/
