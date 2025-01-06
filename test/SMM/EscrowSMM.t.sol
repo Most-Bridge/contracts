@@ -7,9 +7,11 @@ import {Escrow} from "../../src/contracts/SMM/EscrowSMM.sol";
 contract EscrowTest is Test {
     Escrow escrow;
     address user = address(1);
-    address destinationAddress = address(2);
+    uint256 destinationAddress = uint256(2);
     address mmAddress = address(3);
     address maliciousActor = address(4);
+
+    bytes32 destinationChainId = bytes32(uint256(1));
 
     uint256 sendAmount;
     uint256 feeAmount;
@@ -24,15 +26,16 @@ contract EscrowTest is Test {
 
     function testCreateOrderSuccess() public {
         vm.startPrank(user);
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId);
 
         (
             uint256 orderId,
-            address usrDstAddress,
+            uint256 usrDstAddress,
             uint256 expirationTimestamp,
             uint256 amount,
             uint256 fee,
-            address usrSrcAddress
+            address usrSrcAddress,
+            bytes32 _destinationChainId
         ) = escrow.orders(1);
 
         assertEq(orderId, 1);
@@ -40,6 +43,7 @@ contract EscrowTest is Test {
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
         assertEq(usrSrcAddress, user);
+        assertEq(_destinationChainId, destinationChainId);
         assert(expirationTimestamp > block.timestamp);
 
         vm.stopPrank();
@@ -48,21 +52,21 @@ contract EscrowTest is Test {
     function testCreateOrderWithNoValue() public {
         vm.startPrank(user);
         vm.expectRevert("Funds being sent must be greater than 0.");
-        escrow.createOrder(destinationAddress, feeAmount); // calling with no value
+        escrow.createOrder(destinationAddress, feeAmount, destinationChainId); // calling with no value
         vm.stopPrank();
     }
 
     function testCreateOrderWithZeroValue() public {
         vm.startPrank(user);
         vm.expectRevert("Funds being sent must be greater than 0.");
-        escrow.createOrder{value: 0}(destinationAddress, feeAmount); // calling with no value
+        escrow.createOrder{value: 0}(destinationAddress, feeAmount, destinationChainId); // calling with no value
         vm.stopPrank();
     }
 
     function testCreateOrderWithFeeBiggerThanValueSent() public {
         vm.startPrank(user);
         vm.expectRevert("Fee must be less than the total value sent");
-        escrow.createOrder{value: sendAmount}(destinationAddress, 5 ether);
+        escrow.createOrder{value: sendAmount}(destinationAddress, 5 ether, destinationChainId);
         vm.stopPrank();
     }
 
@@ -73,7 +77,7 @@ contract EscrowTest is Test {
 
         vm.startPrank(user);
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()")); // Expect revert due to paused contract
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId);
         vm.stopPrank();
     }
 
@@ -83,23 +87,24 @@ contract EscrowTest is Test {
 
         vm.startPrank(user);
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()")); // Expect revert due to paused contract
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId);
         vm.stopPrank();
 
         vm.prank(address(this)); // this contract is the owner
         escrow.unpauseContract();
 
         vm.prank(user);
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId);
 
         // Assertions to check the order details
         (
             uint256 id,
-            address usrDstAddress,
+            uint256 usrDstAddress,
             uint256 expirationTimestamp,
             uint256 amount,
             uint256 fee,
-            address usrSrcAddress
+            address usrSrcAddress,
+            bytes32 _destinationChainId
         ) = escrow.orders(1);
 
         assertEq(id, 1);
@@ -107,21 +112,23 @@ contract EscrowTest is Test {
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
         assertEq(usrSrcAddress, user);
+        assertEq(_destinationChainId, destinationChainId);
         assert(expirationTimestamp > block.timestamp);
     }
 
     function testexpirationTimestamp() public {
         vm.startPrank(user);
         uint256 currentTimestamp = block.timestamp;
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId);
 
         (
             uint256 orderId,
-            address usrDstAddress,
+            uint256 usrDstAddress,
             uint256 expirationTimestamp,
             uint256 amount,
             uint256 fee,
-            address usrSrcAddress
+            address usrSrcAddress,
+            bytes32 _destinationChainId
         ) = escrow.orders(1);
 
         assertEq(orderId, 1);
@@ -129,6 +136,7 @@ contract EscrowTest is Test {
         assertEq(amount, sendAmount - feeAmount);
         assertEq(fee, feeAmount);
         assertEq(usrSrcAddress, user);
+        assertEq(_destinationChainId, destinationChainId);
         assert(expirationTimestamp > block.timestamp);
         assert(expirationTimestamp == currentTimestamp + 1 days);
 
@@ -138,7 +146,7 @@ contract EscrowTest is Test {
     // test the refundOrder expired function
     function testRefundOrder() public {
         vm.startPrank(user);
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount); // has an expiry date of 1 day
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId); // has an expiry date of 1 day
         // balance of user should be 9 ether
         assertEq(user.balance, 9 ether); // balance goes down after making an order
         vm.warp(block.timestamp + 2 days); // order should now be expired
