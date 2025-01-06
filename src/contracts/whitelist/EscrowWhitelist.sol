@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
- * @title Escrow Contract SMM (Single Market Maker)
+ * @title Escrow Contract Whitelist SMM (Single Market Maker)
  * @dev Handles the bridging of assets between two chains, in conjunction with Payment Registry and a 3rd party
  * facilitator service.
  * Terminology:
@@ -36,6 +36,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     // Storage
     mapping(uint256 => InitialOrderData) public orders;
     mapping(uint256 => OrderStatusUpdates) public orderUpdates;
+    mapping(address => bool) private whitelist;
 
     // Events
     event OrderPlaced(uint256 orderId, address usrDstAddress, uint256 amount, uint256 fee, uint256 expirationTimestamp);
@@ -96,9 +97,15 @@ contract Escrow is ReentrancyGuard, Pausable {
         _;
     }
 
+    modifier onlyWhitelist() {
+        require(whitelist[msg.sender], "Caller is not on the white list");
+        _;
+    }
+
     // Constructor
     constructor() {
         owner = msg.sender;
+
     }
 
     // Functions
@@ -121,7 +128,13 @@ contract Escrow is ReentrancyGuard, Pausable {
      * @param _usrDstAddress The destination address of the user.
      * @param _fee The fee for the market maker.
      */
-    function createOrder(address _usrDstAddress, uint256 _fee) external payable nonReentrant whenNotPaused {
+    function createOrder(address _usrDstAddress, uint256 _fee)
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        onlyWhitelist
+    {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
@@ -354,5 +367,15 @@ contract Escrow is ReentrancyGuard, Pausable {
      */
     function setAllowedAddress(address _newAllowedAddress) external onlyOwner {
         allowedRelayAddress = _newAllowedAddress;
+    }
+
+    function addToWhitelist(address _address) external onlyOwner {
+        whitelist[_address] = true;
+    }
+
+    function batchAddToWhitelist(address[] calldata _addresses) external onlyOwner {
+        for (uint256 i = 0; i < _addresses.length; i++) {
+            whitelist[_addresses[i]] = true;
+        }
     }
 }
