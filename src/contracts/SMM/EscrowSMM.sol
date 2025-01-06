@@ -214,9 +214,9 @@ contract Escrow is ReentrancyGuard, Pausable {
             // STEP 1: CALCULATING THE STORAGE SLOTS
             bytes32 transfersMappingKey =
                 keccak256(abi.encodePacked(correctOrder.orderId, correctOrder.usrDstAddress, correctOrder.amount));
-            uint256 transfersMappigSlot = 2; // Please check payment registry storage layout for changes before deployment
+            uint256 transfersMappingSlot = 2; // Please check payment registry storage layout for changes before deployment
 
-            bytes32 baseStorageSlot = keccak256(abi.encodePacked(transfersMappingKey, transfersMappigSlot));
+            bytes32 baseStorageSlot = keccak256(abi.encodePacked(transfersMappingKey, transfersMappingSlot));
 
             bytes32 _orderIdSlot = baseStorageSlot;
             bytes32 _usrDstAddressSlot = bytes32(uint256(baseStorageSlot) + 1);
@@ -310,7 +310,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     function proveOrderFulfillmentBatchAggregated_HDP(uint256[] memory _orderIds, uint256 _blockNumber) public onlyAllowedAddress {
-        // for proving in agregatted mode using HDP - now for Starknet
+        // for proving in aggregated mode using HDP - now for Starknet
         // In aggregated mode we proving a batch of orders with one HDP request - making it much more gas efficient
 
         bytes32[] memory taskInputs;
