@@ -21,7 +21,7 @@ interface IFactsRegistry {
         returns (bytes32);
 }
 
-contract Escrow is ReentrancyGuard, Pausable {
+contract EscrowWhitelist is ReentrancyGuard, Pausable {
     // State variables
     address public owner;
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
@@ -44,12 +44,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     event WithdrawSuccess(uint256 orderId);
     event WithdrawSuccessBatch(uint256[] orderIds);
     event OrderReclaimed(uint256 orderId);
-
-    // for debugging purposes
-    // event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, uint256 blockNumber);
-    // event SlotsReceivedBatch(OrderSlots[] ordersToBeProved);
-    // event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount);
-    // event ValuesReceivedBatch(OrderSlots[] ordersToBeProved);
 
     // Structs
     // Contains all information that is available during the order creation
@@ -98,7 +92,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     modifier onlyWhitelist() {
-        require(whitelist[msg.sender], "Caller is not on the white list");
+        require(whitelist[msg.sender], "Caller is not on the whitelist");
         _;
     }
 
