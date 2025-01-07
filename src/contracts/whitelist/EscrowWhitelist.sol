@@ -323,7 +323,7 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
 
         bytes32[] memory taskInputs;
 
-        uint256 index = 0; // Starting from 1 because first param used for block number
+        uint256 index = 0; 
 
         taskInputs[index] = bytes32(_blockNumber); // At first input we passing block number at which we should prove order execution
 

@@ -308,11 +308,11 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         bytes32[] memory taskInputs;
 
-        taskInputs[0] = bytes32(_blockNumber); // At first input we passing block number at which we should prove order execution
+        uint256 index = 0;
+
+        taskInputs[index] = bytes32(_blockNumber); // At first input we passing block number at which we should prove order execution
 
         for (uint256 i = 0; i < _orderIds.length; i++) {
-            uint256 index = 1; // Starting from 1 because first param used for block number
-
             InitialOrderData memory correctOrder = orders[_orderIds[i]];
 
             bytes16 bridge_amount_high = bytes16(uint128(correctOrder.amount >> 128));
