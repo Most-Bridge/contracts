@@ -232,7 +232,6 @@ contract Escrow is ReentrancyGuard, Pausable {
                 convertBytes32toNative(_orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue);
 
             // STEP 4: COMPARE ORDER FULFILLMENT DATA
-            // make sure that proof data matches the contract's own data
             if (
                 correctOrder.orderId == orderIdNative && correctOrder.usrDstAddress == dstAddressNative
                     && correctOrder.amount == amountNative && correctOrder.expirationTimestamp == expirationTimestampNative
@@ -273,14 +272,14 @@ contract Escrow is ReentrancyGuard, Pausable {
                 "HDP Task is not finalized"
             );
 
-            // Inside sound HDP module program, we calculating the Poseidon hash of the incoming task inputs (order parameters) and checking if it equals with the hash stored inside Cairo PaymentRegistry contract
+            // Inside sound HDP module program, we calculate the Poseidon hash of the incoming task inputs (order parameters) and check if it equals with the hash stored inside Cairo PaymentRegistry contract
 
             require(
                 hdpExecutionStore.getFinalizedTaskResult(taskCommitment) != 0,
                 "Unable to prove PaymentRegistry transfer execution"
             );
 
-            // If this passes, we can proceed next
+            // If this passes, we can proceed
 
             orderUpdates[_orderId].status = OrderStatus.PROVED;
 
@@ -304,8 +303,8 @@ contract Escrow is ReentrancyGuard, Pausable {
         public
         onlyAllowedAddress
     {
-        // for proving in aggregated mode using HDP - now for Starknet
-        // In aggregated mode we proving a batch of orders with one HDP request - making it much more gas efficient
+        // For proving in aggregated mode using HDP - now for Starknet
+        // In aggregated mode we are proving a batch of orders with one HDP request - making it much more gas efficient
 
         bytes32[] memory taskInputs;
 
