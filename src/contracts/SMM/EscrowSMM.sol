@@ -239,9 +239,6 @@ contract Escrow is ReentrancyGuard, Pausable {
                 orderUpdates[_orderId].status = OrderStatus.PROVED;
 
                 emit ProveBridgeSuccess(_orderId);
-            } else {
-                // if the proof fails, this will allow the order to be proved again
-                orderUpdates[_orderId].status = OrderStatus.PENDING;
             }
         } else if (correctOrder.destinationChainId == STARKNET_SEPOLIA_NETWORK_ID) {
             // If the destination chain is CairoVM based we use Herodotus Data Processor and its Execution Store to prove correct order fulfillment

@@ -131,7 +131,7 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
         // whitelist addresses
         whitelist[0xe727dbADBB18c998e5DeE2faE72cBCFfF2e6d03D] = true;
         whitelist[0x898e87f1f5DCabCCbF68f2C17E2929672c6CA7DC] = true;
-        whitelist[0x841aaC69ce44874de22E361cD48e204bF7d686A5] = true; 
+        whitelist[0x841aaC69ce44874de22E361cD48e204bF7d686A5] = true;
         whitelist[0xf37Fd9185Bb5657D7E57DDEA268Fe56C2458F675] = true;
     }
 
@@ -254,9 +254,6 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
                 orderUpdates[_orderId].status = OrderStatus.PROVED;
 
                 emit ProveBridgeSuccess(_orderId);
-            } else {
-                // if the proof fails, this will allow the order to be proved again
-                orderUpdates[_orderId].status = OrderStatus.PENDING;
             }
         } else if (correctOrder.destinationChainId == STARKNET_SEPOLIA_NETWORK_ID) {
             // If the destination chain is CairoVM based we use Herodotus Data Processor and its Execution Store to prove correct order fulfillment
@@ -323,7 +320,7 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
 
         bytes32[] memory taskInputs;
 
-        uint256 index = 0; 
+        uint256 index = 0;
 
         taskInputs[index] = bytes32(_blockNumber); // At first input we passing block number at which we should prove order execution
 
