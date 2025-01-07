@@ -116,7 +116,7 @@ contract EscrowTest is Test {
         assert(expirationTimestamp > block.timestamp);
     }
 
-    function testexpirationTimestamp() public {
+    function testExpirationTimestamp() public {
         vm.startPrank(user);
         uint256 currentTimestamp = block.timestamp;
         escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId);
