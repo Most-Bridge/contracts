@@ -73,7 +73,6 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
     //Enums
     enum OrderStatus {
         PENDING,
-        PROVING,
         PROVED,
         COMPLETED,
         RECLAIMED,
@@ -191,8 +190,6 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
         bytes32 _usrDstAddressSlot = bytes32(uint256(baseStorageSlot) + 1);
         bytes32 _expirationTimestampSlot = bytes32(uint256(baseStorageSlot) + 2);
         bytes32 _amountSlot = bytes32(uint256(baseStorageSlot) + 3);
-
-        orderUpdates[_orderId].status = OrderStatus.PROVING;
 
         // STEP 2: GET THE VALUES OF THE STORAGE SLOTS
         bytes32 _orderIdValue =

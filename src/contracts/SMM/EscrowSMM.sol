@@ -45,7 +45,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     // Starknet
     address public HDP_EXECUTION_STORE_ADDRESS = 0x68a011d3790e7F9038C9B9A4Da7CD60889EECa70;
     uint256 public HDP_PROGRAM_HASH = 0x62c37715e000abfc6f931ee05a4ff1be9d7832390b31e5de29d197814db8156;
-    uint256 public HDP_PROGRAM_HASH_AGGREGATED_VERSION = 0x62c37715e000abfc6f931ee05a4ff1be9d7832390b31e5de29d197814db8156;
+    uint256 public HDP_PROGRAM_HASH_AGGREGATED_VERSION =
+        0x62c37715e000abfc6f931ee05a4ff1be9d7832390b31e5de29d197814db8156;
     bytes32 public STARKNET_MAINNET_NETWORK_ID = bytes32(uint256(0x534e5f4d41494e));
     bytes32 public STARKNET_SEPOLIA_NETWORK_ID = bytes32(uint256(0x534e5f5345504f4c4941));
 
@@ -70,12 +71,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     event WithdrawSuccess(uint256 orderId);
     event WithdrawSuccessBatch(uint256[] orderIds);
     event OrderReclaimed(uint256 orderId);
-
-    // for debugging purposes
-    // event SlotsReceived(bytes32 slot1, bytes32 slot2, bytes32 slot3, uint256 blockNumber);
-    // event SlotsReceivedBatch(OrderSlots[] ordersToBeProved);
-    // event ValuesReceived(bytes32 _orderId, bytes32 dstAddress, bytes32 _amount);
-    // event ValuesReceivedBatch(OrderSlots[] ordersToBeProved);
 
     // Structs
     // Contains all information that is available during the order creation
@@ -106,7 +101,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     //Enums
     enum OrderStatus {
         PENDING,
-        PROVING,
         PROVED,
         COMPLETED,
         RECLAIMED,
@@ -223,8 +217,6 @@ contract Escrow is ReentrancyGuard, Pausable {
             bytes32 _expirationTimestampSlot = bytes32(uint256(baseStorageSlot) + 2);
             bytes32 _amountSlot = bytes32(uint256(baseStorageSlot) + 3);
 
-            orderUpdates[_orderId].status = OrderStatus.PROVING;
-
             // STEP 2: GET THE VALUES OF THE STORAGE SLOTS
             bytes32 _orderIdValue =
                 factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
@@ -272,7 +264,6 @@ contract Escrow is ReentrancyGuard, Pausable {
             //taskInputs[6] = bytes32(correctOrder.usrSrcAddress);
             taskInputs[6] = correctOrder.destinationChainId;
 
-
             ModuleTask memory hdpModuleTask = ModuleTask({programHash: bytes32(HDP_PROGRAM_HASH), inputs: taskInputs});
 
             bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
@@ -309,7 +300,10 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
     }
 
-    function proveOrderFulfillmentBatchAggregated_HDP(uint256[] memory _orderIds, uint256 _blockNumber) public onlyAllowedAddress {
+    function proveOrderFulfillmentBatchAggregated_HDP(uint256[] memory _orderIds, uint256 _blockNumber)
+        public
+        onlyAllowedAddress
+    {
         // for proving in aggregated mode using HDP - now for Starknet
         // In aggregated mode we proving a batch of orders with one HDP request - making it much more gas efficient
 
@@ -324,22 +318,23 @@ contract Escrow is ReentrancyGuard, Pausable {
 
             bytes16 bridge_amount_high = bytes16(uint128(correctOrder.amount >> 128));
             bytes16 bridge_amount_low = bytes16(uint128(correctOrder.amount));
-            
-            taskInputs[index+1] = bytes32(_orderIds[i]);
-            taskInputs[index+2] = bytes32(uint256(correctOrder.usrDstAddress));
-            taskInputs[index+3] = bytes32(correctOrder.expirationTimestamp);
-            taskInputs[index+4] = bytes32(bridge_amount_low);
-            taskInputs[index+5] = bytes32(bridge_amount_high);
+
+            taskInputs[index + 1] = bytes32(_orderIds[i]);
+            taskInputs[index + 2] = bytes32(uint256(correctOrder.usrDstAddress));
+            taskInputs[index + 3] = bytes32(correctOrder.expirationTimestamp);
+            taskInputs[index + 4] = bytes32(bridge_amount_low);
+            taskInputs[index + 5] = bytes32(bridge_amount_high);
             //taskInputs[5] = bytes32(correctOrder.fee);
             //taskInputs[6] = bytes32(correctOrder.usrSrcAddress);
-            taskInputs[index+6] = correctOrder.destinationChainId;
+            taskInputs[index + 6] = correctOrder.destinationChainId;
 
-            index += 6; // HDP task inputs per order 
+            index += 6; // HDP task inputs per order
         }
 
         IHdpExecutionStore hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
 
-        ModuleTask memory hdpModuleTask = ModuleTask({programHash: bytes32(HDP_PROGRAM_HASH_AGGREGATED_VERSION), inputs: taskInputs});
+        ModuleTask memory hdpModuleTask =
+            ModuleTask({programHash: bytes32(HDP_PROGRAM_HASH_AGGREGATED_VERSION), inputs: taskInputs});
 
         bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
 
