@@ -16,8 +16,11 @@ contract EscrowTest is Test {
     uint256 sendAmount;
     uint256 feeAmount;
 
+    address[] public whitelistAddresses;
+
     function setUp() public {
-        escrow = new EscrowWhitelist();
+        whitelistAddresses.push(user);
+        escrow = new EscrowWhitelist(whitelistAddresses);
 
         vm.deal(user, 10 ether);
         vm.deal(maliciousActor, 10 ether);
@@ -26,10 +29,6 @@ contract EscrowTest is Test {
         feeAmount = 0.000001 ether;
 
         escrow.setAllowedAddress(address(this));
-
-        // whitelist
-        vm.prank(address(this));
-        escrow.addToWhitelist(user);
     }
 
     function testCreateOrderSuccess() public {
@@ -172,10 +171,37 @@ contract EscrowTest is Test {
         vm.stopPrank();
     }
 
+    function testUserAddedToWhitelist() public {
+        vm.startPrank(maliciousActor);
+        vm.expectRevert("Caller is not on the whitelist");
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId); // has an expiry date of 1 day
+        vm.stopPrank();
+
+        // add to whitelist
+        vm.prank(address(this));
+        escrow.addToWhitelist(maliciousActor);
+
+        vm.prank(maliciousActor);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId); // has an expiry date of 1 day
+    }
+
     function testAmountExceedsWhitelistLimit() public {
         vm.startPrank(user);
         vm.expectRevert("Amount exceeds whitelist limit");
         escrow.createOrder{value: 1 ether}(destinationAddress, feeAmount, destinationChainId); // amount is too high
         vm.stopPrank();
+    }
+
+    function testDestroyContract() public {
+        vm.deal(address(escrow), 1 ether);
+
+        uint256 initialBalance = address(this).balance;
+
+        vm.prank(address(this));
+        escrow.destroyContract();
+
+        uint256 finalBalance = address(this).balance;
+
+        assertEq(initialBalance + 1 ether, finalBalance);
     }
 }

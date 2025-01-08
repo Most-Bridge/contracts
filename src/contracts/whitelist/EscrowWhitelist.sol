@@ -125,14 +125,13 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
     }
 
     // Constructor
-    constructor() {
+    constructor(address[] memory _whitelistAddresses) {
         owner = msg.sender;
 
-        // whitelist addresses
-        whitelist[0xe727dbADBB18c998e5DeE2faE72cBCFfF2e6d03D] = true;
-        whitelist[0x898e87f1f5DCabCCbF68f2C17E2929672c6CA7DC] = true;
-        whitelist[0x841aaC69ce44874de22E361cD48e204bF7d686A5] = true;
-        whitelist[0xf37Fd9185Bb5657D7E57DDEA268Fe56C2458F675] = true;
+        // add to whitelist
+        for (uint256 i = 0; i < _whitelistAddresses.length; i++) {
+            whitelist[_whitelistAddresses[i]] = true;
+        }
     }
 
     // Functions
@@ -166,8 +165,7 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
         // whitelist only requirement
-        require(msg.value <= 10 ** 14, "Amount exceeds whitelist limit"); // allow up to 0.00001 ether
-
+        require(msg.value <= 7500000000000000, "Amount exceeds whitelist limit"); // allow up to 0.0075 ether
         uint256 currentTimestamp = block.timestamp;
         uint256 _expirationTimestamp = currentTimestamp + 1 days;
 
@@ -492,18 +490,34 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
 
     /**
      * @dev Change the allowed relay address.
+     * @param _newAllowedAddress The new allowed relay address.
      */
     function setAllowedAddress(address _newAllowedAddress) external onlyOwner {
         allowedRelayAddress = _newAllowedAddress;
     }
 
+    /**
+     * @dev Add an address to the whitelist.
+     * @param _address Address to be whitelisted.
+     */
     function addToWhitelist(address _address) external onlyOwner {
         whitelist[_address] = true;
     }
 
+    /**
+     * @dev Batch add addresses to the whitelist
+     * @param _addresses Array of addresses to be whitelisted.
+     */
     function batchAddToWhitelist(address[] calldata _addresses) external onlyOwner {
         for (uint256 i = 0; i < _addresses.length; i++) {
             whitelist[_addresses[i]] = true;
         }
+    }
+
+    /**
+     * @dev Destroys the contract and returns and left funds to the owner.
+     */
+    function destroyContract() external onlyOwner {
+        selfdestruct(payable(owner));
     }
 }
