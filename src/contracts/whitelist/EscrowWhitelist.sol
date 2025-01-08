@@ -490,18 +490,34 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
 
     /**
      * @dev Change the allowed relay address.
+     * @param _newAllowedAddress The new allowed relay address.
      */
     function setAllowedAddress(address _newAllowedAddress) external onlyOwner {
         allowedRelayAddress = _newAllowedAddress;
     }
 
+    /**
+     * @dev Add an address to the whitelist.
+     * @param _address Address to be whitelisted.
+     */
     function addToWhitelist(address _address) external onlyOwner {
         whitelist[_address] = true;
     }
 
+    /**
+     * @dev Batch add addresses to the whitelist
+     * @param _addresses Array of addresses to be whitelisted.
+     */
     function batchAddToWhitelist(address[] calldata _addresses) external onlyOwner {
         for (uint256 i = 0; i < _addresses.length; i++) {
             whitelist[_addresses[i]] = true;
         }
+    }
+
+    /**
+     * @dev Destroys the contract and returns and left funds to the owner.
+     */
+    function destroyContract() external onlyOwner {
+        selfdestruct(payable(owner));
     }
 }

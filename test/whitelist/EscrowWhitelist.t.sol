@@ -191,4 +191,17 @@ contract EscrowTest is Test {
         escrow.createOrder{value: 1 ether}(destinationAddress, feeAmount, destinationChainId); // amount is too high
         vm.stopPrank();
     }
+
+    function testDestroyContract() public {
+        vm.deal(address(escrow), 1 ether);
+
+        uint256 initialBalance = address(this).balance;
+
+        vm.prank(address(this));
+        escrow.destroyContract();
+
+        uint256 finalBalance = address(this).balance;
+
+        assertEq(initialBalance + 1 ether, finalBalance);
+    }
 }
