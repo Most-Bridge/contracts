@@ -171,10 +171,26 @@ contract EscrowTest is Test {
         vm.stopPrank();
     }
 
+    function testUserAddedToWhitelist() public {
+        vm.startPrank(maliciousActor);
+        vm.expectRevert("Caller is not on the whitelist");
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId); // has an expiry date of 1 day
+        vm.stopPrank();
+
+        // add to whitelist
+        vm.prank(address(this));
+        escrow.addToWhitelist(maliciousActor);
+
+        vm.prank(maliciousActor);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId); // has an expiry date of 1 day
+    }
+
     function testAmountExceedsWhitelistLimit() public {
         vm.startPrank(user);
         vm.expectRevert("Amount exceeds whitelist limit");
         escrow.createOrder{value: 1 ether}(destinationAddress, feeAmount, destinationChainId); // amount is too high
         vm.stopPrank();
     }
+
+    // TODO: test first can't make an order then add to whitelist and then can make an order
 }
