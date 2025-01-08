@@ -125,14 +125,13 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
     }
 
     // Constructor
-    constructor() {
+    constructor(address[] memory _whitelistAddresses) {
         owner = msg.sender;
 
-        // whitelist addresses
-        whitelist[0xe727dbADBB18c998e5DeE2faE72cBCFfF2e6d03D] = true;
-        whitelist[0x898e87f1f5DCabCCbF68f2C17E2929672c6CA7DC] = true;
-        whitelist[0x841aaC69ce44874de22E361cD48e204bF7d686A5] = true;
-        whitelist[0xf37Fd9185Bb5657D7E57DDEA268Fe56C2458F675] = true;
+        // add to whitelist
+        for (uint256 i = 0; i < _whitelistAddresses.length; i++) {
+            whitelist[_whitelistAddresses[i]] = true;
+        }
     }
 
     // Functions

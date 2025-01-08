@@ -16,8 +16,11 @@ contract EscrowTest is Test {
     uint256 sendAmount;
     uint256 feeAmount;
 
+    address[] public whitelistAddresses;
+
     function setUp() public {
-        escrow = new EscrowWhitelist();
+        whitelistAddresses.push(user);
+        escrow = new EscrowWhitelist(whitelistAddresses);
 
         vm.deal(user, 10 ether);
         vm.deal(maliciousActor, 10 ether);
@@ -26,10 +29,6 @@ contract EscrowTest is Test {
         feeAmount = 0.000001 ether;
 
         escrow.setAllowedAddress(address(this));
-
-        // whitelist
-        vm.prank(address(this));
-        escrow.addToWhitelist(user);
     }
 
     function testCreateOrderSuccess() public {
