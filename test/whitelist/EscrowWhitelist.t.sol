@@ -191,6 +191,4 @@ contract EscrowTest is Test {
         escrow.createOrder{value: 1 ether}(destinationAddress, feeAmount, destinationChainId); // amount is too high
         vm.stopPrank();
     }
-
-    // TODO: test first can't make an order then add to whitelist and then can make an order
 }

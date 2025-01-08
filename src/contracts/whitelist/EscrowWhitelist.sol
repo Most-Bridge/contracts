@@ -165,8 +165,7 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
         // whitelist only requirement
-        require(msg.value <= 10 ** 14, "Amount exceeds whitelist limit"); // allow up to 0.00001 ether
-
+        require(msg.value <= 7500000000000000, "Amount exceeds whitelist limit"); // allow up to 0.0075 ether
         uint256 currentTimestamp = block.timestamp;
         uint256 _expirationTimestamp = currentTimestamp + 1 days;
 
