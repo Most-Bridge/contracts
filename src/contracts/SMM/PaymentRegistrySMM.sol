@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
  * to be used to prove the transaction.
  */
 contract PaymentRegistry is Pausable {
-    // State varaibles
+    // State variables
     address public owner;
     address public allowedMarketMakerAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; 
 
@@ -55,7 +55,7 @@ contract PaymentRegistry is Pausable {
 
     /**
      * @dev Called by the allowed market maker to transfer funds to the user on the destination chain.
-     * The `transfer` mapping which is updated in this function, is what is used to prove the tx occured.
+     * The `transfer` mapping which is updated in this function, is what is used to prove the tx occurred.
      * @param _orderId The order ID associated with the order being fulfilled.
      * @param _usrDstAddress The user's destination address to receive the funds.
      */
@@ -68,7 +68,7 @@ contract PaymentRegistry is Pausable {
         require(msg.value > 0, "Funds being sent must exceed 0.");
         // require that the order is not expired.
         uint256 currentTimestamp = block.timestamp;
-        require(_expirationTimestamp > currentTimestamp, "Cannot fulifll an expired order.");
+        require(_expirationTimestamp > currentTimestamp, "Cannot fulfill an expired order.");
 
         bytes32 index = keccak256(abi.encodePacked(_orderId, _usrDstAddress, msg.value));
 
