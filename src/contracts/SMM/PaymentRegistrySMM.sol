@@ -72,16 +72,16 @@ contract PaymentRegistry is Pausable {
         uint256 currentTimestamp = block.timestamp;
         require(_expirationTimestamp > currentTimestamp, "Cannot fulfill an expired order.");
 
-        bytes32 index = keccak256(abi.encodePacked(_orderId, _usrDstAddress, msg.value));
+        bytes32 orderHash = keccak256(abi.encodePacked(_orderId, _usrDstAddress, msg.value));
 
-        require(transfers[index].orderId == 0, "Transfer already processed.");
+        require(transfers[orderHash].orderId == 0, "Transfer already processed.");
 
-        transfers[index] = TransferInfo({orderId: _orderId});
+        transfers[orderHash] = TransferInfo({orderId: _orderId});
 
         (bool success,) = payable(_usrDstAddress).call{value: msg.value}(""); // transfer to user
         require(success, "Transfer failed.");
 
-        emit Transfer(transfers[index]);
+        emit Transfer(transfers[orderHash]);
     }
 
     // public functions
