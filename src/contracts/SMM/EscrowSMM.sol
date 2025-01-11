@@ -58,12 +58,15 @@ contract Escrow is ReentrancyGuard, Pausable {
     mapping(uint256 => OrderStatusUpdates) public orderUpdates;
 
     // Events
+    // usrDstAddress stored as a uint256 to allow for starknet addresses to be stored
+    // destinationChainId stored passed as a hex
     event OrderPlaced(
         uint256 orderId,
         uint256 usrDstAddress,
+        uint256 expirationTimestamp,
         uint256 amount,
         uint256 fee,
-        uint256 expirationTimestamp,
+        address usrSrcAddress,
         bytes32 destinationChainId
     );
     event ProveBridgeSuccess(uint256 orderId);
@@ -76,13 +79,14 @@ contract Escrow is ReentrancyGuard, Pausable {
     // Contains all information that is available during the order creation
     struct InitialOrderData {
         uint256 orderId;
-        uint256 usrDstAddress;
-        uint256 expirationTimestamp;
-        uint256 amount;
-        uint256 fee;
-        address usrSrcAddress;
-        bytes32 destinationChainId;
+        bytes32 orderHash;
     }
+    // uint256 usrDstAddress; // TODO: remove
+    // uint256 expirationTimestamp;
+    // uint256 amount;
+    // uint256 fee;
+    // address usrSrcAddress;
+    // bytes32 destinationChainId;
 
     // Supplementary information to be updated throughout the process
     struct OrderStatusUpdates {
@@ -154,22 +158,23 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         uint256 currentTimestamp = block.timestamp;
         uint256 _expirationTimestamp = currentTimestamp + 1 days;
+        address _usrSrcAddress = msg.sender;
 
         uint256 bridgeAmount = msg.value - _fee; //no underflow since previous check is made
 
-        orders[orderId] = InitialOrderData({
-            orderId: orderId,
-            usrDstAddress: _usrDstAddress,
-            expirationTimestamp: _expirationTimestamp,
-            amount: bridgeAmount,
-            fee: _fee,
-            usrSrcAddress: msg.sender,
-            destinationChainId: _destinationChainId
-        });
+        bytes32 orderHash = keccak256(
+            abi.encodePacked(
+                orderId, _usrDstAddress, _expirationTimestamp, bridgeAmount, _fee, _usrSrcAddress, _destinationChainId
+            )
+        );
+
+        orders[orderId] = InitialOrderData({orderId: orderId, orderHash: orderHash});
 
         orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PENDING});
 
-        emit OrderPlaced(orderId, _usrDstAddress, bridgeAmount, _fee, _expirationTimestamp, _destinationChainId);
+        emit OrderPlaced(
+            orderId, _usrDstAddress, _expirationTimestamp, bridgeAmount, _fee, _usrSrcAddress, _destinationChainId
+        );
 
         orderId += 1;
     }
@@ -184,58 +189,51 @@ contract Escrow is ReentrancyGuard, Pausable {
      * @param _orderId The order ID of the order to be proven.
      * @param _blockNumber The point in time in which the slot state will be accessed.
      */
-    function proveOrderFulfillment(uint256 _orderId, uint256 _blockNumber) public onlyAllowedAddress whenNotPaused {
+    function proveOrderFulfillment(
+        uint256 _orderId,
+        uint256 _usrDstAddress,
+        uint256 _expirationTimestamp,
+        uint256 _bridgeAmount,
+        uint256 _fee,
+        address _usrSrcAddress,
+        bytes32 _destinationChainId,
+        uint256 _blockNumber
+    ) public onlyAllowedAddress whenNotPaused {
         // check that the order exists in the mapping
         require(orders[_orderId].orderId != 0, "Order does not exist");
+        // validate the call data
+        bytes32 orderHash = keccak256(
+            abi.encodePacked(
+                _orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _destinationChainId
+            )
+        );
+        require(orders[_orderId].orderHash == orderHash);
+
         require(
             orderUpdates[_orderId].status == OrderStatus.PENDING,
             "The order can only be in the PENDING status; any other status is invalid."
         );
 
-        // get the stored order data
-        InitialOrderData memory correctOrder = orders[_orderId];
-        OrderStatusUpdates memory correctOrderStatus = orderUpdates[_orderId];
-
-        // Check if prove conditions met
-        require(correctOrderStatus.status != OrderStatus.PROVED, "Cannot prove an order that has already been proved");
-
         uint256 currentTimestamp = block.timestamp;
-        require(correctOrder.expirationTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
+        require(_expirationTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
 
-        if (correctOrder.destinationChainId == ETHEREUM_SEPOLIA_NETWORK_ID) {
+        if (_destinationChainId == ETHEREUM_SEPOLIA_NETWORK_ID) {
             // If the destination chain is EVM based we use Storage Proofs and Fact Registry to prove correct order fulfillment
 
-            // STEP 1: CALCULATING THE STORAGE SLOTS
-            bytes32 transfersMappingKey =
-                keccak256(abi.encodePacked(correctOrder.orderId, correctOrder.usrDstAddress, correctOrder.amount));
+            // STEP 1: CALCULATE THE STORAGE SLOT
+            bytes32 paymentRegistryHash = keccak256(abi.encodePacked(_orderId, _usrDstAddress, _bridgeAmount));
             uint256 transfersMappingSlot = 2; // Please check payment registry storage layout for changes before deployment
+            bytes32 _orderIdSlot = keccak256(abi.encodePacked(paymentRegistryHash, transfersMappingSlot));
 
-            bytes32 baseStorageSlot = keccak256(abi.encodePacked(transfersMappingKey, transfersMappingSlot));
-
-            bytes32 _orderIdSlot = baseStorageSlot;
-            bytes32 _usrDstAddressSlot = bytes32(uint256(baseStorageSlot) + 1);
-            bytes32 _expirationTimestampSlot = bytes32(uint256(baseStorageSlot) + 2);
-            bytes32 _amountSlot = bytes32(uint256(baseStorageSlot) + 3);
-
-            // STEP 2: GET THE VALUES OF THE STORAGE SLOTS
+            // STEP 2: GET THE VALUE FROM THE STORAGE SLOTS
             bytes32 _orderIdValue =
                 factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
-            bytes32 _dstAddressValue =
-                factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _usrDstAddressSlot);
-            bytes32 _expirationTimestampValue =
-                factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _expirationTimestampSlot);
-            bytes32 _amountValue =
-                factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _amountSlot);
 
-            // STEP 3: CONVERT THE VALUES TO THEIR NATIVE TYPES
-            (uint256 orderIdNative, uint256 dstAddressNative, uint256 expirationTimestampNative, uint256 amountNative) =
-                convertBytes32toNative(_orderIdValue, _dstAddressValue, _expirationTimestampValue, _amountValue);
+            // STEP 3: CONVERT THE VALUE TO IT'S NATIVE TYPE
+            paymentRegistryOrderId = uint256(_orderIdValue);
 
             // STEP 4: COMPARE ORDER FULFILLMENT DATA
-            if (
-                correctOrder.orderId == orderIdNative && correctOrder.usrDstAddress == dstAddressNative
-                    && correctOrder.amount == amountNative && correctOrder.expirationTimestamp == expirationTimestampNative
-            ) {
+            if (orders[paymentRegistryOrderId].orderId == paymentRegistryOrderId) {
                 orderUpdates[_orderId].status = OrderStatus.PROVED;
 
                 emit ProveBridgeSuccess(_orderId);
@@ -351,35 +349,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
 
         emit ProveBridgeAggregatedSuccess(_orderIds);
-    }
-
-    /**
-     * @dev Converts bytes32 values to their native types.
-     * @param _orderIdValue A bytes32 value of the orderId.
-     * @param _dstAddressValue A bytes32 value of the dstAddress.
-     * @param _expirationTimestampValue A bytes32 value of the expiration timestamp.
-     * @param _amountValue A bytes32 value of the amount value.
-     *
-     * @return _orderId The order ID as a `uint256`.
-     * @return _dstAddress The destination address as an `address`.
-     * @return _expirationTimestamp The expiration timestamp as a `uint256`.
-     * @return _amount The amount as a `uint256`.
-     */
-    function convertBytes32toNative(
-        bytes32 _orderIdValue,
-        bytes32 _dstAddressValue,
-        bytes32 _expirationTimestampValue,
-        bytes32 _amountValue
-    ) internal pure returns (uint256 _orderId, uint256 _dstAddress, uint256 _expirationTimestamp, uint256 _amount) {
-        // bytes32 to uint256
-        _orderId = uint256(_orderIdValue);
-        _amount = uint256(_amountValue);
-        _expirationTimestamp = uint256(_expirationTimestampValue);
-
-        // bytes32 to address
-        _dstAddress = uint256(_dstAddressValue);
-
-        return (_orderId, _dstAddress, _expirationTimestamp, _amount);
     }
 
     /**

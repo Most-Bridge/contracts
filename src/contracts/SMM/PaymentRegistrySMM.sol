@@ -20,10 +20,6 @@ contract PaymentRegistry is Pausable {
     struct TransferInfo {
         uint256 orderId;
     }
-    // address usrDstAddress; // TODO: delete
-    // uint256 expirationTimestamp;
-    // uint256 amount;
-    // bool isUsed;
 
     // Events
     event Transfer(TransferInfo transferInfo);
@@ -88,11 +84,11 @@ contract PaymentRegistry is Pausable {
 
     /**
      * @dev Returns the transfer information for a given index.
-     * @param _index The index to look up transfer info.
+     * @param _orderHash The index to look up transfer info.
      * @return TransferInfo The transfer information associated with the index.
      */
-    function getTransfers(bytes32 _index) public view returns (TransferInfo memory) {
-        return transfers[_index];
+    function getTransfers(bytes32 _orderHash) public view returns (TransferInfo memory) {
+        return transfers[_orderHash];
     }
 
     // onlyAllowedAddress functions
