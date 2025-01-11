@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 contract PaymentRegistry is Pausable {
     // State variables
     address public owner;
-    address public allowedMarketMakerAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; 
+    address public allowedMarketMakerAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
 
     // Storage
     mapping(bytes32 => TransferInfo) public transfers;
@@ -19,11 +19,11 @@ contract PaymentRegistry is Pausable {
     // Structs
     struct TransferInfo {
         uint256 orderId;
-        address usrDstAddress;
-        uint256 expirationTimestamp;
-        uint256 amount;
-        bool isUsed;
     }
+    // address usrDstAddress; // TODO: delete
+    // uint256 expirationTimestamp;
+    // uint256 amount;
+    // bool isUsed;
 
     // Events
     event Transfer(TransferInfo transferInfo);
@@ -58,6 +58,8 @@ contract PaymentRegistry is Pausable {
      * The `transfer` mapping which is updated in this function, is what is used to prove the tx occurred.
      * @param _orderId The order ID associated with the order being fulfilled.
      * @param _usrDstAddress The user's destination address to receive the funds.
+     * @param _expirationTimestamp The order’s expiration time. If an expired timestamp is mistakenly passed,
+     * the funds in Escrow remain locked.
      */
     function transferTo(uint256 _orderId, address _usrDstAddress, uint256 _expirationTimestamp)
         external
@@ -72,15 +74,9 @@ contract PaymentRegistry is Pausable {
 
         bytes32 index = keccak256(abi.encodePacked(_orderId, _usrDstAddress, msg.value));
 
-        require(transfers[index].isUsed == false, "Transfer already processed.");
+        require(transfers[index].orderId == 0, "Transfer already processed.");
 
-        transfers[index] = TransferInfo({
-            orderId: _orderId,
-            usrDstAddress: _usrDstAddress,
-            expirationTimestamp: _expirationTimestamp,
-            amount: msg.value,
-            isUsed: true
-        });
+        transfers[index] = TransferInfo({orderId: _orderId});
 
         (bool success,) = payable(_usrDstAddress).call{value: msg.value}(""); // transfer to user
         require(success, "Transfer failed.");

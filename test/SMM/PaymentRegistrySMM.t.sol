@@ -26,7 +26,7 @@ contract PaymentRegistryTest is Test {
         paymentRegistry.transferTo{value: sendAmount}(orderId, destinationAddress, expirationTimestamp);
 
         bytes32 index = keccak256(abi.encodePacked(orderId, destinationAddress, sendAmount));
-        assertTrue(paymentRegistry.getTransfers(index).isUsed); // check that isUsed is true
+        assertEq(paymentRegistry.getTransfers(index).orderId, 1); // check that isUsed is true
 
         assertEq(address(destinationAddress).balance, 2 ether); // user balance up
         assertEq(address(mmDstAddress).balance, 9 ether); // mm balance down
@@ -49,7 +49,7 @@ contract PaymentRegistryTest is Test {
 
     function testTransferToFailsOnExpiredOrder() public {
         vm.prank(mmDstAddress);
-        vm.expectRevert("Cannot fulifll an expired order.");
+        vm.expectRevert("Cannot fulfill an expired order.");
         // sending the current time, while it expects a greater time
         paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress, block.timestamp);
     }
