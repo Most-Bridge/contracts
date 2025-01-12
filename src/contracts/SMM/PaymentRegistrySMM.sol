@@ -26,6 +26,7 @@ contract PaymentRegistry is Pausable {
         uint256 _orderId,
         address _usrDstAddress,
         uint256 _expirationTimestamp,
+        uint256 _bridgeAmount,
         uint256 _fee,
         address _usrSrcAddress,
         bytes32 _destinationChainId
@@ -90,7 +91,9 @@ contract PaymentRegistry is Pausable {
         (bool success,) = payable(_usrDstAddress).call{value: msg.value}(""); // transfer to user
         require(success, "Transfer failed.");
 
-        emit Transfer(_orderId, _usrDstAddress, _expirationTimestamp, _fee, _usrSrcAddress, _destinationChainId);
+        emit Transfer(
+            _orderId, _usrDstAddress, _expirationTimestamp, msg.value, _fee, _usrSrcAddress, _destinationChainId
+        );
     }
 
     // public functions
