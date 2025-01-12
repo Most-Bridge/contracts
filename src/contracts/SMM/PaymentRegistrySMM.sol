@@ -57,18 +57,24 @@ contract PaymentRegistry is Pausable {
      * @param _expirationTimestamp The order’s expiration time. If an expired timestamp is mistakenly passed,
      * the funds in Escrow remain locked.
      */
-    function transferTo(uint256 _orderId, address _usrDstAddress, uint256 _expirationTimestamp)
-        external
-        payable
-        onlyAllowedAddress
-        whenNotPaused
-    {
+    function transferTo(
+        uint256 _orderId,
+        address _usrDstAddress,
+        uint256 _expirationTimestamp,
+        uint256 _fee,
+        address _usrSrcAddress,
+        bytes32 _destinationChainId
+    ) external payable onlyAllowedAddress whenNotPaused {
         require(msg.value > 0, "Funds being sent must exceed 0.");
         // require that the order is not expired.
         uint256 currentTimestamp = block.timestamp;
         require(_expirationTimestamp > currentTimestamp, "Cannot fulfill an expired order.");
 
-        bytes32 orderHash = keccak256(abi.encodePacked(_orderId, _usrDstAddress, msg.value));
+        bytes32 orderHash = keccak256(
+            abi.encodePacked(
+                _orderId, _usrDstAddress, _expirationTimestamp, msg.value, _fee, _usrSrcAddress, _destinationChainId
+            )
+        );
 
         require(transfers[orderHash].orderId == 0, "Transfer already processed.");
 

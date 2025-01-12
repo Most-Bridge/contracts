@@ -221,9 +221,8 @@ contract Escrow is ReentrancyGuard, Pausable {
             // If the destination chain is EVM based we use Storage Proofs and Fact Registry to prove correct order fulfillment
 
             // STEP 1: CALCULATE THE STORAGE SLOT
-            bytes32 paymentRegistryHash = keccak256(abi.encodePacked(_orderId, _usrDstAddress, _bridgeAmount));
             uint256 transfersMappingSlot = 2; // Please check payment registry storage layout for changes before deployment
-            bytes32 _orderIdSlot = keccak256(abi.encodePacked(paymentRegistryHash, transfersMappingSlot));
+            bytes32 _orderIdSlot = keccak256(abi.encodePacked(orderHash, transfersMappingSlot));
 
             // STEP 2: GET THE VALUE FROM THE STORAGE SLOTS
             bytes32 _orderIdValue =
@@ -287,10 +286,28 @@ contract Escrow is ReentrancyGuard, Pausable {
      * @param _orderIds An array of orders who's slots will be proven.
      * @param _blockNumber The point in time in which the slot state will be accessed.
      */
-    function proveOrderFulfillmentBatch(uint256[] memory _orderIds, uint256 _blockNumber) public onlyAllowedAddress {
+    function proveOrderFulfillmentBatch(
+        uint256[] memory _orderIds,
+        uint256[] memory _usrDstAddresses,
+        uint256[] memory _expirationTimestamps,
+        uint256[] memory _bridgeAmounts,
+        uint256[] memory _fees,
+        address[] memory _usrSrcAddresses,
+        bytes32[] memory _destinationChainIds,
+        uint256 _blockNumber
+    ) public onlyAllowedAddress {
         // batch call proveOrderFulfillment
         for (uint256 i = 0; i < _orderIds.length; i++) {
-            proveOrderFulfillment(_orderIds[i], _blockNumber);
+            proveOrderFulfillment(
+                _orderIds[i],
+                _usrDstAddresses[i],
+                _expirationTimestamps[i],
+                _bridgeAmounts[i],
+                _fees[i],
+                _usrSrcAddresses[i],
+                _destinationChainIds[i],
+                _blockNumber
+            );
         }
     }
 
