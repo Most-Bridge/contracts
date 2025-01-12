@@ -54,8 +54,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     IFactsRegistry factsRegistry = IFactsRegistry(FACTS_REGISTRY_ADDRESS);
 
     // Storage
-    mapping(uint256 => InitialOrderData) public orders;
-    mapping(uint256 => OrderStatusUpdates) public orderUpdates;
+    mapping(uint256 => bytes32) public orders;
+    mapping(uint256 => OrderStatus) public orderUpdates;
 
     // Events
     // usrDstAddress stored as a uint256 to allow for starknet addresses to be stored
@@ -77,11 +77,11 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     // Structs
     // Contains all information that is available during the order creation
-    struct InitialOrderData {
-        uint256 orderId;
-        bytes32 orderHash;
-    }
-    // uint256 usrDstAddress; // TODO: remove
+    // struct InitialOrderData {
+    //     uint256 orderId;
+    //     bytes32 orderHash;
+    // }
+    // uint256 usrDstAddress;
     // uint256 expirationTimestamp;
     // uint256 amount;
     // uint256 fee;
@@ -89,18 +89,18 @@ contract Escrow is ReentrancyGuard, Pausable {
     // bytes32 destinationChainId;
 
     // Supplementary information to be updated throughout the process
-    struct OrderStatusUpdates {
-        uint256 orderId;
-        OrderStatus status;
-    }
+    // struct OrderStatusUpdates {
+    //     uint256 orderId;
+    //     OrderStatus status;
+    // }
 
-    struct OrderSlots {
-        bytes32 orderIdSlot;
-        bytes32 dstAddressSlot;
-        bytes32 expirationTimestamp;
-        bytes32 amountSlot;
-        uint256 blockNumber;
-    }
+    // struct OrderSlots {
+    //     bytes32 orderIdSlot;
+    //     bytes32 dstAddressSlot;
+    //     bytes32 expirationTimestamp;
+    //     bytes32 amountSlot;
+    //     uint256 blockNumber;
+    // }
 
     //Enums
     enum OrderStatus {
@@ -168,9 +168,9 @@ contract Escrow is ReentrancyGuard, Pausable {
             )
         );
 
-        orders[orderId] = InitialOrderData({orderId: orderId, orderHash: orderHash});
+        orders[orderId] = orderHash;
 
-        orderUpdates[orderId] = OrderStatusUpdates({orderId: orderId, status: OrderStatus.PENDING});
+        orderUpdates[orderId] = OrderStatus.PENDING;
 
         emit OrderPlaced(
             orderId, _usrDstAddress, _expirationTimestamp, bridgeAmount, _fee, _usrSrcAddress, _destinationChainId
@@ -199,18 +199,16 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 _destinationChainId,
         uint256 _blockNumber
     ) public onlyAllowedAddress whenNotPaused {
-        // check that the order exists in the mapping
-        require(orders[_orderId].orderId != 0, "Order does not exist");
         // validate the call data
         bytes32 orderHash = keccak256(
             abi.encodePacked(
                 _orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _destinationChainId
             )
         );
-        require(orders[_orderId].orderHash == orderHash);
+        require(orders[_orderId] == orderHash);
 
         require(
-            orderUpdates[_orderId].status == OrderStatus.PENDING,
+            orderUpdates[_orderId] == OrderStatus.PENDING,
             "The order can only be in the PENDING status; any other status is invalid."
         );
 
@@ -222,18 +220,18 @@ contract Escrow is ReentrancyGuard, Pausable {
 
             // STEP 1: CALCULATE THE STORAGE SLOT
             uint256 transfersMappingSlot = 2; // Please check payment registry storage layout for changes before deployment
-            bytes32 _orderIdSlot = keccak256(abi.encodePacked(orderHash, transfersMappingSlot));
+            bytes32 _isFulfilledSlot = keccak256(abi.encodePacked(orderHash, transfersMappingSlot));
 
             // STEP 2: GET THE VALUE FROM THE STORAGE SLOTS
-            bytes32 _orderIdValue =
-                factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _orderIdSlot);
+            bytes32 _isFulfilledValue =
+                factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _isFulfilledSlot);
 
             // STEP 3: CONVERT THE VALUE TO IT'S NATIVE TYPE
-            paymentRegistryOrderId = uint256(_orderIdValue);
+            bool orderIsFulfilled = _isFulfilledValue != bytes32(0); // converting the bytes32 returned from facts registry into a bool
 
             // STEP 4: COMPARE ORDER FULFILLMENT DATA
-            if (orders[paymentRegistryOrderId].orderId == paymentRegistryOrderId) {
-                orderUpdates[_orderId].status = OrderStatus.PROVED;
+            if (orderIsFulfilled) {
+                orderUpdates[_orderId] = OrderStatus.PROVED;
 
                 emit ProveBridgeSuccess(_orderId);
             }

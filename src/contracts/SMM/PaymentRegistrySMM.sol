@@ -14,15 +14,22 @@ contract PaymentRegistry is Pausable {
     address public allowedMarketMakerAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
 
     // Storage
-    mapping(bytes32 => TransferInfo) public transfers;
+    mapping(bytes32 => bool) public transfers;
 
     // Structs
-    struct TransferInfo {
-        uint256 orderId;
-    }
+    // struct TransferInfo {
+    //     uint256 orderId;
+    // }
 
     // Events
-    event Transfer(TransferInfo transferInfo);
+    event Transfer(
+        uint256 _orderId,
+        address _usrDstAddress,
+        uint256 _expirationTimestamp,
+        uint256 _fee,
+        address _usrSrcAddress,
+        bytes32 _destinationChainId
+    );
 
     // Modifiers
     modifier onlyOwner() {
@@ -76,14 +83,14 @@ contract PaymentRegistry is Pausable {
             )
         );
 
-        require(transfers[orderHash].orderId == 0, "Transfer already processed.");
+        require(transfers[orderHash] == false, "Transfer already processed.");
 
-        transfers[orderHash] = TransferInfo({orderId: _orderId});
+        transfers[orderHash] = true;
 
         (bool success,) = payable(_usrDstAddress).call{value: msg.value}(""); // transfer to user
         require(success, "Transfer failed.");
 
-        emit Transfer(transfers[orderHash]);
+        emit Transfer(_orderId, _usrDstAddress, _expirationTimestamp, _fee, _usrSrcAddress, _destinationChainId);
     }
 
     // public functions
@@ -93,7 +100,7 @@ contract PaymentRegistry is Pausable {
      * @param _orderHash The index to look up transfer info.
      * @return TransferInfo The transfer information associated with the index.
      */
-    function getTransfers(bytes32 _orderHash) public view returns (TransferInfo memory) {
+    function getTransfers(bytes32 _orderHash) public view returns (bool) {
         return transfers[_orderHash];
     }
 
