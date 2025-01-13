@@ -143,7 +143,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                 _orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _dstChainId
             )
         );
-        require(orders[_orderId] == orderHash);
+        require(orders[_orderId] == orderHash, "Order hash mismatch");
         require(
             orderStatus[_orderId] == OrderState.PENDING,
             "The order can only be in the PENDING status; any other status is invalid."
@@ -303,15 +303,14 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 _bridgeAmount,
         uint256 _fee,
         address _usrSrcAddress,
-        bytes32 _dstChainId,
-        uint256 _blockNumber
+        bytes32 _dstChainId
     ) external nonReentrant whenNotPaused onlyRelayAddress {
         bytes32 orderHash = keccak256(
             abi.encodePacked(
                 orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _dstChainId
             )
         );
-        require(orders[_orderId] == orderHash);
+        require(orders[_orderId] == orderHash, "Order hash mismatch");
         require(orderStatus[_orderId] == OrderState.PROVED);
         uint256 transferAmountAndFee = _bridgeAmount + _fee;
         require(address(this).balance >= transferAmountAndFee, "Withdraw Proved: Insufficient balance to withdraw");
@@ -333,8 +332,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256[] memory _bridgeAmounts,
         uint256[] memory _fees,
         address[] memory _usrSrcAddresses,
-        bytes32[] memory _dstChainIds,
-        uint256 _blockNumber
+        bytes32[] memory _dstChainIds
     ) external nonReentrant whenNotPaused onlyRelayAddress {
         uint256 amountToWithdraw = 0;
         for (uint256 i = 0; i < _orderIds.length; i++) {
@@ -372,18 +370,14 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 _expirationTimestamp,
         uint256 _bridgeAmount,
         uint256 _fee,
-        address _usrSrcAddress,
         bytes32 _dstChainId
     ) external payable nonReentrant {
         bytes32 orderHash = keccak256(
             abi.encodePacked(
-                _orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _dstChainId
+                _orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, msg.sender, _dstChainId
             )
         );
-        require(orders[_orderId] == orderHash);
-        require(
-            msg.sender == _usrSrcAddress, "Can only refund with the same address that was used to create the order."
-        );
+        require(orders[_orderId] == orderHash, "Order hash mismatch");
         require(orderStatus[_orderId] == OrderState.PENDING, "Cannot refund an order if it is not pending.");
         uint256 currentTimestamp = block.timestamp;
         require(currentTimestamp > _expirationTimestamp, "Cannot refund an order that has not expired.");
