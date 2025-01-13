@@ -192,16 +192,16 @@ contract EscrowTest is Test {
         vm.stopPrank();
     }
 
-    function testDestroyContract() public {
-        vm.deal(address(escrow), 1 ether);
+    // function testDestroyContract() public {
+    //     vm.deal(address(escrow), 1 ether);
 
-        uint256 initialBalance = address(this).balance;
+    //     uint256 initialBalance = address(this).balance;
 
-        vm.prank(address(this));
-        escrow.destroyContract();
+    //     vm.prank(address(this));
+    //     escrow.destroyContract();
 
-        uint256 finalBalance = address(this).balance;
+    //     uint256 finalBalance = address(this).balance;
 
-        assertEq(initialBalance + 1 ether, finalBalance);
-    }
+    //     assertEq(initialBalance + 1 ether, finalBalance);
+    // }
 }

@@ -1,56 +1,74 @@
-// // SPDX-License-Identifier: MIT
-// pragma solidity >=0.8;
+// SPDX-License-Identifier: MIT
+pragma solidity >=0.8;
 
-// import {Test, console} from "forge-std/Test.sol";
-// import {PaymentRegistry} from "../../src/contracts/SMM/PaymentRegistrySMM.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {PaymentRegistry} from "../../src/contracts/SMM/PaymentRegistrySMM.sol";
 
-// contract PaymentRegistryTest is Test {
-//     PaymentRegistry public paymentRegistry;
-//     address destinationAddress = address(1);
-//     address mmDstAddress = address(2);
-//     address mmSrcAddress = address(3);
-//     uint256 orderId = 1;
-//     uint256 expirationTimestamp = block.timestamp + 7 days;
+contract PaymentRegistryTest is Test {
+    PaymentRegistry public paymentRegistry;
+    address destinationAddress = address(1);
+    address mmDstAddress = address(2);
+    address mmSrcAddress = address(3);
+    uint256 orderId = 1;
+    uint256 expirationTimestamp = block.timestamp + 1 days;
+    uint256 fee = 0.01 ether;
+    bytes32 destinationChainId = bytes32(uint256(1)); // TODO: change to dstChainId
 
-//     function setUp() public {
-//         paymentRegistry = new PaymentRegistry();
-//         vm.deal(mmDstAddress, 10 ether);
-//         vm.deal(destinationAddress, 1 ether);
-//         vm.prank(address(this));
-//         paymentRegistry.setAllowedAddress(mmDstAddress);
-//     }
+    uint256 sendAmount = 1 ether;
 
-//     function testTransferTo() public {
-//         uint256 sendAmount = 1 ether;
-//         vm.prank(mmDstAddress);
-//         paymentRegistry.transferTo{value: sendAmount}(orderId, destinationAddress, expirationTimestamp);
+    function setUp() public {
+        paymentRegistry = new PaymentRegistry();
+        vm.deal(mmDstAddress, 10 ether);
+        vm.deal(destinationAddress, 1 ether);
+        vm.prank(address(this));
+        paymentRegistry.setAllowedAddress(mmDstAddress);
+    }
 
-//         bytes32 index = keccak256(abi.encodePacked(orderId, destinationAddress, sendAmount));
-//         assertEq(paymentRegistry.getTransfers(index).orderId, 1); // check that isUsed is true
+    function testTransferTo() public {
+        vm.prank(mmDstAddress); // mm calls
+        paymentRegistry.transferTo{value: sendAmount}(
+            orderId, destinationAddress, expirationTimestamp, fee, mmSrcAddress, destinationChainId
+        );
 
-//         assertEq(address(destinationAddress).balance, 2 ether); // user balance up
-//         assertEq(address(mmDstAddress).balance, 9 ether); // mm balance down
-//     }
+        bytes32 orderHash = keccak256(
+            abi.encodePacked(
+                orderId, destinationAddress, expirationTimestamp, sendAmount, fee, mmSrcAddress, destinationChainId
+            )
+        );
 
-//     function testTransferToFailsIfAlreadyProcessed() public {
-//         vm.startPrank(mmDstAddress);
-//         paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress, expirationTimestamp);
+        assertTrue(paymentRegistry.getTransfers(orderHash), "Order was not marked as processed.");
+        assertEq(address(destinationAddress).balance, 2 ether, "Destination address balance did not increase.");
+        assertEq(address(mmDstAddress).balance, 9 ether, "Market maker balance did not decrease.");
+    }
 
-//         vm.expectRevert("Transfer already processed.");
-//         paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress, expirationTimestamp);
-//         vm.stopPrank();
-//     }
+    function testTransferToFailsIfAlreadyProcessed() public {
+        vm.startPrank(mmDstAddress);
+        paymentRegistry.transferTo{value: 1 ether}(
+            orderId, destinationAddress, expirationTimestamp, fee, mmSrcAddress, destinationChainId
+        );
 
-//     function testTransferToFailsIfNoValue() public {
-//         vm.prank(mmDstAddress);
-//         vm.expectRevert("Funds being sent must exceed 0.");
-//         paymentRegistry.transferTo{value: 0}(orderId, destinationAddress, expirationTimestamp);
-//     }
+        vm.expectRevert("Transfer already processed.");
+        paymentRegistry.transferTo{value: 1 ether}(
+            orderId, destinationAddress, expirationTimestamp, fee, mmSrcAddress, destinationChainId
+        );
+        vm.stopPrank();
+    }
 
-//     function testTransferToFailsOnExpiredOrder() public {
-//         vm.prank(mmDstAddress);
-//         vm.expectRevert("Cannot fulfill an expired order.");
-//         // sending the current time, while it expects a greater time
-//         paymentRegistry.transferTo{value: 1 ether}(orderId, destinationAddress, block.timestamp);
-//     }
-// }
+    function testTransferToFailsIfNoValue() public {
+        vm.prank(mmDstAddress);
+        vm.expectRevert("Funds being sent must exceed 0.");
+        paymentRegistry.transferTo{value: 0}(
+            orderId, destinationAddress, expirationTimestamp, fee, mmSrcAddress, destinationChainId
+        );
+    }
+
+    function testTransferToFailsOnExpiredOrder() public {
+        vm.prank(mmDstAddress);
+        vm.expectRevert("Cannot fulfill an expired order.");
+        // warping time to expire order
+        vm.warp(block.timestamp + 2 days);
+        paymentRegistry.transferTo{value: 1 ether}(
+            orderId, destinationAddress, expirationTimestamp, fee, mmSrcAddress, destinationChainId
+        );
+    }
+}

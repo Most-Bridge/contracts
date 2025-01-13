@@ -514,10 +514,10 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
         }
     }
 
-    /**
-     * @dev Destroys the contract and returns and left funds to the owner.
-     */
-    function destroyContract() external onlyOwner {
-        selfdestruct(payable(owner));
-    }
+    // /**
+    //  * @dev Destroys the contract and returns and left funds to the owner.
+    //  */
+    // function destroyContract() external onlyOwner {
+    //     selfdestruct(payable(owner));
+    // }
 }
