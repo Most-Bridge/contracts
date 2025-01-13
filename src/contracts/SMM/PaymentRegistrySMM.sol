@@ -11,15 +11,10 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 contract PaymentRegistry is Pausable {
     // State variables
     address public owner;
-    address public allowedMarketMakerAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
+    address public allowedMMAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
 
     // Storage
     mapping(bytes32 => bool) public transfers;
-
-    // Structs
-    // struct TransferInfo {
-    //     uint256 orderId;
-    // }
 
     // Events
     event Transfer(
@@ -39,7 +34,7 @@ contract PaymentRegistry is Pausable {
     }
 
     modifier onlyAllowedAddress() {
-        require(msg.sender == allowedMarketMakerAddress, "Caller is not allowed");
+        require(msg.sender == allowedMMAddress, "Caller is not allowed");
         _;
     }
 
@@ -51,10 +46,10 @@ contract PaymentRegistry is Pausable {
     // External functions
     /**
      * @dev Allows the owner to change the allowed market maker address, who will be fulfilling the orders.
-     * @param _newAllowedAddress The address that will fulfill the orders.
+     * @param _newAllowedMMAddress The new address that will fulfill the orders.
      */
-    function setAllowedAddress(address _newAllowedAddress) public onlyOwner {
-        allowedMarketMakerAddress = _newAllowedAddress;
+    function setAllowedMMAddress(address _newAllowedMMAddress) public onlyOwner {
+        allowedMMAddress = _newAllowedMMAddress;
     }
 
     /**
@@ -64,6 +59,9 @@ contract PaymentRegistry is Pausable {
      * @param _usrDstAddress The user's destination address to receive the funds.
      * @param _expirationTimestamp The order’s expiration time. If an expired timestamp is mistakenly passed,
      * the funds in Escrow remain locked.
+     * @param _fee The fee paid to the MM.
+     * @param _usrSrcAddress The address of the user on the source chain.
+     * @param _destinationChainId The destination chain id in hex.
      */
     function transferTo(
         uint256 _orderId,
@@ -74,7 +72,6 @@ contract PaymentRegistry is Pausable {
         bytes32 _destinationChainId
     ) external payable onlyAllowedAddress whenNotPaused {
         require(msg.value > 0, "Funds being sent must exceed 0.");
-        // require that the order is not expired.
         uint256 currentTimestamp = block.timestamp;
         require(_expirationTimestamp > currentTimestamp, "Cannot fulfill an expired order.");
 
@@ -97,12 +94,6 @@ contract PaymentRegistry is Pausable {
     }
 
     // public functions
-
-    /**
-     * @dev Returns the transfer information for a given index.
-     * @param _orderHash The index to look up transfer info.
-     * @return TransferInfo The transfer information associated with the index.
-     */
     function getTransfers(bytes32 _orderHash) public view returns (bool) {
         return transfers[_orderHash];
     }
@@ -112,9 +103,6 @@ contract PaymentRegistry is Pausable {
         _pause();
     }
 
-    /**
-     * @dev Unpauses the contract.
-     */
     function unpauseContract() external onlyAllowedAddress {
         _unpause();
     }
