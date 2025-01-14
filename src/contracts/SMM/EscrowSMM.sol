@@ -40,13 +40,12 @@ contract Escrow is ReentrancyGuard, Pausable {
     // Starknet
     address public HDP_EXECUTION_STORE_ADDRESS = 0x68a011d3790e7F9038C9B9A4Da7CD60889EECa70;
     uint256 public HDP_PROGRAM_HASH = 0x62c37715e000abfc6f931ee05a4ff1be9d7832390b31e5de29d197814db8156;
-    uint256 public HDP_PROGRAM_HASH_AGGREGATED_VERSION =
-        0x62c37715e000abfc6f931ee05a4ff1be9d7832390b31e5de29d197814db8156;
     bytes32 public STARKNET_MAINNET_NETWORK_ID = bytes32(uint256(0x534e5f4d41494e));
     bytes32 public STARKNET_SEPOLIA_NETWORK_ID = bytes32(uint256(0x534e5f5345504f4c4941));
 
     // Interfaces
     IFactsRegistry factsRegistry = IFactsRegistry(FACTS_REGISTRY_ADDRESS);
+    IHdpExecutionStore hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
 
     // Storage
     mapping(uint256 => bytes32) public orders;
@@ -165,46 +164,34 @@ contract Escrow is ReentrancyGuard, Pausable {
                 emit ProveBridgeSuccess(_orderId);
             }
         } else if (_dstChainId == STARKNET_SEPOLIA_NETWORK_ID) {
-            // If the destination chain is CairoVM based we use Herodotus Data Processor and its Execution Store to prove correct order fulfillment
-            // We do not calculate the storage slot for starknet inside EVM, because this is not gas efficient, instead we calculate this storage slot inside HDP module
+            // If the destination chain is CairoVM based we use HDP and its Execution Store
+            bytes32[] memory taskInputs;
+            taskInputs = [
+                bytes32(_blockNumber),
+                bytes32(_orderId),
+                bytes32(uint256(_usrDstAddress)),
+                bytes32(_expirationTimestamp),
+                bytes32(_bridgeAmount),
+                bytes32(_fee),
+                bytes32(uint256(uint160(_usrSrcAddress))), // address to uint256 and then bytes32
+                _dstChainId // already bytes32
+            ];
 
-            // bytes16 bridge_amount_high = bytes16(uint128(correctOrder.amount >> 128));
-            // bytes16 bridge_amount_low = bytes16(uint128(correctOrder.amount));
+            ModuleTask memory hdpModuleTask = ModuleTask({programHash: bytes32(HDP_PROGRAM_HASH), inputs: taskInputs});
+            bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
 
-            // IHdpExecutionStore hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
+            require(
+                hdpExecutionStore.cachedTasksResult(taskCommitment).status == IHdpExecutionStore.TaskStatus.FINALIZED,
+                "HDP Task is not finalized"
+            );
+            // Inside sound HDP module program, we calculate the hash and check if it returns a true value
+            require(
+                hdpExecutionStore.getFinalizedTaskResult(taskCommitment) == true,
+                "Unable to prove PaymentRegistry transfer execution"
+            );
 
-            // bytes32[] memory taskInputs;
-            // taskInputs[0] = bytes32(_blockNumber);
-            // taskInputs[1] = bytes32(_orderId);
-            // taskInputs[2] = bytes32(uint256(correctOrder.usrDstAddress));
-            // taskInputs[3] = bytes32(correctOrder.expirationTimestamp);
-            // taskInputs[4] = bytes32(bridge_amount_low);
-            // taskInputs[5] = bytes32(bridge_amount_high);
-            // //taskInputs[5] = bytes32(correctOrder.fee);
-            // //taskInputs[6] = bytes32(correctOrder.usrSrcAddress);
-            // taskInputs[6] = correctOrder.dstChainId;
-
-            // ModuleTask memory hdpModuleTask = ModuleTask({programHash: bytes32(HDP_PROGRAM_HASH), inputs: taskInputs});
-
-            // bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
-
-            // require(
-            //     hdpExecutionStore.cachedTasksResult(taskCommitment).status == IHdpExecutionStore.TaskStatus.FINALIZED,
-            //     "HDP Task is not finalized"
-            // );
-
-            // // Inside sound HDP module program, we calculate the Poseidon hash of the incoming task inputs (order parameters) and check if it equals with the hash stored inside Cairo PaymentRegistry contract
-
-            // require(
-            //     hdpExecutionStore.getFinalizedTaskResult(taskCommitment) != 0,
-            //     "Unable to prove PaymentRegistry transfer execution"
-            // );
-
-            // // If this passes, we can proceed
-
-            // orderStatus[_orderId].status = OrderState.PROVED;
-
-            // emit ProveBridgeSuccess(_orderId);
+            orderStatus[_orderId].status = OrderState.PROVED;
+            emit ProveBridgeSuccess(_orderId);
         }
     }
 
