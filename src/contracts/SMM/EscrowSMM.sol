@@ -80,6 +80,17 @@ contract Escrow is ReentrancyGuard, Pausable {
         DROPPED
     }
 
+    // Structs
+    struct Order {
+        uint256 id;
+        uint256 usrDstAddress;
+        uint256 expirationTimestamp;
+        uint256 bridgeAmount;
+        uint256 fee;
+        address usrSrcAddress;
+        bytes32 dstChainId;
+    }
+
     // Constructor
     constructor() {
         owner = msg.sender;
@@ -165,33 +176,33 @@ contract Escrow is ReentrancyGuard, Pausable {
             }
         } else if (_dstChainId == STARKNET_SEPOLIA_NETWORK_ID) {
             // If the destination chain is CairoVM based we use HDP and its Execution Store
-            bytes32[] memory taskInputs;
-            taskInputs = [
-                bytes32(_blockNumber),
-                bytes32(_orderId),
-                bytes32(uint256(_usrDstAddress)),
-                bytes32(_expirationTimestamp),
-                bytes32(_bridgeAmount),
-                bytes32(_fee),
-                bytes32(uint256(uint160(_usrSrcAddress))), // address to uint256 and then bytes32
-                _dstChainId // already bytes32
-            ];
+            // bytes32[] memory taskInputs;
+            // taskInputs = [
+            //     bytes32(_blockNumber),
+            //     bytes32(_orderId),
+            //     bytes32(uint256(_usrDstAddress)),
+            //     bytes32(_expirationTimestamp),
+            //     bytes32(_bridgeAmount),
+            //     bytes32(_fee),
+            //     bytes32(uint256(uint160(_usrSrcAddress))), // address to uint256 and then bytes32
+            //     _dstChainId // already bytes32
+            // ];
 
-            ModuleTask memory hdpModuleTask = ModuleTask({programHash: bytes32(HDP_PROGRAM_HASH), inputs: taskInputs});
-            bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
+            // ModuleTask memory hdpModuleTask = ModuleTask({programHash: bytes32(HDP_PROGRAM_HASH), inputs: taskInputs});
+            // bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
 
-            require(
-                hdpExecutionStore.cachedTasksResult(taskCommitment).status == IHdpExecutionStore.TaskStatus.FINALIZED,
-                "HDP Task is not finalized"
-            );
-            // Inside sound HDP module program, we calculate the hash and check if it returns a true value
-            require(
-                hdpExecutionStore.getFinalizedTaskResult(taskCommitment) == true,
-                "Unable to prove PaymentRegistry transfer execution"
-            );
+            // require(
+            //     hdpExecutionStore.cachedTasksResult(taskCommitment).status == IHdpExecutionStore.TaskStatus.FINALIZED,
+            //     "HDP Task is not finalized"
+            // );
+            // // Inside sound HDP module program, we calculate the hash and check if it returns a true value
+            // require(
+            //     hdpExecutionStore.getFinalizedTaskResult(taskCommitment) == true,
+            //     "Unable to prove PaymentRegistry transfer execution"
+            // );
 
-            orderStatus[_orderId].status = OrderState.PROVED;
-            emit ProveBridgeSuccess(_orderId);
+            // orderStatus[_orderId].status = OrderState.PROVED;
+            // emit ProveBridgeSuccess(_orderId);
         }
     }
 
@@ -223,61 +234,55 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
     }
 
-    function proveOrderFulfillmentBatchAggregated_HDP(uint256[] memory _orderIds, uint256 _blockNumber)
+    function proveOrderFulfillmentBatchAggregated_HDP(Order[] memory calldataOrders, uint256 _blockNumber)
         public
         onlyRelayAddress
     {
         // For proving in aggregated mode using HDP - now for Starknet
         // In aggregated mode we are proving a batch of orders with one HDP request - making it much more gas efficient
 
-        // bytes32[] memory taskInputs;
+        bytes32[] memory taskInputs;
 
-        // uint256 index = 0;
+        taskInputs[0] = bytes32(_blockNumber); // At first input we passing block number at which we should prove order execution
 
-        // taskInputs[index] = bytes32(_blockNumber); // At first input we passing block number at which we should prove order execution
+        for (uint256 i = 1; i < calldataOrders.length; i++) {
+            // validate the call data
+            Order memory order = calldataOrders[i];
+            bytes32 orderHash = keccak256(
+                abi.encodePacked(
+                    order.id, order.usrDstAddress, order.expirationTimestamp, order.bridgeAmount, order.fee, order.usrSrcAddress, order.dstChainId
+                )
+            );
+            require(orders[order.id] == orderHash, "Order hash mismatch");
 
-        // for (uint256 i = 0; i < _orderIds.length; i++) {
-        //     InitialOrderData memory correctOrder = orders[_orderIds[i]];
+            taskInputs[i] = orderHash;
+        }
 
-        //     bytes16 bridge_amount_high = bytes16(uint128(correctOrder.amount >> 128));
-        //     bytes16 bridge_amount_low = bytes16(uint128(correctOrder.amount));
+        ModuleTask memory hdpModuleTask =
+            ModuleTask({programHash: bytes32(HDP_PROGRAM_HASH), inputs: taskInputs});
 
-        //     taskInputs[index + 1] = bytes32(_orderIds[i]);
-        //     taskInputs[index + 2] = bytes32(uint256(correctOrder.usrDstAddress));
-        //     taskInputs[index + 3] = bytes32(correctOrder.expirationTimestamp);
-        //     taskInputs[index + 4] = bytes32(bridge_amount_low);
-        //     taskInputs[index + 5] = bytes32(bridge_amount_high);
-        //     //taskInputs[5] = bytes32(correctOrder.fee);
-        //     //taskInputs[6] = bytes32(correctOrder.usrSrcAddress);
-        //     taskInputs[index + 6] = correctOrder.dstChainId;
+        bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
 
-        //     index += 6; // HDP task inputs per order
-        // }
+        require(
+            hdpExecutionStore.cachedTasksResult(taskCommitment).status == IHdpExecutionStore.TaskStatus.FINALIZED,
+            "HDP Task is not finalized"
+        );
 
-        // IHdpExecutionStore hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
+        // Inside sound HDP module program, we calculating the Poseidon hash of the incoming task inputs (order parameters) and checking if it equals with the hash stored inside Cairo PaymentRegistry contract
 
-        // ModuleTask memory hdpModuleTask =
-        //     ModuleTask({programHash: bytes32(HDP_PROGRAM_HASH_AGGREGATED_VERSION), inputs: taskInputs});
+        require(
+            hdpExecutionStore.getFinalizedTaskResult(taskCommitment) != 0,
+            "Unable to prove PaymentRegistry transfer execution"
+        );
 
-        // bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
+        uint256[] memory provedOrderIds;
 
-        // require(
-        //     hdpExecutionStore.cachedTasksResult(taskCommitment).status == IHdpExecutionStore.TaskStatus.FINALIZED,
-        //     "HDP Task is not finalized"
-        // );
+        for (uint256 i = 0; i < calldataOrders.length; i++) {
+            orderStatus[calldataOrders[i].id] = OrderState.PROVED;
+            provedOrderIds[i] = calldataOrders[i].id; 
+        }
 
-        // // Inside sound HDP module program, we calculating the Poseidon hash of the incoming task inputs (order parameters) and checking if it equals with the hash stored inside Cairo PaymentRegistry contract
-
-        // require(
-        //     hdpExecutionStore.getFinalizedTaskResult(taskCommitment) != 0,
-        //     "Unable to prove PaymentRegistry transfer execution"
-        // );
-
-        // for (uint256 i = 0; i < _orderIds.length; i++) {
-        //     orderStatus[_orderIds[i]].status = OrderState.PROVED;
-        // }
-
-        // emit ProveBridgeAggregatedSuccess(_orderIds);
+        emit ProveBridgeAggregatedSuccess(provedOrderIds);
     }
 
     /**
