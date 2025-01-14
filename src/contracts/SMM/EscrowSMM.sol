@@ -188,7 +188,8 @@ contract Escrow is ReentrancyGuard, Pausable {
                 order.bridgeAmount,
                 order.fee,
                 order.usrSrcAddress,
-                order.dstChainId
+                order.dstChainId,
+                _blockNumber
             );
         }
     }
@@ -357,6 +358,11 @@ contract Escrow is ReentrancyGuard, Pausable {
      */
     function setAllowedAddress(address _newAllowedAddress) external onlyOwner {
         allowedRelayAddress = _newAllowedAddress;
+    }
+
+    function setHDPAddress(address _newHDPExecutionStore, _newHDPProgramHash) external onlyOwner {
+        HDP_EXECUTION_STORE_ADDRESS = _newHDPExecutionStore;
+        HDP_PROGRAM_HASH = _newHDPProgramHash;
     }
 
     // Modifiers
