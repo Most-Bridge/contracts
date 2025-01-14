@@ -113,7 +113,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
         uint256 currentTimestamp = block.timestamp;
-        uint256 _expirationTimestamp = currentTimestamp + 1 days;
+        uint256 _expirationTimestamp = currentTimestamp + 6 weeks;
         address _usrSrcAddress = msg.sender;
         uint256 bridgeAmount = msg.value - _fee; //no underflow since previous check is made
 
@@ -137,7 +137,7 @@ contract Escrow is ReentrancyGuard, Pausable {
      * This function calculates the storage slot associated with the order fulfillment in the Payment Registry, retrieves the bool value
      * from the slot in a bytes32 type, converts it back to a bool, and checks if it's true to signify order fulfillment.
      */
-    function proveEvmOrderFulfillment(
+    function proveEvmFulfillment(
         uint256 _orderId,
         uint256 _usrDstAddress,
         uint256 _expirationTimestamp,
@@ -177,11 +177,11 @@ contract Escrow is ReentrancyGuard, Pausable {
     /**
      * @dev In a batch format, calculates the slots which will be proven for the given orderIds, at the given blockNumber.
      */
-    function proveOrderFulfillmentBatch(Order[] memory calldataOrders, uint256 _blockNumber) public onlyRelayAddress {
+    function proveEvmFulfillmentBatch(Order[] memory calldataOrders, uint256 _blockNumber) public onlyRelayAddress {
         // batch call proveOrderFulfillment
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             Order memory order = calldataOrders[i];
-            proveEvmOrderFulfillment(
+            proveEvmFulfillment(
                 order.id,
                 order.usrDstAddress,
                 order.expirationTimestamp,
@@ -194,10 +194,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
     }
 
-    function proveOrderFulfillmentBatchAggregated_HDP(Order[] memory calldataOrders, uint256 _blockNumber)
-        public
-        onlyRelayAddress
-    {
+    function proveHDPFulfillmentBatch(Order[] memory calldataOrders, uint256 _blockNumber) public onlyRelayAddress {
         // For proving in aggregated mode using HDP - now for Starknet
         bytes32[] memory taskInputs;
         taskInputs[0] = bytes32(_blockNumber); // The point in time at which to prove the orders
