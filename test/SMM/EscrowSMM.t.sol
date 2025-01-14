@@ -169,4 +169,22 @@ contract EscrowTest is Test {
         escrow.refundOrder(1, 12345, block.timestamp - 1 days, 0.5 ether, feeAmount, dstChainId);
         vm.stopPrank();
     }
+
+    function testSetHDPAddressSuccess() public {
+        address newHDPExecutionStore = address(5);
+        uint256 newHDPProgramHash = uint256(keccak256(abi.encodePacked("new-program-hash")));
+        vm.prank(owner);
+        escrow.setHDPAddress(newHDPExecutionStore, newHDPProgramHash);
+
+        assertEq(escrow.HDP_EXECUTION_STORE_ADDRESS(), newHDPExecutionStore, "Execution store address mismatch");
+        assertEq(escrow.HDP_PROGRAM_HASH(), newHDPProgramHash, "Program hash mismatch");
+    }
+
+    function testSetHDPAddressRevertsIfNotOwner() public {
+        address newHDPExecutionStore = address(5);
+        uint256 newHDPProgramHash = uint256(keccak256(abi.encodePacked("new-program-hash")));
+        vm.prank(maliciousActor);
+        vm.expectRevert("Caller is not the owner");
+        escrow.setHDPAddress(newHDPExecutionStore, newHDPProgramHash);
+    }
 }

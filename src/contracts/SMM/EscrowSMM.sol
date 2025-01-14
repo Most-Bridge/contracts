@@ -360,7 +360,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         allowedRelayAddress = _newAllowedAddress;
     }
 
-    function setHDPAddress(address _newHDPExecutionStore, _newHDPProgramHash) external onlyOwner {
+    function setHDPAddress(address _newHDPExecutionStore, uint256 _newHDPProgramHash) external onlyOwner {
         HDP_EXECUTION_STORE_ADDRESS = _newHDPExecutionStore;
         HDP_PROGRAM_HASH = _newHDPProgramHash;
     }
