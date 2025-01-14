@@ -80,6 +80,11 @@ contract Escrow is ReentrancyGuard, Pausable {
         DROPPED
     }
 
+    enum HDPProvingStatus {
+        NOT_PROVEN,
+        PROVEN
+    }
+
     // Structs
     struct Order {
         uint256 id;
@@ -224,7 +229,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             "HDP Task is not finalized"
         );
         require(
-            hdpExecutionStore.getFinalizedTaskResult(taskCommitment) != 0,
+            hdpExecutionStore.getFinalizedTaskResult(taskCommitment) == bytes32(uint256(HDPProvingStatus.PROVEN)),
             "Unable to prove PaymentRegistry transfer execution"
         );
 
