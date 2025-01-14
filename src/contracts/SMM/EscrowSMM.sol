@@ -137,7 +137,7 @@ contract Escrow is ReentrancyGuard, Pausable {
      * This function calculates the storage slot associated with the order fulfillment in the Payment Registry, retrieves the bool value
      * from the slot in a bytes32 type, converts it back to a bool, and checks if it's true to signify order fulfillment.
      */
-    function proveOrderFulfillment(
+    function proveEvmOrderFulfillment(
         uint256 _orderId,
         uint256 _usrDstAddress,
         uint256 _expirationTimestamp,
@@ -161,75 +161,34 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 currentTimestamp = block.timestamp;
         require(_expirationTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
 
-        // If the destination chain is EVM based we use Storage Proofs and Fact Registry to prove correct order fulfillment
-        if (_dstChainId == ETHEREUM_SEPOLIA_NETWORK_ID) {
-            uint256 transfersMappingSlot = 2; // Retrieved from PaymentRegistry storage layout
-            bytes32 _isFulfilledSlot = keccak256(abi.encodePacked(orderHash, transfersMappingSlot));
-            bytes32 _isFulfilledValue =
-                factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _isFulfilledSlot);
-            bool orderIsFulfilled = _isFulfilledValue != bytes32(0); //convert to bool
+        uint256 transfersMappingSlot = 2; // Retrieved from PaymentRegistry storage layout
+        bytes32 _isFulfilledSlot = keccak256(abi.encodePacked(orderHash, transfersMappingSlot));
+        bytes32 _isFulfilledValue =
+            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _isFulfilledSlot);
+        bool orderIsFulfilled = _isFulfilledValue != bytes32(0); //convert to bool
 
-            if (orderIsFulfilled) {
-                orderStatus[_orderId] = OrderState.PROVED;
+        if (orderIsFulfilled) {
+            orderStatus[_orderId] = OrderState.PROVED;
 
-                emit ProveBridgeSuccess(_orderId);
-            }
-        } else if (_dstChainId == STARKNET_SEPOLIA_NETWORK_ID) {
-            // If the destination chain is CairoVM based we use HDP and its Execution Store
-            // bytes32[] memory taskInputs;
-            // taskInputs = [
-            //     bytes32(_blockNumber),
-            //     bytes32(_orderId),
-            //     bytes32(uint256(_usrDstAddress)),
-            //     bytes32(_expirationTimestamp),
-            //     bytes32(_bridgeAmount),
-            //     bytes32(_fee),
-            //     bytes32(uint256(uint160(_usrSrcAddress))), // address to uint256 and then bytes32
-            //     _dstChainId // already bytes32
-            // ];
-
-            // ModuleTask memory hdpModuleTask = ModuleTask({programHash: bytes32(HDP_PROGRAM_HASH), inputs: taskInputs});
-            // bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
-
-            // require(
-            //     hdpExecutionStore.cachedTasksResult(taskCommitment).status == IHdpExecutionStore.TaskStatus.FINALIZED,
-            //     "HDP Task is not finalized"
-            // );
-            // // Inside sound HDP module program, we calculate the hash and check if it returns a true value
-            // require(
-            //     hdpExecutionStore.getFinalizedTaskResult(taskCommitment) == true,
-            //     "Unable to prove PaymentRegistry transfer execution"
-            // );
-
-            // orderStatus[_orderId].status = OrderState.PROVED;
-            // emit ProveBridgeSuccess(_orderId);
+            emit ProveBridgeSuccess(_orderId);
         }
     }
 
     /**
      * @dev In a batch format, calculates the slots which will be proven for the given orderIds, at the given blockNumber.
      */
-    function proveOrderFulfillmentBatch(
-        uint256[] memory _orderIds,
-        uint256[] memory _usrDstAddresses,
-        uint256[] memory _expirationTimestamps,
-        uint256[] memory _bridgeAmounts,
-        uint256[] memory _fees,
-        address[] memory _usrSrcAddresses,
-        bytes32[] memory _dstChainIds,
-        uint256 _blockNumber
-    ) public onlyRelayAddress {
+    function proveOrderFulfillmentBatch(Order[] memory calldataOrders, uint256 _blockNumber) public onlyRelayAddress {
         // batch call proveOrderFulfillment
-        for (uint256 i = 0; i < _orderIds.length; i++) {
-            proveOrderFulfillment(
-                _orderIds[i],
-                _usrDstAddresses[i],
-                _expirationTimestamps[i],
-                _bridgeAmounts[i],
-                _fees[i],
-                _usrSrcAddresses[i],
-                _dstChainIds[i],
-                _blockNumber
+        for (uint256 i = 0; i < calldataOrders.length; i++) {
+            Order memory order = calldataOrders[i];
+            proveEvmOrderFulfillment(
+                order.id,
+                order.usrDstAddress,
+                order.expirationTimestamp,
+                order.bridgeAmount,
+                order.fee,
+                order.usrSrcAddress,
+                order.dstChainId
             );
         }
     }
@@ -239,49 +198,43 @@ contract Escrow is ReentrancyGuard, Pausable {
         onlyRelayAddress
     {
         // For proving in aggregated mode using HDP - now for Starknet
-        // In aggregated mode we are proving a batch of orders with one HDP request - making it much more gas efficient
-
         bytes32[] memory taskInputs;
-
-        taskInputs[0] = bytes32(_blockNumber); // At first input we passing block number at which we should prove order execution
+        taskInputs[0] = bytes32(_blockNumber); // The point in time at which to prove the orders
 
         for (uint256 i = 1; i < calldataOrders.length; i++) {
             // validate the call data
             Order memory order = calldataOrders[i];
             bytes32 orderHash = keccak256(
                 abi.encodePacked(
-                    order.id, order.usrDstAddress, order.expirationTimestamp, order.bridgeAmount, order.fee, order.usrSrcAddress, order.dstChainId
+                    order.id,
+                    order.usrDstAddress,
+                    order.expirationTimestamp,
+                    order.bridgeAmount,
+                    order.fee,
+                    order.usrSrcAddress,
+                    order.dstChainId
                 )
             );
             require(orders[order.id] == orderHash, "Order hash mismatch");
-
             taskInputs[i] = orderHash;
         }
 
-        ModuleTask memory hdpModuleTask =
-            ModuleTask({programHash: bytes32(HDP_PROGRAM_HASH), inputs: taskInputs});
-
+        ModuleTask memory hdpModuleTask = ModuleTask({programHash: bytes32(HDP_PROGRAM_HASH), inputs: taskInputs});
         bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
-
         require(
             hdpExecutionStore.cachedTasksResult(taskCommitment).status == IHdpExecutionStore.TaskStatus.FINALIZED,
             "HDP Task is not finalized"
         );
-
-        // Inside sound HDP module program, we calculating the Poseidon hash of the incoming task inputs (order parameters) and checking if it equals with the hash stored inside Cairo PaymentRegistry contract
-
         require(
             hdpExecutionStore.getFinalizedTaskResult(taskCommitment) != 0,
             "Unable to prove PaymentRegistry transfer execution"
         );
 
         uint256[] memory provedOrderIds;
-
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             orderStatus[calldataOrders[i].id] = OrderState.PROVED;
-            provedOrderIds[i] = calldataOrders[i].id; 
+            provedOrderIds[i] = calldataOrders[i].id;
         }
-
         emit ProveBridgeAggregatedSuccess(provedOrderIds);
     }
 
