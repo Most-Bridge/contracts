@@ -36,7 +36,7 @@ contract EscrowTest is Test {
             abi.encodePacked(
                 firstOrderId,
                 destinationAddress,
-                block.timestamp + 1 days,
+                block.timestamp + 6 weeks,
                 sendAmount - feeAmount,
                 feeAmount,
                 user,
@@ -95,7 +95,7 @@ contract EscrowTest is Test {
             abi.encodePacked(
                 firstOrderId,
                 destinationAddress,
-                block.timestamp + 1 days,
+                block.timestamp + 6 weeks,
                 sendAmount - feeAmount,
                 feeAmount,
                 user,
@@ -115,10 +115,10 @@ contract EscrowTest is Test {
         assertEq(user.balance, 9 ether); // user balance decreased by 1 eth
 
         uint256 currentTimestamp = block.timestamp;
-        uint256 expirationTimestamp = currentTimestamp + 1 days;
+        uint256 expirationTimestamp = currentTimestamp + 6 weeks;
         uint256 bridgeAmount = sendAmount - feeAmount;
 
-        vm.warp(block.timestamp + 2 days); // order is now expired
+        vm.warp(block.timestamp + 7 weeks); // order is now expired
 
         escrow.refundOrder(firstOrderId, destinationAddress, expirationTimestamp, bridgeAmount, feeAmount, dstChainId);
 
@@ -132,7 +132,7 @@ contract EscrowTest is Test {
         escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, dstChainId);
         vm.stopPrank();
 
-        uint256 expirationTimestamp = block.timestamp + 1 days;
+        uint256 expirationTimestamp = block.timestamp + 6 weeks;
 
         vm.warp(block.timestamp + 2 days); // order expired
 
@@ -152,7 +152,7 @@ contract EscrowTest is Test {
         vm.startPrank(user);
         vm.expectRevert("Cannot refund an order that has not expired.");
         escrow.refundOrder(
-            1, destinationAddress, block.timestamp + 1 days, sendAmount - feeAmount, feeAmount, dstChainId
+            1, destinationAddress, block.timestamp + 6 weeks, sendAmount - feeAmount, feeAmount, dstChainId
         );
         vm.stopPrank();
     }
