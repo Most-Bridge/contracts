@@ -11,149 +11,180 @@ contract EscrowTest is Test {
     address mmAddress = address(3);
     address maliciousActor = address(4);
 
-    bytes32 destinationChainId = bytes32(uint256(1));
+    bytes32 dstChainId = bytes32(uint256(1));
 
     uint256 sendAmount;
     uint256 feeAmount;
+    address owner;
+    uint256 firstOrderId;
 
     function setUp() public {
         escrow = new Escrow();
         vm.deal(user, 10 ether);
         sendAmount = 1 ether;
         feeAmount = 0.1 ether;
-        escrow.setAllowedAddress(address(this));
+        owner = address(this);
+        escrow.setAllowedAddress(owner);
+        firstOrderId = 1;
     }
 
     function testCreateOrderSuccess() public {
         vm.startPrank(user);
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, dstChainId);
 
-        (
-            uint256 orderId,
-            uint256 usrDstAddress,
-            uint256 expirationTimestamp,
-            uint256 amount,
-            uint256 fee,
-            address usrSrcAddress,
-            bytes32 _destinationChainId
-        ) = escrow.orders(1);
+        bytes32 expectedOrderHash = keccak256(
+            abi.encodePacked(
+                firstOrderId,
+                destinationAddress,
+                block.timestamp + 6 weeks,
+                sendAmount - feeAmount,
+                feeAmount,
+                user,
+                dstChainId
+            )
+        );
 
-        assertEq(orderId, 1);
-        assertEq(usrDstAddress, destinationAddress);
-        assertEq(amount, sendAmount - feeAmount);
-        assertEq(fee, feeAmount);
-        assertEq(usrSrcAddress, user);
-        assertEq(_destinationChainId, destinationChainId);
-        assert(expirationTimestamp > block.timestamp);
-
+        assertEq(escrow.orders(1), expectedOrderHash);
+        assertEq(uint256(escrow.orderStatus(1)), uint256(Escrow.OrderState.PENDING));
         vm.stopPrank();
     }
 
     function testCreateOrderWithNoValue() public {
         vm.startPrank(user);
         vm.expectRevert("Funds being sent must be greater than 0.");
-        escrow.createOrder(destinationAddress, feeAmount, destinationChainId); // calling with no value
-        vm.stopPrank();
-    }
-
-    function testCreateOrderWithZeroValue() public {
-        vm.startPrank(user);
-        vm.expectRevert("Funds being sent must be greater than 0.");
-        escrow.createOrder{value: 0}(destinationAddress, feeAmount, destinationChainId); // calling with no value
+        escrow.createOrder(destinationAddress, feeAmount, dstChainId);
         vm.stopPrank();
     }
 
     function testCreateOrderWithFeeBiggerThanValueSent() public {
         vm.startPrank(user);
         vm.expectRevert("Fee must be less than the total value sent");
-        escrow.createOrder{value: sendAmount}(destinationAddress, 5 ether, destinationChainId);
+        escrow.createOrder{value: sendAmount}(destinationAddress, 5 ether, dstChainId);
         vm.stopPrank();
     }
 
     function testPauseContract() public {
-        vm.startPrank(address(this)); // this contract is the owner
+        vm.startPrank(owner);
         escrow.pauseContract();
         vm.stopPrank();
 
         vm.startPrank(user);
-        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()")); // Expect revert due to paused contract
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, dstChainId);
         vm.stopPrank();
     }
 
     function testPauseAndUnpauseContract() public {
-        vm.prank(address(this)); // this contract is the owner
+        vm.startPrank(owner);
         escrow.pauseContract();
-
-        vm.startPrank(user);
-        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()")); // Expect revert due to paused contract
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId);
         vm.stopPrank();
 
-        vm.prank(address(this)); // this contract is the owner
+        vm.startPrank(owner);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, dstChainId);
+        vm.stopPrank();
+
+        vm.startPrank(owner);
         escrow.unpauseContract();
+        vm.stopPrank();
 
-        vm.prank(user);
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId);
-
-        // Assertions to check the order details
-        (
-            uint256 id,
-            uint256 usrDstAddress,
-            uint256 expirationTimestamp,
-            uint256 amount,
-            uint256 fee,
-            address usrSrcAddress,
-            bytes32 _destinationChainId
-        ) = escrow.orders(1);
-
-        assertEq(id, 1);
-        assertEq(usrDstAddress, destinationAddress);
-        assertEq(amount, sendAmount - feeAmount);
-        assertEq(fee, feeAmount);
-        assertEq(usrSrcAddress, user);
-        assertEq(_destinationChainId, destinationChainId);
-        assert(expirationTimestamp > block.timestamp);
-    }
-
-    function testExpirationTimestamp() public {
         vm.startPrank(user);
-        uint256 currentTimestamp = block.timestamp;
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, dstChainId);
 
-        (
-            uint256 orderId,
-            uint256 usrDstAddress,
-            uint256 expirationTimestamp,
-            uint256 amount,
-            uint256 fee,
-            address usrSrcAddress,
-            bytes32 _destinationChainId
-        ) = escrow.orders(1);
+        bytes32 expectedOrderHash = keccak256(
+            abi.encodePacked(
+                firstOrderId,
+                destinationAddress,
+                block.timestamp + 6 weeks,
+                sendAmount - feeAmount,
+                feeAmount,
+                user,
+                dstChainId
+            )
+        );
 
-        assertEq(orderId, 1);
-        assertEq(usrDstAddress, destinationAddress);
-        assertEq(amount, sendAmount - feeAmount);
-        assertEq(fee, feeAmount);
-        assertEq(usrSrcAddress, user);
-        assertEq(_destinationChainId, destinationChainId);
-        assert(expirationTimestamp > block.timestamp);
-        assert(expirationTimestamp == currentTimestamp + 1 days);
-
+        assertEq(escrow.orders(1), expectedOrderHash);
+        assertEq(uint256(escrow.orderStatus(1)), uint256(Escrow.OrderState.PENDING));
         vm.stopPrank();
     }
 
-    // test the refundOrder expired function
     function testRefundOrder() public {
         vm.startPrank(user);
-        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, destinationChainId); // has an expiry date of 1 day
-        // balance of user should be 9 ether
-        assertEq(user.balance, 9 ether); // balance goes down after making an order
-        vm.warp(block.timestamp + 2 days); // order should now be expired
-        // call the refund order
-        escrow.refundOrder(1);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, dstChainId);
+
+        assertEq(user.balance, 9 ether); // user balance decreased by 1 eth
+
+        uint256 currentTimestamp = block.timestamp;
+        uint256 expirationTimestamp = currentTimestamp + 6 weeks;
+        uint256 bridgeAmount = sendAmount - feeAmount;
+
+        vm.warp(block.timestamp + 7 weeks); // order is now expired
+
+        escrow.refundOrder(firstOrderId, destinationAddress, expirationTimestamp, bridgeAmount, feeAmount, dstChainId);
+
+        assertEq(user.balance, 10 ether); // user balance went back up
+
         vm.stopPrank();
-        // balance should be 10 ether
-        assertEq(user.balance, 10 ether);
+    }
+
+    function testRefundOrderByWrongUser() public {
+        vm.startPrank(user);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, dstChainId);
+        vm.stopPrank();
+
+        uint256 expirationTimestamp = block.timestamp + 6 weeks;
+
+        vm.warp(block.timestamp + 2 days); // order expired
+
+        vm.startPrank(maliciousActor); //
+        vm.expectRevert("Order hash mismatch");
+        escrow.refundOrder(
+            firstOrderId, destinationAddress, expirationTimestamp, sendAmount - feeAmount, feeAmount, dstChainId
+        );
+        vm.stopPrank();
+    }
+
+    function testRefundOrderBeforeExpiration() public {
+        vm.startPrank(user);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, dstChainId);
+        vm.stopPrank();
+
+        vm.startPrank(user);
+        vm.expectRevert("Cannot refund an order that has not expired.");
+        escrow.refundOrder(
+            1, destinationAddress, block.timestamp + 6 weeks, sendAmount - feeAmount, feeAmount, dstChainId
+        );
+        vm.stopPrank();
+    }
+
+    function testRefundOrderWithWrongDetails() public {
+        vm.startPrank(user);
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, dstChainId);
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 2 days);
+
+        vm.startPrank(user);
+        vm.expectRevert("Order hash mismatch");
+        escrow.refundOrder(1, 12345, block.timestamp - 1 days, 0.5 ether, feeAmount, dstChainId);
+        vm.stopPrank();
+    }
+
+    function testSetHDPAddressSuccess() public {
+        address newHDPExecutionStore = address(5);
+        uint256 newHDPProgramHash = uint256(keccak256(abi.encodePacked("new-program-hash")));
+        vm.prank(owner);
+        escrow.setHDPAddress(newHDPExecutionStore, newHDPProgramHash);
+
+        assertEq(escrow.HDP_EXECUTION_STORE_ADDRESS(), newHDPExecutionStore, "Execution store address mismatch");
+        assertEq(escrow.HDP_PROGRAM_HASH(), newHDPProgramHash, "Program hash mismatch");
+    }
+
+    function testSetHDPAddressRevertsIfNotOwner() public {
+        address newHDPExecutionStore = address(5);
+        uint256 newHDPProgramHash = uint256(keccak256(abi.encodePacked("new-program-hash")));
+        vm.prank(maliciousActor);
+        vm.expectRevert("Caller is not the owner");
+        escrow.setHDPAddress(newHDPExecutionStore, newHDPProgramHash);
     }
 }
