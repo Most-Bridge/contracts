@@ -32,14 +32,14 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
 
     // Ethereum
-    address public PAYMENT_REGISTRY_ADDRESS = 0x6B911a94ee908BF9503143863A52Ea6c1f38b50A;
+    address public PAYMENT_REGISTRY_ADDRESS = 0x9eB3feB35884B284Ea1e38Dd175417cE90B43AA1;
     address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
     bytes32 public ETHEREUM_MAINNET_NETWORK_ID = bytes32(uint256(0x1));
     bytes32 public ETHEREUM_SEPOLIA_NETWORK_ID = bytes32(uint256(0xAA36A7));
 
     // Starknet
     address public HDP_EXECUTION_STORE_ADDRESS = 0x68a011d3790e7F9038C9B9A4Da7CD60889EECa70;
-    uint256 public HDP_PROGRAM_HASH = 0x62c37715e000abfc6f931ee05a4ff1be9d7832390b31e5de29d197814db8156;
+    uint256 public HDP_PROGRAM_HASH = 0x71deb1e4e070f30527503e9c2d2f44534fa38bedce0101a8fc83c1d207f5d8a;
     bytes32 public STARKNET_MAINNET_NETWORK_ID = bytes32(uint256(0x534e5f4d41494e));
     bytes32 public STARKNET_SEPOLIA_NETWORK_ID = bytes32(uint256(0x534e5f5345504f4c4941));
 
