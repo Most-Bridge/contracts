@@ -12,8 +12,8 @@ import {IHdpExecutionStore} from "src/interface/IHdpExecutionStore.sol";
 
 /**
  * @title Escrow Contract Whitelist SMM (Single Market Maker)
- * @dev Handles the bridging of assets between a src chain and a dst chain, in conjunction with Payment Registry and a 3rd party
- * facilitator service.
+ * @dev Handles the bridging of assets between Ethereum and Starknet, in conjunction with Payment Registry and a
+ * Market Maker service.
  */
 contract EscrowWhitelist is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
@@ -23,6 +23,7 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
     uint256 private orderId = 1;
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
+    uint256 public constant WHITELIST_LIMIT = 7500000000000000; // 0.0075 ether
 
     // Starknet
     address public HDP_EXECUTION_STORE_ADDRESS = 0x68a011d3790e7F9038C9B9A4Da7CD60889EECa70;
@@ -109,7 +110,7 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
     {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
-        require(msg.value <= 7500000000000000, "Amount exceeds whitelist limit"); // allow up to 0.0075 ether
+        require(msg.value <= WHITELIST_LIMIT, "Amount exceeds 0.0075 ether");
 
         uint256 currentTimestamp = block.timestamp;
         uint256 _expirationTimestamp = currentTimestamp + 6 weeks;

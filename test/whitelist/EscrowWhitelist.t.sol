@@ -217,7 +217,7 @@ contract EscrowWhitelistTest is Test {
 
     function testAmountExceedsWhitelistLimit() public {
         vm.startPrank(user);
-        vm.expectRevert("Amount exceeds whitelist limit");
+        vm.expectRevert("Amount exceeds 0.0075 ether");
         escrow.createOrder{value: 1 ether}(destinationAddress, feeAmount, dstChainId); // amount is too high
         vm.stopPrank();
     }
