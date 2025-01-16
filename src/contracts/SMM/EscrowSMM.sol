@@ -259,7 +259,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             )
         );
         require(orders[_orderId] == orderHash, "Order hash mismatch");
-        require(orderStatus[_orderId] == OrderState.PROVED);
+        require(orderStatus[_orderId] == OrderState.PROVED, "Order has not been proved");
         uint256 transferAmountAndFee = _bridgeAmount + _fee;
         require(address(this).balance >= transferAmountAndFee, "Withdraw Proved: Insufficient balance to withdraw");
 
@@ -295,8 +295,8 @@ contract Escrow is ReentrancyGuard, Pausable {
                     _dstChainIds[i]
                 )
             );
-            require(orders[_orderIds[i]] == orderHash);
-            require(orderStatus[_orderIds[i]] == OrderState.PROVED);
+            require(orders[_orderIds[i]] == orderHash, "Order hash mismatch");
+            require(orderStatus[_orderIds[i]] == OrderState.PROVED, "Order has not been proved");
 
             amountToWithdraw += _bridgeAmounts[i] + _fees[i];
             orderStatus[_orderIds[i]] = OrderState.COMPLETED;

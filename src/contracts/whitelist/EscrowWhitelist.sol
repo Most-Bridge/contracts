@@ -15,13 +15,6 @@ import {IHdpExecutionStore} from "src/interface/IHdpExecutionStore.sol";
  * @dev Handles the bridging of assets between a src chain and a dst chain, in conjunction with Payment Registry and a 3rd party
  * facilitator service.
  */
-interface IFactsRegistry {
-    function accountStorageSlotValues(address account, uint256 blockNumber, bytes32 slot)
-        external
-        view
-        returns (bytes32);
-}
-
 contract EscrowWhitelist is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
 
@@ -31,12 +24,6 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
 
-    // Ethereum
-    address public PAYMENT_REGISTRY_ADDRESS = 0x6B911a94ee908BF9503143863A52Ea6c1f38b50A;
-    address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
-    bytes32 public ETHEREUM_MAINNET_NETWORK_ID = bytes32(uint256(0x1));
-    bytes32 public ETHEREUM_SEPOLIA_NETWORK_ID = bytes32(uint256(0xAA36A7));
-
     // Starknet
     address public HDP_EXECUTION_STORE_ADDRESS = 0x68a011d3790e7F9038C9B9A4Da7CD60889EECa70;
     uint256 public HDP_PROGRAM_HASH = 0x62c37715e000abfc6f931ee05a4ff1be9d7832390b31e5de29d197814db8156;
@@ -44,7 +31,6 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
     bytes32 public STARKNET_SEPOLIA_NETWORK_ID = bytes32(uint256(0x534e5f5345504f4c4941));
 
     // Interfaces
-    IFactsRegistry factsRegistry = IFactsRegistry(FACTS_REGISTRY_ADDRESS);
     IHdpExecutionStore hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
 
     // Storage
@@ -144,69 +130,6 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
         orderId += 1;
     }
 
-    /**
-     * @dev Proves the fulfillment of an order by verifying order data stored on the Payment Registry contract at a specific block.
-     *
-     * This function calculates the storage slot associated with the order fulfillment in the Payment Registry, retrieves the bool value
-     * from the slot in a bytes32 type, converts it back to a bool, and checks if it's true to signify order fulfillment.
-     */
-    function proveEvmFulfillment(
-        uint256 _orderId,
-        uint256 _usrDstAddress,
-        uint256 _expirationTimestamp,
-        uint256 _bridgeAmount,
-        uint256 _fee,
-        address _usrSrcAddress,
-        bytes32 _dstChainId,
-        uint256 _blockNumber
-    ) public onlyRelayAddress whenNotPaused {
-        // validate the call data
-        bytes32 orderHash = keccak256(
-            abi.encodePacked(
-                _orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _dstChainId
-            )
-        );
-        require(orders[_orderId] == orderHash, "Order hash mismatch");
-        require(
-            orderStatus[_orderId] == OrderState.PENDING,
-            "The order can only be in the PENDING status; any other status is invalid."
-        );
-        uint256 currentTimestamp = block.timestamp;
-        require(_expirationTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
-
-        uint256 transfersMappingSlot = 2; // Retrieved from PaymentRegistry storage layout
-        bytes32 _isFulfilledSlot = keccak256(abi.encodePacked(orderHash, transfersMappingSlot));
-        bytes32 _isFulfilledValue =
-            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _isFulfilledSlot);
-        bool orderIsFulfilled = _isFulfilledValue != bytes32(0); //convert to bool
-
-        if (orderIsFulfilled) {
-            orderStatus[_orderId] = OrderState.PROVED;
-
-            emit ProveBridgeSuccess(_orderId);
-        }
-    }
-
-    /**
-     * @dev In a batch format, calculates the slots which will be proven for the given orderIds, at the given blockNumber.
-     */
-    function proveEvmFulfillmentBatch(Order[] memory calldataOrders, uint256 _blockNumber) public onlyRelayAddress {
-        // batch call proveOrderFulfillment
-        for (uint256 i = 0; i < calldataOrders.length; i++) {
-            Order memory order = calldataOrders[i];
-            proveEvmFulfillment(
-                order.id,
-                order.usrDstAddress,
-                order.expirationTimestamp,
-                order.bridgeAmount,
-                order.fee,
-                order.usrSrcAddress,
-                order.dstChainId,
-                _blockNumber
-            );
-        }
-    }
-
     function proveHDPFulfillmentBatch(Order[] memory calldataOrders, uint256 _blockNumber) public onlyRelayAddress {
         // For proving in aggregated mode using HDP - now for Starknet
         bytes32[] memory taskInputs;
@@ -267,7 +190,7 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
             )
         );
         require(orders[_orderId] == orderHash, "Order hash mismatch");
-        require(orderStatus[_orderId] == OrderState.PROVED);
+        require(orderStatus[_orderId] == OrderState.PROVED, "Order has not been proved");
         uint256 transferAmountAndFee = _bridgeAmount + _fee;
         require(address(this).balance >= transferAmountAndFee, "Withdraw Proved: Insufficient balance to withdraw");
 
@@ -303,8 +226,8 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
                     _dstChainIds[i]
                 )
             );
-            require(orders[_orderIds[i]] == orderHash);
-            require(orderStatus[_orderIds[i]] == OrderState.PROVED);
+            require(orders[_orderIds[i]] == orderHash, "Order hash mismatch");
+            require(orderStatus[_orderIds[i]] == OrderState.PROVED, "Order has not been proved");
 
             amountToWithdraw += _bridgeAmounts[i] + _fees[i];
             orderStatus[_orderIds[i]] = OrderState.COMPLETED;
