@@ -27,9 +27,7 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
 
     // Starknet
     address public HDP_EXECUTION_STORE_ADDRESS = 0x68a011d3790e7F9038C9B9A4Da7CD60889EECa70;
-    uint256 public HDP_PROGRAM_HASH = 0x62c37715e000abfc6f931ee05a4ff1be9d7832390b31e5de29d197814db8156;
-    bytes32 public STARKNET_MAINNET_NETWORK_ID = bytes32(uint256(0x534e5f4d41494e));
-    bytes32 public STARKNET_SEPOLIA_NETWORK_ID = bytes32(uint256(0x534e5f5345504f4c4941));
+    uint256 public HDP_PROGRAM_HASH = 0x228737596cc16de4a733aec478701996f6c0f937fe66144781d91537b6df629;
 
     // Interfaces
     IHdpExecutionStore hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
