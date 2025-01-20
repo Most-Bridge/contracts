@@ -195,12 +195,12 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
     }
 
-    function proveHDPFulfillmentBatch(Order[] memory calldataOrders, uint256 _blockNumber) public onlyRelayAddress {
+    function proveHDPFulfillmentBatch(Order[] calldata calldataOrders, uint256 _blockNumber) public onlyRelayAddress {
         // For proving in aggregated mode using HDP - now for Starknet
-        bytes32[] memory taskInputs;
+        bytes32[] memory taskInputs = new bytes32[](calldataOrders.length + 1);
         taskInputs[0] = bytes32(_blockNumber); // The point in time at which to prove the orders
 
-        for (uint256 i = 1; i < calldataOrders.length; i++) {
+        for (uint256 i = 0; i < calldataOrders.length; i++) {
             // validate the call data
             Order memory order = calldataOrders[i];
             bytes32 orderHash = keccak256(
@@ -215,7 +215,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                 )
             );
             require(orders[order.id] == orderHash, "Order hash mismatch");
-            taskInputs[i] = orderHash;
+            taskInputs[i + 1] = orderHash; // offset because blocknumber is first
         }
 
         ModuleTask memory hdpModuleTask = ModuleTask({programHash: bytes32(HDP_PROGRAM_HASH), inputs: taskInputs});
@@ -229,7 +229,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             "Unable to prove PaymentRegistry transfer execution"
         );
 
-        uint256[] memory provedOrderIds;
+        uint256[] memory provedOrderIds = new uint256[](calldataOrders.length);
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             orderStatus[calldataOrders[i].id] = OrderState.PROVED;
             provedOrderIds[i] = calldataOrders[i].id;
