@@ -35,9 +35,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public PAYMENT_REGISTRY_ADDRESS = 0x9eB3feB35884B284Ea1e38Dd175417cE90B43AA1;
     address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
 
-    // Starknet
     address public HDP_EXECUTION_STORE_ADDRESS = 0x68a011d3790e7F9038C9B9A4Da7CD60889EECa70;
-    //uint256 public HDP_PROGRAM_HASH = 0x71deb1e4e070f30527503e9c2d2f44534fa38bedce0101a8fc83c1d207f5d8a;
 
     // Interfaces
     IFactsRegistry factsRegistry = IFactsRegistry(FACTS_REGISTRY_ADDRESS);
@@ -46,7 +44,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     // Storage
     mapping(uint256 => bytes32) public orders;
     mapping(uint256 => OrderState) public orderStatus;
-    mapping(bytes32 => bytes32) public hdpProgramHashes; // mapping chainId -> programHash
+    mapping(bytes32 => HDPConnection) public hdpConnections; // mapping chainId -> HdpConnection
 
     // Events
     /**
@@ -93,9 +91,29 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 dstChainId;
     }
 
+    struct HDPConnection {
+        bytes32 hdpProgramHash;
+        bytes32 paymentRegistryAddress;
+    }
+
+    struct HDPConnectionInitial {
+        bytes32 destinationChainId;
+        bytes32 hdpProgramHash;
+        bytes32 paymentRegistryAddress;
+    }
+
     // Constructor
-    constructor() {
+    constructor(HDPConnectionInitial[] memory initialHDPChainConnections) {
         owner = msg.sender;
+
+        // Initial destination chain connections added at the time of contract deployment
+        for (uint256 i = 0; i < initialHDPChainConnections.length; i++) {
+            HDPConnectionInitial memory hdpConnectionInitial = initialHDPChainConnections[i];
+            hdpConnections[hdpConnectionInitial.destinationChainId] = HDPConnection({
+                paymentRegistryAddress: hdpConnectionInitial.paymentRegistryAddress,
+                hdpProgramHash: hdpConnectionInitial.hdpProgramHash
+            });
+        }
     }
 
     // Functions
@@ -198,11 +216,11 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     function proveHDPFulfillmentBatch(Order[] calldata calldataOrders, uint256 _blockNumber, bytes32 _destinationChainId) public onlyRelayAddress {
         // For proving in aggregated mode using HDP
-        // W
         bytes32[] memory taskInputs = new bytes32[](calldataOrders.length + 1);
         taskInputs[0] = bytes32(_destinationChainId); // The bridging destination chain, where PaymentRegistry is located
-        taskInputs[1] = bytes32(_blockNumber); // The point in time at which to prove the orders
-
+        taskInputs[1] = bytes32(hdpConnections[_destinationChainId].paymentRegistryAddress); // The point in time at which to prove the orders
+        taskInputs[2] = bytes32(_blockNumber); // The point in time at which to prove the orders
+        
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             // validate the call data
             Order memory order = calldataOrders[i];
@@ -218,10 +236,10 @@ contract Escrow is ReentrancyGuard, Pausable {
                 )
             );
             require(orders[order.id] == orderHash, "Order hash mismatch");
-            taskInputs[i + 2] = orderHash; // offset because blocknumber is first
+            taskInputs[i + 3] = orderHash; // offset because first 3 arguments are destination chain id, payment registry address and block number
         }
 
-        ModuleTask memory hdpModuleTask = ModuleTask({programHash: bytes32(hdpProgramHashes[_destinationChainId]), inputs: taskInputs});
+        ModuleTask memory hdpModuleTask = ModuleTask({programHash: bytes32(hdpConnections[_destinationChainId].hdpProgramHash), inputs: taskInputs});
         bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
         require(
             hdpExecutionStore.cachedTasksResult(taskCommitment).status == IHdpExecutionStore.TaskStatus.FINALIZED,
@@ -362,8 +380,13 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     // Function called when we adding new destination chain, in Single Market Maker mode onlyOwner modifier is used, and the program hash cannot be modified or deleted once added
-    function addDestinationChain(bytes32 _destinationChain, bytes32 _hdpProgramHash) external onlyOwner {
-        hdpProgramHashes[_destinationChain] = _hdpProgramHash;
+    function addDestinationChain(bytes32 _destinationChain, bytes32 _hdpProgramHash, bytes32 _paymentRegistryAddress) external onlyOwner {
+        HDPConnection memory hdpConnection = HDPConnection({
+            paymentRegistryAddress: _paymentRegistryAddress,
+            hdpProgramHash: _hdpProgramHash
+        });
+
+        hdpConnections[_destinationChain] = hdpConnection;
     }
 
     // This is only temporary
@@ -372,8 +395,18 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     // Public functions
-    function getHDPProgramHash(bytes32 destination) public view returns (bytes32) {
-        return hdpProgramHashes[destination];
+    function getHDPDestinationChainConnectionDetails(bytes32 destinationChainId) public view returns (HDPConnection memory) {
+        return hdpConnections[destinationChainId];
+    }
+
+    // Public functions
+    function getHDPProgramHashForDestinationChain(bytes32 destinationChainId) public view returns (bytes32) {
+        return hdpConnections[destinationChainId].hdpProgramHash;
+    }
+
+    // Public functions
+    function getPaymentRegistryAddressForDestinationChain(bytes32 destinationChainId) public view returns (bytes32) {
+        return hdpConnections[destinationChainId].paymentRegistryAddress;
     }
 
     // Modifiers

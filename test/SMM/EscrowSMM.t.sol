@@ -19,7 +19,16 @@ contract EscrowTest is Test {
     uint256 firstOrderId;
 
     function setUp() public {
-        escrow = new Escrow();
+        Escrow.HDPConnectionInitial[] memory initialHDPChainConnections;
+
+        // For Ethereum Sepolia
+        initialHDPChainConnections[0] = Escrow.HDPConnectionInitial({
+            destinationChainId: bytes32(uint256(111555111)),
+            paymentRegistryAddress: bytes32(uint256(uint160(0x9eB3feB35884B284Ea1e38Dd175417cE90B43AA1))),
+            hdpProgramHash: bytes32(uint256(0x3e6ede9c31b71072c18c6d1453285eac4ae0cf7702e3e5b8fe17d470ed0ddf4))
+        });
+
+        escrow = new Escrow(initialHDPChainConnections);
         vm.deal(user, 10 ether);
         sendAmount = 1 ether;
         feeAmount = 0.1 ether;
@@ -186,10 +195,11 @@ contract EscrowTest is Test {
 
     function testAddChain() public {
         bytes32 newHDPProgramHash = keccak256(abi.encodePacked("new-program-hash"));
+        bytes32 newPaymentRegistryAddress = keccak256(abi.encodePacked("new-program-hash"));
         bytes32 destinationChain = bytes32(uint256(0x1));
         vm.prank(owner);
-        escrow.addDestinationChain(destinationChain, newHDPProgramHash);
-        assertEq(escrow.getHDPProgramHash(destinationChain), newHDPProgramHash, "Program hash mismatch");
+        escrow.addDestinationChain(destinationChain, newHDPProgramHash, newPaymentRegistryAddress);
+        assertEq(escrow.getHDPDestinationChainConnectionDetails(destinationChain).hdpProgramHash, newHDPProgramHash, "Program hash mismatch");
 
     }
 }
