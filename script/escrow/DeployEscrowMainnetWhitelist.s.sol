@@ -6,7 +6,7 @@ import {EscrowWhitelist} from "../../src/contracts/whitelist/EscrowWhitelist.sol
 
 contract DeployEscrowWhitelist is Script {
     function run() external {
-        address[] whitelistAddresses;
+        address[] storage whitelistAddresses;
 
         whitelistAddresses.push();
 

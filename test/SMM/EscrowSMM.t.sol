@@ -172,19 +172,24 @@ contract EscrowTest is Test {
 
     function testSetHDPAddressSuccess() public {
         address newHDPExecutionStore = address(5);
-        uint256 newHDPProgramHash = uint256(keccak256(abi.encodePacked("new-program-hash")));
         vm.prank(owner);
-        escrow.setHDPAddress(newHDPExecutionStore, newHDPProgramHash);
-
+        escrow.setHDPAddress(newHDPExecutionStore);
         assertEq(escrow.HDP_EXECUTION_STORE_ADDRESS(), newHDPExecutionStore, "Execution store address mismatch");
-        assertEq(escrow.HDP_PROGRAM_HASH(), newHDPProgramHash, "Program hash mismatch");
     }
 
     function testSetHDPAddressRevertsIfNotOwner() public {
         address newHDPExecutionStore = address(5);
-        uint256 newHDPProgramHash = uint256(keccak256(abi.encodePacked("new-program-hash")));
         vm.prank(maliciousActor);
         vm.expectRevert("Caller is not the owner");
-        escrow.setHDPAddress(newHDPExecutionStore, newHDPProgramHash);
+        escrow.setHDPAddress(newHDPExecutionStore);
+    }
+
+    function testAddChain() public {
+        bytes32 newHDPProgramHash = keccak256(abi.encodePacked("new-program-hash"));
+        bytes32 destinationChain = bytes32(uint256(0x1));
+        vm.prank(owner);
+        escrow.addDestinationChain(destinationChain, newHDPProgramHash);
+        assertEq(escrow.getHDPProgramHash(destinationChain), newHDPProgramHash, "Program hash mismatch");
+
     }
 }
