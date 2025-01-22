@@ -8,7 +8,7 @@ contract DeployEscrow is Script {
     function run() external {
         vm.startBroadcast();
 
-        Escrow.HDPConnectionInitial[] memory initialHDPChainConnections;
+        Escrow.HDPConnectionInitial[] memory initialHDPChainConnections = new Escrow.HDPConnectionInitial[](2);
 
         // For Ethereum Sepolia
         initialHDPChainConnections[0] = Escrow.HDPConnectionInitial({

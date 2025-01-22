@@ -19,7 +19,7 @@ contract EscrowTest is Test {
     uint256 firstOrderId;
 
     function setUp() public {
-        Escrow.HDPConnectionInitial[] memory initialHDPChainConnections;
+        Escrow.HDPConnectionInitial[] memory initialHDPChainConnections = new Escrow.HDPConnectionInitial[](1);
 
         // For Ethereum Sepolia
         initialHDPChainConnections[0] = Escrow.HDPConnectionInitial({
