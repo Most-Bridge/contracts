@@ -15,13 +15,6 @@ import {IHdpExecutionStore} from "src/interface/IHdpExecutionStore.sol";
  * @dev Handles the bridging of assets between a src chain and a dst chain, in conjunction with Payment Registry and a 3rd party
  * facilitator service.
  */
-interface IFactsRegistry {
-    function accountStorageSlotValues(address account, uint256 blockNumber, bytes32 slot)
-        external
-        view
-        returns (bytes32);
-}
-
 contract Escrow is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
 
@@ -31,14 +24,10 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
 
-    // Ethereum
-    address public PAYMENT_REGISTRY_ADDRESS = 0x9eB3feB35884B284Ea1e38Dd175417cE90B43AA1;
-    address public FACTS_REGISTRY_ADDRESS = 0xFE8911D762819803a9dC6Eb2dcE9c831EF7647Cd;
-
+    // HDP
     address public HDP_EXECUTION_STORE_ADDRESS = 0x68a011d3790e7F9038C9B9A4Da7CD60889EECa70;
 
     // Interfaces
-    IFactsRegistry factsRegistry = IFactsRegistry(FACTS_REGISTRY_ADDRESS);
     IHdpExecutionStore hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
 
     // Storage
@@ -60,9 +49,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         address usrSrcAddress,
         bytes32 dstChainId
     );
-    event ProveBridgeSuccess(uint256 orderId);
     event ProveBridgeAggregatedSuccess(uint256[] orderIds);
-    event WithdrawSuccess(uint256 orderId);
     event WithdrawSuccessBatch(uint256[] orderIds);
     event OrderReclaimed(uint256 orderId);
 
@@ -151,76 +138,17 @@ contract Escrow is ReentrancyGuard, Pausable {
         orderId += 1;
     }
 
-    /**
-     * @dev Proves the fulfillment of an order by verifying order data stored on the Payment Registry contract at a specific block.
-     *
-     * This function calculates the storage slot associated with the order fulfillment in the Payment Registry, retrieves the bool value
-     * from the slot in a bytes32 type, converts it back to a bool, and checks if it's true to signify order fulfillment.
-     */
-    function proveEvmFulfillment(
-        uint256 _orderId,
-        uint256 _usrDstAddress,
-        uint256 _expirationTimestamp,
-        uint256 _bridgeAmount,
-        uint256 _fee,
-        address _usrSrcAddress,
-        bytes32 _dstChainId,
-        uint256 _blockNumber
-    ) public onlyRelayAddress whenNotPaused {
-        // validate the call data
-        bytes32 orderHash = keccak256(
-            abi.encodePacked(
-                _orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _dstChainId
-            )
-        );
-        require(orders[_orderId] == orderHash, "Order hash mismatch");
-        require(
-            orderStatus[_orderId] == OrderState.PENDING,
-            "The order can only be in the PENDING status; any other status is invalid."
-        );
-        uint256 currentTimestamp = block.timestamp;
-        require(_expirationTimestamp > currentTimestamp, "Cannot prove an order that has expired.");
-
-        uint256 transfersMappingSlot = 2; // Retrieved from PaymentRegistry storage layout
-        bytes32 _isFulfilledSlot = keccak256(abi.encodePacked(orderHash, transfersMappingSlot));
-        bytes32 _isFulfilledValue =
-            factsRegistry.accountStorageSlotValues(PAYMENT_REGISTRY_ADDRESS, _blockNumber, _isFulfilledSlot);
-        bool orderIsFulfilled = _isFulfilledValue != bytes32(0); //convert to bool
-
-        if (orderIsFulfilled) {
-            orderStatus[_orderId] = OrderState.PROVED;
-
-            emit ProveBridgeSuccess(_orderId);
-        }
-    }
-
-    /**
-     * @dev In a batch format, calculates the slots which will be proven for the given orderIds, at the given blockNumber.
-     */
-    function proveEvmFulfillmentBatch(Order[] memory calldataOrders, uint256 _blockNumber) public onlyRelayAddress {
-        // batch call proveOrderFulfillment
-        for (uint256 i = 0; i < calldataOrders.length; i++) {
-            Order memory order = calldataOrders[i];
-            proveEvmFulfillment(
-                order.id,
-                order.usrDstAddress,
-                order.expirationTimestamp,
-                order.bridgeAmount,
-                order.fee,
-                order.usrSrcAddress,
-                order.dstChainId,
-                _blockNumber
-            );
-        }
-    }
-
-    function proveHDPFulfillmentBatch(Order[] calldata calldataOrders, uint256 _blockNumber, bytes32 _destinationChainId) public onlyRelayAddress {
+    function proveHDPFulfillmentBatch(
+        Order[] calldata calldataOrders,
+        uint256 _blockNumber,
+        bytes32 _destinationChainId
+    ) public onlyRelayAddress {
         // For proving in aggregated mode using HDP
-        bytes32[] memory taskInputs = new bytes32[](calldataOrders.length + 1);
+        bytes32[] memory taskInputs = new bytes32[](calldataOrders.length + 3);
         taskInputs[0] = bytes32(_destinationChainId); // The bridging destination chain, where PaymentRegistry is located
         taskInputs[1] = bytes32(hdpConnections[_destinationChainId].paymentRegistryAddress); // The point in time at which to prove the orders
         taskInputs[2] = bytes32(_blockNumber); // The point in time at which to prove the orders
-        
+
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             // validate the call data
             Order memory order = calldataOrders[i];
@@ -239,7 +167,8 @@ contract Escrow is ReentrancyGuard, Pausable {
             taskInputs[i + 3] = orderHash; // offset because first 3 arguments are destination chain id, payment registry address and block number
         }
 
-        ModuleTask memory hdpModuleTask = ModuleTask({programHash: bytes32(hdpConnections[_destinationChainId].hdpProgramHash), inputs: taskInputs});
+        ModuleTask memory hdpModuleTask =
+            ModuleTask({programHash: bytes32(hdpConnections[_destinationChainId].hdpProgramHash), inputs: taskInputs});
         bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
         require(
             hdpExecutionStore.cachedTasksResult(taskCommitment).status == IHdpExecutionStore.TaskStatus.FINALIZED,
@@ -259,70 +188,42 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     /**
-     * @dev Allows the market maker to unlock the funds for a transaction fulfilled by them.
-     */
-    function withdrawProved(
-        uint256 _orderId,
-        uint256 _usrDstAddress,
-        uint256 _expirationTimestamp,
-        uint256 _bridgeAmount,
-        uint256 _fee,
-        address _usrSrcAddress,
-        bytes32 _dstChainId
-    ) external nonReentrant whenNotPaused onlyRelayAddress {
-        bytes32 orderHash = keccak256(
-            abi.encodePacked(
-                orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _dstChainId
-            )
-        );
-        require(orders[_orderId] == orderHash, "Order hash mismatch");
-        require(orderStatus[_orderId] == OrderState.PROVED, "Order has not been proved");
-        uint256 transferAmountAndFee = _bridgeAmount + _fee;
-        require(address(this).balance >= transferAmountAndFee, "Withdraw Proved: Insufficient balance to withdraw");
-
-        orderStatus[_orderId] = OrderState.COMPLETED;
-
-        (bool success,) = payable(allowedWithdrawalAddress).call{value: transferAmountAndFee}("");
-        require(success, "Withdraw Proved: Transfer failed");
-        emit WithdrawSuccess(_orderId);
-    }
-
-    /**
      * @dev Allows the market maker to batch unlock the funds for transactions fulfilled by them.
      */
-    function withdrawProvedBatch(
-        uint256[] memory _orderIds,
-        uint256[] memory _usrDstAddresses,
-        uint256[] memory _expirationTimestamps,
-        uint256[] memory _bridgeAmounts,
-        uint256[] memory _fees,
-        address[] memory _usrSrcAddresses,
-        bytes32[] memory _dstChainIds
-    ) external nonReentrant whenNotPaused onlyRelayAddress {
+    function withdrawProvedBatch(Order[] calldata calldataOrders)
+        external
+        nonReentrant
+        whenNotPaused
+        onlyRelayAddress
+    {
         uint256 amountToWithdraw = 0;
-        for (uint256 i = 0; i < _orderIds.length; i++) {
+        uint256[] memory withdrawnOrderIds = new uint256[](calldataOrders.length);
+
+        for (uint256 i = 0; i < calldataOrders.length; i++) {
+            Order memory order = calldataOrders[i];
             bytes32 orderHash = keccak256(
                 abi.encodePacked(
-                    _orderIds[i],
-                    _usrDstAddresses[i],
-                    _expirationTimestamps[i],
-                    _bridgeAmounts[i],
-                    _fees[i],
-                    _usrSrcAddresses[i],
-                    _dstChainIds[i]
+                    order.id,
+                    order.usrDstAddress,
+                    order.expirationTimestamp,
+                    order.bridgeAmount,
+                    order.fee,
+                    order.usrSrcAddress,
+                    order.dstChainId
                 )
             );
-            require(orders[_orderIds[i]] == orderHash, "Order hash mismatch");
-            require(orderStatus[_orderIds[i]] == OrderState.PROVED, "Order has not been proved");
+            require(orders[order.id] == orderHash, "Order hash mismatch");
+            require(orderStatus[order.id] == OrderState.PROVED, "Order has not been proved");
 
-            amountToWithdraw += _bridgeAmounts[i] + _fees[i];
-            orderStatus[_orderIds[i]] = OrderState.COMPLETED;
+            amountToWithdraw += order.bridgeAmount + order.fee;
+            orderStatus[order.id] = OrderState.COMPLETED;
+            withdrawnOrderIds[i] = order.id;
         }
         // payout MM
         require(address(this).balance >= amountToWithdraw, "Escrow: Insufficient balance to withdraw");
         (bool success,) = payable(allowedWithdrawalAddress).call{value: amountToWithdraw}("");
         require(success, "Withdraw Proved Batch: Transfer failed");
-        emit WithdrawSuccessBatch(_orderIds);
+        emit WithdrawSuccessBatch(withdrawnOrderIds);
     }
 
     /**
@@ -380,11 +281,12 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     // Function called when we adding new destination chain, in Single Market Maker mode onlyOwner modifier is used, and the program hash cannot be modified or deleted once added
-    function addDestinationChain(bytes32 _destinationChain, bytes32 _hdpProgramHash, bytes32 _paymentRegistryAddress) external onlyOwner {
-        HDPConnection memory hdpConnection = HDPConnection({
-            paymentRegistryAddress: _paymentRegistryAddress,
-            hdpProgramHash: _hdpProgramHash
-        });
+    function addDestinationChain(bytes32 _destinationChain, bytes32 _hdpProgramHash, bytes32 _paymentRegistryAddress)
+        external
+        onlyOwner
+    {
+        HDPConnection memory hdpConnection =
+            HDPConnection({paymentRegistryAddress: _paymentRegistryAddress, hdpProgramHash: _hdpProgramHash});
 
         hdpConnections[_destinationChain] = hdpConnection;
     }
@@ -395,18 +297,12 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     // Public functions
-    function getHDPDestinationChainConnectionDetails(bytes32 destinationChainId) public view returns (HDPConnection memory) {
+    function getHDPDestinationChainConnectionDetails(bytes32 destinationChainId)
+        public
+        view
+        returns (HDPConnection memory)
+    {
         return hdpConnections[destinationChainId];
-    }
-
-    // Public functions
-    function getHDPProgramHashForDestinationChain(bytes32 destinationChainId) public view returns (bytes32) {
-        return hdpConnections[destinationChainId].hdpProgramHash;
-    }
-
-    // Public functions
-    function getPaymentRegistryAddressForDestinationChain(bytes32 destinationChainId) public view returns (bytes32) {
-        return hdpConnections[destinationChainId].paymentRegistryAddress;
     }
 
     // Modifiers

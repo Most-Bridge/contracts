@@ -199,7 +199,10 @@ contract EscrowTest is Test {
         bytes32 destinationChain = bytes32(uint256(0x1));
         vm.prank(owner);
         escrow.addDestinationChain(destinationChain, newHDPProgramHash, newPaymentRegistryAddress);
-        assertEq(escrow.getHDPDestinationChainConnectionDetails(destinationChain).hdpProgramHash, newHDPProgramHash, "Program hash mismatch");
-
+        assertEq(
+            escrow.getHDPDestinationChainConnectionDetails(destinationChain).hdpProgramHash,
+            newHDPProgramHash,
+            "Program hash mismatch"
+        );
     }
 }
