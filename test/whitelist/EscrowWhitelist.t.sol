@@ -22,9 +22,22 @@ contract EscrowWhitelistTest is Test {
     address[] public maliciousActorAddress;
 
     function setUp() public {
+        // HDP Setup
+        EscrowWhitelist.HDPConnectionInitial[] memory initialHDPChainConnections =
+            new EscrowWhitelist.HDPConnectionInitial[](1);
+
+        // For Ethereum Sepolia
+        initialHDPChainConnections[0] = EscrowWhitelist.HDPConnectionInitial({
+            destinationChainId: bytes32(uint256(111555111)),
+            paymentRegistryAddress: bytes32(uint256(uint160(0x9eB3feB35884B284Ea1e38Dd175417cE90B43AA1))),
+            hdpProgramHash: bytes32(uint256(0x3e6ede9c31b71072c18c6d1453285eac4ae0cf7702e3e5b8fe17d470ed0ddf4))
+        });
+
         whitelistAddresses.push(user);
         maliciousActorAddress.push(maliciousActor);
-        escrow = new EscrowWhitelist(whitelistAddresses);
+
+        escrow = new EscrowWhitelist(whitelistAddresses, initialHDPChainConnections);
+
         vm.deal(user, 10 ether);
         vm.deal(maliciousActor, 10 ether);
         sendAmount = 0.00001 ether;
@@ -178,20 +191,29 @@ contract EscrowWhitelistTest is Test {
 
     function testSetHDPAddressSuccess() public {
         address newHDPExecutionStore = address(5);
-        uint256 newHDPProgramHash = uint256(keccak256(abi.encodePacked("new-program-hash")));
         vm.prank(owner);
-        escrow.setHDPAddress(newHDPExecutionStore, newHDPProgramHash);
-
+        escrow.setHDPAddress(newHDPExecutionStore);
         assertEq(escrow.HDP_EXECUTION_STORE_ADDRESS(), newHDPExecutionStore, "Execution store address mismatch");
-        assertEq(escrow.HDP_PROGRAM_HASH(), newHDPProgramHash, "Program hash mismatch");
     }
 
     function testSetHDPAddressRevertsIfNotOwner() public {
         address newHDPExecutionStore = address(5);
-        uint256 newHDPProgramHash = uint256(keccak256(abi.encodePacked("new-program-hash")));
         vm.prank(maliciousActor);
         vm.expectRevert("Caller is not the owner");
-        escrow.setHDPAddress(newHDPExecutionStore, newHDPProgramHash);
+        escrow.setHDPAddress(newHDPExecutionStore);
+    }
+
+    function testAddChain() public {
+        bytes32 newHDPProgramHash = keccak256(abi.encodePacked("new-program-hash"));
+        bytes32 newPaymentRegistryAddress = keccak256(abi.encodePacked("new-program-hash"));
+        bytes32 destinationChain = bytes32(uint256(0x1));
+        vm.prank(owner);
+        escrow.addDestinationChain(destinationChain, newHDPProgramHash, newPaymentRegistryAddress);
+        assertEq(
+            escrow.getHDPDestinationChainConnectionDetails(destinationChain).hdpProgramHash,
+            newHDPProgramHash,
+            "Program hash mismatch"
+        );
     }
 
     function testUserNotWhitelisted() public {

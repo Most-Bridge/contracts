@@ -3,16 +3,14 @@ pragma solidity ^0.8.20;
 
 import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
-
 import {ModuleTask} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.sol";
 import {ModuleCodecs} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.sol";
 import {TaskCode} from "lib/hdp-solidity/src/datatypes/Task.sol";
-
 import {IHdpExecutionStore} from "src/interface/IHdpExecutionStore.sol";
 
 /**
  * @title Escrow Contract SMM (Single Market Maker)
- * @dev Handles the bridging of assets between a src chain and a dst chain, in conjunction with Payment Registry and a 3rd party
+ * @dev Handles the bridging of assets between a src chain and a dst chain, in conjunction with Payment Registry and a
  * facilitator service.
  */
 contract Escrow is ReentrancyGuard, Pausable {
