@@ -29,4 +29,4 @@ contract DeployEscrow is Script {
     }
 }
 
-// executable in deploy_escrow.sh
+// executable in deploy_verify.sh

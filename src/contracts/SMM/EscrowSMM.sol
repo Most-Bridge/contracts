@@ -118,7 +118,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
         uint256 currentTimestamp = block.timestamp;
-        uint256 _expirationTimestamp = currentTimestamp + 6 weeks;
+        uint256 _expirationTimestamp = currentTimestamp + ONE_YEAR;
         address _usrSrcAddress = msg.sender;
         uint256 bridgeAmount = msg.value - _fee; //no underflow since previous check is made
 
