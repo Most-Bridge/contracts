@@ -17,6 +17,7 @@ contract EscrowWhitelistTest is Test {
     uint256 feeAmount;
     address owner;
     uint256 firstOrderId;
+    uint256 public constant ONE_YEAR = 365 days;
 
     address[] public whitelistAddresses;
     address[] public maliciousActorAddress;
@@ -55,7 +56,7 @@ contract EscrowWhitelistTest is Test {
             abi.encodePacked(
                 firstOrderId,
                 destinationAddress,
-                block.timestamp + 6 weeks,
+                block.timestamp + ONE_YEAR,
                 sendAmount - feeAmount,
                 feeAmount,
                 user,
@@ -114,7 +115,7 @@ contract EscrowWhitelistTest is Test {
             abi.encodePacked(
                 firstOrderId,
                 destinationAddress,
-                block.timestamp + 6 weeks,
+                block.timestamp + ONE_YEAR,
                 sendAmount - feeAmount,
                 feeAmount,
                 user,
@@ -134,10 +135,10 @@ contract EscrowWhitelistTest is Test {
         assertEq(user.balance, 9.99999 ether); // user balance decreased
 
         uint256 currentTimestamp = block.timestamp;
-        uint256 expirationTimestamp = currentTimestamp + 6 weeks;
+        uint256 expirationTimestamp = currentTimestamp + ONE_YEAR;
         uint256 bridgeAmount = sendAmount - feeAmount;
 
-        vm.warp(block.timestamp + 7 weeks); // order is now expired
+        vm.warp(block.timestamp + ONE_YEAR + 1 days); // order is now expired
 
         escrow.refundOrder(firstOrderId, destinationAddress, expirationTimestamp, bridgeAmount, feeAmount, dstChainId);
 
@@ -151,7 +152,7 @@ contract EscrowWhitelistTest is Test {
         escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, dstChainId);
         vm.stopPrank();
 
-        uint256 expirationTimestamp = block.timestamp + 6 weeks;
+        uint256 expirationTimestamp = block.timestamp + ONE_YEAR;
 
         vm.warp(block.timestamp + 2 days); // order expired
 
@@ -171,7 +172,7 @@ contract EscrowWhitelistTest is Test {
         vm.startPrank(user);
         vm.expectRevert("Cannot refund an order that has not expired.");
         escrow.refundOrder(
-            1, destinationAddress, block.timestamp + 6 weeks, sendAmount - feeAmount, feeAmount, dstChainId
+            1, destinationAddress, block.timestamp + ONE_YEAR, sendAmount - feeAmount, feeAmount, dstChainId
         );
         vm.stopPrank();
     }
