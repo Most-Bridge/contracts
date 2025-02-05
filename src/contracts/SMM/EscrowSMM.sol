@@ -21,9 +21,10 @@ contract Escrow is ReentrancyGuard, Pausable {
     uint256 private orderId = 1;
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
+    uint256 public constant ONE_YEAR = 365 days;
 
     // HDP
-    address public HDP_EXECUTION_STORE_ADDRESS = 0xE321b311d860fA58a110fC93b756138678e0d00d; // TODO: replace with proper address
+    address public HDP_EXECUTION_STORE_ADDRESS = 0xE321b311d860fA58a110fC93b756138678e0d00d;
 
     // Interfaces
     IHdpExecutionStore hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
@@ -118,7 +119,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
         uint256 currentTimestamp = block.timestamp;
-        uint256 _expirationTimestamp = currentTimestamp + 1 days;
+        uint256 _expirationTimestamp = currentTimestamp + ONE_YEAR;
         address _usrSrcAddress = msg.sender;
         uint256 bridgeAmount = msg.value - _fee; //no underflow since previous check is made
 
