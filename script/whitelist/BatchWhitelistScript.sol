@@ -8,8 +8,8 @@ interface IEscrow {
 }
 
 contract BatchWhitelistScript is Script {
-    address constant ESCROW_CONTRACT = address(1); // **** TODO: ADD ADDRESS HERE *****
-    address constant WHITELIST_ADDRESS = 0x17C2D875CB397D813eAE817DaFD25807E348Df07;
+    address constant ESCROW_CONTRACT = 0xcE386419d2415fFB730aD3cc429e2446a871551A;
+    address constant ADDRESS_TO_WHITELIST = 0xd8791B6ABdb7C5d564018Ebb93Ad8a092b1D8Abd; // **** TODO: ADD ADDRESS HERE *****
 
     function run() external {
         // Load the private key of the owner from the environment variable
@@ -23,7 +23,7 @@ contract BatchWhitelistScript is Script {
 
         // Prepare the addresses to whitelist
         address[] memory addressesToWhitelist = new address[](1);
-        addressesToWhitelist[0] = WHITELIST_ADDRESS;
+        addressesToWhitelist[0] = ADDRESS_TO_WHITELIST;
 
         // Call the batchAddToWhitelist function
         escrow.batchAddToWhitelist(addressesToWhitelist);
