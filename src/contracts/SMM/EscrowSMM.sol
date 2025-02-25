@@ -225,36 +225,37 @@ contract Escrow is ReentrancyGuard, Pausable {
         emit WithdrawSuccessBatch(withdrawnOrderIds);
     }
 
-    /**
-     * @dev Allows the user to withdraw their order if it has not been fulfilled by the expiration date.
-     * Note: this function should never be pausable.
-     */
-    function refundOrder(
-        uint256 _orderId,
-        uint256 _usrDstAddress,
-        uint256 _expirationTimestamp,
-        uint256 _bridgeAmount,
-        uint256 _fee,
-        bytes32 _dstChainId
-    ) external payable nonReentrant {
-        bytes32 orderHash = keccak256(
-            abi.encodePacked(
-                _orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, msg.sender, _dstChainId
-            )
-        );
-        require(orders[_orderId] == orderHash, "Order hash mismatch");
-        require(orderStatus[_orderId] == OrderState.PENDING, "Cannot refund an order if it is not pending.");
-        uint256 currentTimestamp = block.timestamp;
-        require(currentTimestamp > _expirationTimestamp, "Cannot refund an order that has not expired.");
+    ///
+    /// @dev Allows the user to withdraw their order if it has not been fulfilled by the expiration date. 
+    /// Note: this function should never be pausable.
+    /// 
 
-        uint256 amountToRefund = _bridgeAmount + _fee;
-        require(address(this).balance >= amountToRefund, "Insufficient contract balance for refund");
+    function refundOrderBatch(Order[] calldata calldataOrders) external payable nonReentrant {
+        for (uint256 i = 0; i < calldataOrders.length; i++) {
+            Order memory order = calldataOrders[i];
+            bytes32 orderHash = keccak256(
+                abi.encodePacked(
+                    order.id,
+                    order.usrDstAddress,
+                    order.expirationTimestamp,
+                    order.bridgeAmount,
+                    order.fee,
+                    order.usrSrcAddress,
+                    order.dstChainId
+                )
+            );
 
-        orderStatus[_orderId] = OrderState.RECLAIMED;
+            require(orders[order.id] == orderHash, "Order hash mismatch");
+            require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund an order if it is not pending.");
+            require(block.timestamp > order.expirationTimestamp, "Cannot refund an order that has not expired.");
 
-        (bool success,) = payable(msg.sender).call{value: amountToRefund}("");
-        require(success, "Refund Order: Transfer failed");
-        emit OrderReclaimed(_orderId);
+            uint256 amountToRefund = order.bridgeAmount + order.fee;
+            orderStatus[order.id] = OrderState.RECLAIMED;
+
+            (bool success,) = payable(order.usrSrcAddress).call{value: amountToRefund}("");
+            require(success, "Refund Order: Transfer failed");
+            emit OrderReclaimed(order.id);
+        }
     }
 
     // Restricted functions
