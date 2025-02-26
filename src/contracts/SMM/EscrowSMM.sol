@@ -18,8 +18,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
 
     // State variables
-    address public owner;
     uint256 private orderId = 1;
+    address public owner;
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
     uint256 public constant ONE_YEAR = 365 days;
@@ -50,7 +50,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     );
     event ProveBridgeAggregatedSuccess(uint256[] orderIds);
     event WithdrawSuccessBatch(uint256[] orderIds);
-    event OrderReclaimed(uint256 orderId);
+    event OrdersReclaimed(uint256[] orderIds);
 
     /// Enums
     enum OrderState {
@@ -231,9 +231,12 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     /// @notice Allows the user to refund their order if it has not been fulfilled by the expiration date
-    /// 
+    ///
     /// @custom:security This function should never be pausable
     function refundOrderBatch(Order[] calldata calldataOrders) external payable nonReentrant {
+        uint256 amountToRefund = 0;
+        uint256[] memory refundedOrderIds = new uint256[](calldataOrders.length);
+
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             Order memory order = calldataOrders[i];
             bytes32 orderHash = keccak256(
@@ -243,7 +246,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                     order.expirationTimestamp,
                     order.bridgeAmount,
                     order.fee,
-                    order.usrSrcAddress,
+                    msg.sender,
                     order.dstChainId
                 )
             );
@@ -252,13 +255,14 @@ contract Escrow is ReentrancyGuard, Pausable {
             require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund an order if it is not pending.");
             require(block.timestamp > order.expirationTimestamp, "Cannot refund an order that has not expired.");
 
-            uint256 amountToRefund = order.bridgeAmount + order.fee;
+            amountToRefund += order.bridgeAmount + order.fee;
             orderStatus[order.id] = OrderState.RECLAIMED;
-
-            (bool success,) = payable(order.usrSrcAddress).call{value: amountToRefund}("");
-            require(success, "Refund Order: Transfer failed");
-            emit OrderReclaimed(order.id);
+            refundedOrderIds[i] = order.id;
         }
+        require(address(this).balance >= amountToRefund, "Insufficient contract balance for refund");
+        (bool success,) = payable(msg.sender).call{value: amountToRefund}("");
+        require(success, "Refund Order: Transfer failed");
+        emit OrdersReclaimed(refundedOrderIds);
     }
 
     /// Restricted functions

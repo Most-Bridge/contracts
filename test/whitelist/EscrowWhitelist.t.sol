@@ -140,7 +140,19 @@ contract EscrowWhitelistTest is Test {
 
         vm.warp(block.timestamp + ONE_YEAR + 1 days); // order is now expired
 
-        escrow.refundOrder(firstOrderId, destinationAddress, expirationTimestamp, bridgeAmount, feeAmount, dstChainId);
+        // Create array with one order
+        EscrowWhitelist.Order[] memory ordersToRefund = new EscrowWhitelist.Order[](1);
+        ordersToRefund[0] = EscrowWhitelist.Order({
+            id: firstOrderId,
+            usrDstAddress: destinationAddress,
+            expirationTimestamp: expirationTimestamp,
+            bridgeAmount: bridgeAmount,
+            fee: feeAmount,
+            usrSrcAddress: user,
+            dstChainId: dstChainId
+        });
+
+        escrow.refundOrderBatch(ordersToRefund);
 
         assertEq(user.balance, 10 ether); // user balance went back up
 
@@ -154,13 +166,23 @@ contract EscrowWhitelistTest is Test {
 
         uint256 expirationTimestamp = block.timestamp + ONE_YEAR;
 
-        vm.warp(block.timestamp + 2 days); // order expired
+        vm.warp(block.timestamp + 2 days); // order expired (keeping original timing)
 
-        vm.startPrank(maliciousActor); //
+        vm.startPrank(maliciousActor);
+        // Create array with one order
+        EscrowWhitelist.Order[] memory ordersToRefund = new EscrowWhitelist.Order[](1);
+        ordersToRefund[0] = EscrowWhitelist.Order({
+            id: firstOrderId,
+            usrDstAddress: destinationAddress,
+            expirationTimestamp: expirationTimestamp,
+            bridgeAmount: sendAmount - feeAmount,
+            fee: feeAmount,
+            usrSrcAddress: user, // Original creator
+            dstChainId: dstChainId
+        });
+
         vm.expectRevert("Order hash mismatch");
-        escrow.refundOrder(
-            firstOrderId, destinationAddress, expirationTimestamp, sendAmount - feeAmount, feeAmount, dstChainId
-        );
+        escrow.refundOrderBatch(ordersToRefund);
         vm.stopPrank();
     }
 
@@ -170,10 +192,20 @@ contract EscrowWhitelistTest is Test {
         vm.stopPrank();
 
         vm.startPrank(user);
+        // Create array with one order
+        EscrowWhitelist.Order[] memory ordersToRefund = new EscrowWhitelist.Order[](1);
+        ordersToRefund[0] = EscrowWhitelist.Order({
+            id: 1, // Keeping original ID
+            usrDstAddress: destinationAddress,
+            expirationTimestamp: block.timestamp + ONE_YEAR,
+            bridgeAmount: sendAmount - feeAmount,
+            fee: feeAmount,
+            usrSrcAddress: user,
+            dstChainId: dstChainId
+        });
+
         vm.expectRevert("Cannot refund an order that has not expired.");
-        escrow.refundOrder(
-            1, destinationAddress, block.timestamp + ONE_YEAR, sendAmount - feeAmount, feeAmount, dstChainId
-        );
+        escrow.refundOrderBatch(ordersToRefund);
         vm.stopPrank();
     }
 
@@ -182,11 +214,23 @@ contract EscrowWhitelistTest is Test {
         escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, dstChainId);
         vm.stopPrank();
 
-        vm.warp(block.timestamp + 2 days);
+        vm.warp(block.timestamp + 2 days); // Keeping original timing
 
         vm.startPrank(user);
+        // Create array with one order with wrong details
+        EscrowWhitelist.Order[] memory ordersToRefund = new EscrowWhitelist.Order[](1);
+        ordersToRefund[0] = EscrowWhitelist.Order({
+            id: 1, // Keeping original ID
+            usrDstAddress: uint256(12345), // Wrong address
+            expirationTimestamp: block.timestamp - 1 days, // Wrong timestamp
+            bridgeAmount: 0.5 ether, // Wrong amount
+            fee: feeAmount,
+            usrSrcAddress: user,
+            dstChainId: dstChainId
+        });
+
         vm.expectRevert("Order hash mismatch");
-        escrow.refundOrder(1, 12345, block.timestamp - 1 days, 0.5 ether, feeAmount, dstChainId);
+        escrow.refundOrderBatch(ordersToRefund);
         vm.stopPrank();
     }
 
