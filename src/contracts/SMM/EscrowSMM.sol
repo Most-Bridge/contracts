@@ -8,12 +8,12 @@ import {ModuleCodecs} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.s
 import {TaskCode} from "lib/hdp-solidity/src/datatypes/Task.sol";
 import {IHdpExecutionStore} from "src/interface/IHdpExecutionStore.sol";
 
-/// @title Escrow Contract SMM (Single Market Maker)
+/// @title Escrow SMM (Single Market Maker)
 ///
 /// @author Most Bridge (https://github.com/Most-Bridge)
 ///
 /// @notice Handles the bridging of assets between a src chain and a dst chain, in conjunction with Payment Registry and a
-/// facilitator service.
+///         facilitator service.
 contract Escrow is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
 
@@ -38,8 +38,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// Events
     ///
     /// @param usrDstAddress Stored as a uint256 to allow for starknet addresses to be stored
-    /// @param dstChainId    Stored passed as a hex
-    ///
+    /// @param dstChainId    Stored as a hex in bytes32 to allow for longer chain ids
     event OrderPlaced(
         uint256 orderId,
         uint256 usrDstAddress,
@@ -67,7 +66,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         PROVEN
     }
 
-    /// Structs
+    // Structs
     struct Order {
         uint256 id;
         uint256 usrDstAddress;
@@ -110,7 +109,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param _usrDstAddress The destination address of the user
     /// @param _fee           The fee for the market maker
     /// @param _dstChainId    Destination Chain Id as a hex
-    ///
     function createOrder(uint256 _usrDstAddress, uint256 _fee, bytes32 _dstChainId)
         external
         payable
@@ -139,7 +137,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         orderId += 1;
     }
 
-    /// @notice Allows a MM to prove order fulfillment by submitting the Order details
+    /// @notice Allows a MM to prove order fulfillment by submitting the order details
     ///
     /// @param calldataOrders      Array containing the data of the orders to be proven
     /// @param _blockNumber        The point in time when all the submitted orders have been fulfilled
@@ -152,7 +150,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         // For proving in aggregated mode using HDP
         bytes32[] memory taskInputs = new bytes32[](calldataOrders.length + 3);
         taskInputs[0] = bytes32(_destinationChainId); // The bridging destination chain, where PaymentRegistry is located
-        taskInputs[1] = bytes32(hdpConnections[_destinationChainId].paymentRegistryAddress); // The point in time at which to prove the orders
+        taskInputs[1] = bytes32(hdpConnections[_destinationChainId].paymentRegistryAddress); // The address which contains the order fulfillment
         taskInputs[2] = bytes32(_blockNumber); // The point in time at which to prove the orders
 
         for (uint256 i = 0; i < calldataOrders.length; i++) {
@@ -196,7 +194,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @notice Allows the market maker to batch unlock the funds for transactions fulfilled by them
     ///
     /// @param calldataOrders Order info of the orders to be withdrawn
-    ///
     function withdrawProvedBatch(Order[] calldata calldataOrders)
         external
         nonReentrant
@@ -233,9 +230,9 @@ contract Escrow is ReentrancyGuard, Pausable {
         emit WithdrawSuccessBatch(withdrawnOrderIds);
     }
 
-    /// @notice Allows the user to withdraw their order if it has not been fulfilled by the expiration date
+    /// @notice Allows the user to refund their order if it has not been fulfilled by the expiration date
+    /// 
     /// @custom:security This function should never be pausable
-    ///
     function refundOrderBatch(Order[] calldata calldataOrders) external payable nonReentrant {
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             Order memory order = calldataOrders[i];
@@ -270,7 +267,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         _pause();
     }
 
-    /// @notice Unpauses the contract
+    /// @notice Unpause the contract
     function unpauseContract() external onlyRelayAddress {
         _unpause();
     }
@@ -297,7 +294,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         HDP_EXECUTION_STORE_ADDRESS = _newHDPExecutionStore;
     }
 
-    /// Public functions
+    // Public functions
     function getHDPDestinationChainConnectionDetails(bytes32 destinationChainId)
         public
         view
@@ -306,7 +303,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         return hdpConnections[destinationChainId];
     }
 
-    /// Modifiers
+    // Modifiers
     modifier onlyRelayAddress() {
         require(msg.sender == allowedRelayAddress, "Caller is not allowed");
         _;

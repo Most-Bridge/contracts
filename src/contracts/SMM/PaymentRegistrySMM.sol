@@ -34,7 +34,6 @@ contract PaymentRegistry is Pausable {
     }
 
     /// External functions
-
     /// @notice Called by the allowed market maker to transfer funds to the user on the destination chain
     ///         The `transfer` mapping which is updated in this function, is what is used to prove the tx occurred
     ///

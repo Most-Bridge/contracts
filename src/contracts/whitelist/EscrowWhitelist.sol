@@ -8,11 +8,12 @@ import {ModuleCodecs} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.s
 import {TaskCode} from "lib/hdp-solidity/src/datatypes/Task.sol";
 import {IHdpExecutionStore} from "src/interface/IHdpExecutionStore.sol";
 
-/**
- * @title Escrow Contract Whitelist SMM (Single Market Maker)
- * @dev Handles the bridging of assets between Ethereum and Starknet, in conjunction with Payment Registry and a
- * facilitator service.
- */
+/// @title Escrow Whitelist
+///
+/// @author Most Bridge (https://github.com/Most-Bridge)
+///
+/// @notice Handles the bridging of assets between a src chain and a dst chain, in conjunction with Payment Registry and a
+///         facilitator service. Deployed on mainnet for a whitelisted audience only.
 contract EscrowWhitelist is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
 
@@ -36,11 +37,10 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
     mapping(address => bool) private whitelist;
     mapping(bytes32 => HDPConnection) public hdpConnections; // mapping chainId -> HdpConnection
 
-    // Events
-    /**
-     * @param usrDstAddress stored as a uint256 to allow for starknet addresses to be stored
-     * @param dstChainId stored passed as a hex
-     */
+    /// Events
+    ///
+    /// @param usrDstAddress Stored as a uint256 to allow for starknet addresses to be stored
+    /// @param dstChainId    Stored as a hex in bytes32 to allow for longer chain ids
     event OrderPlaced(
         uint256 orderId,
         uint256 usrDstAddress,
@@ -109,13 +109,13 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
         }
     }
 
-    // Functions
-    /**
-     * @dev Allows the user to create an order.
-     * @param _usrDstAddress The destination address of the user.
-     * @param _fee The fee for the market maker.
-     * @param _dstChainId Destination Chain Id as a hex.
-     */
+    /// Functions
+    ///
+    /// @notice Allows the user to create an order
+    ///
+    /// @param _usrDstAddress The destination address of the user
+    /// @param _fee           The fee for the market maker
+    /// @param _dstChainId    Destination Chain Id as a hex
     function createOrder(uint256 _usrDstAddress, uint256 _fee, bytes32 _dstChainId)
         external
         payable
@@ -146,6 +146,11 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
         orderId += 1;
     }
 
+    /// @notice Allows a MM to prove order fulfillment by submitting the order details
+    ///
+    /// @param calldataOrders      Array containing the data of the orders to be proven
+    /// @param _blockNumber        The point in time when all the submitted orders have been fulfilled
+    /// @param _destinationChainId The chain on which the order was fulfilled
     function proveHDPFulfillmentBatch(
         Order[] calldata calldataOrders,
         uint256 _blockNumber,
@@ -154,7 +159,7 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
         // For proving in aggregated mode using HDP
         bytes32[] memory taskInputs = new bytes32[](calldataOrders.length + 3);
         taskInputs[0] = bytes32(_destinationChainId); // The bridging destination chain, where PaymentRegistry is located
-        taskInputs[1] = bytes32(hdpConnections[_destinationChainId].paymentRegistryAddress); // The point in time at which to prove the orders
+        taskInputs[1] = bytes32(hdpConnections[_destinationChainId].paymentRegistryAddress); // The address which contains the order fulfillment
         taskInputs[2] = bytes32(_blockNumber); // The point in time at which to prove the orders
 
         for (uint256 i = 0; i < calldataOrders.length; i++) {
@@ -195,9 +200,9 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
         emit ProveBridgeAggregatedSuccess(provedOrderIds);
     }
 
-    /**
-     * @dev Allows the market maker to batch unlock the funds for transactions fulfilled by them.
-     */
+    /// @notice Allows the market maker to batch unlock the funds for transactions fulfilled by them
+    ///
+    /// @param calldataOrders Order info of the orders to be withdrawn
     function withdrawProvedBatch(Order[] calldata calldataOrders)
         external
         nonReentrant
@@ -234,61 +239,55 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
         emit WithdrawSuccessBatch(withdrawnOrderIds);
     }
 
-    /**
-     * @dev Allows the user to withdraw their order if it has not been fulfilled by the expiration date.
-     * Note: this function should never be pausable.
-     */
-    function refundOrder(
-        uint256 _orderId,
-        uint256 _usrDstAddress,
-        uint256 _expirationTimestamp,
-        uint256 _bridgeAmount,
-        uint256 _fee,
-        bytes32 _dstChainId
-    ) external payable nonReentrant {
-        bytes32 orderHash = keccak256(
-            abi.encodePacked(
-                _orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, msg.sender, _dstChainId
-            )
-        );
-        require(orders[_orderId] == orderHash, "Order hash mismatch");
-        require(orderStatus[_orderId] == OrderState.PENDING, "Cannot refund an order if it is not pending.");
-        uint256 currentTimestamp = block.timestamp;
-        require(currentTimestamp > _expirationTimestamp, "Cannot refund an order that has not expired.");
+    /// @notice Allows the user to refund their order if it has not been fulfilled by the expiration date
+    ///
+    /// @custom:security This function should never be pausable
+    function refundOrderBatch(Order[] calldata calldataOrders) external payable nonReentrant {
+        for (uint256 i = 0; i < calldataOrders.length; i++) {
+            Order memory order = calldataOrders[i];
+            bytes32 orderHash = keccak256(
+                abi.encodePacked(
+                    order.id,
+                    order.usrDstAddress,
+                    order.expirationTimestamp,
+                    order.bridgeAmount,
+                    order.fee,
+                    order.usrSrcAddress,
+                    order.dstChainId
+                )
+            );
 
-        uint256 amountToRefund = _bridgeAmount + _fee;
-        require(address(this).balance >= amountToRefund, "Insufficient contract balance for refund");
+            require(orders[order.id] == orderHash, "Order hash mismatch");
+            require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund an order if it is not pending.");
+            require(block.timestamp > order.expirationTimestamp, "Cannot refund an order that has not expired.");
 
-        orderStatus[_orderId] = OrderState.RECLAIMED;
+            uint256 amountToRefund = order.bridgeAmount + order.fee;
+            orderStatus[order.id] = OrderState.RECLAIMED;
 
-        (bool success,) = payable(msg.sender).call{value: amountToRefund}("");
-        require(success, "Refund Order: Transfer failed");
-        emit OrderReclaimed(_orderId);
+            (bool success,) = payable(order.usrSrcAddress).call{value: amountToRefund}("");
+            require(success, "Refund Order: Transfer failed");
+            emit OrderReclaimed(order.id);
+        }
     }
 
-    // Restricted functions
-    /**
-     * @dev Pause the contract in case of an error.
-     */
+    /// Restricted functions
+    /// @notice Pause the contract in case of an error, or contract upgrade
     function pauseContract() external onlyRelayAddress {
         _pause();
     }
 
-    /**
-     * @dev Unpauses the contract.
-     */
+    /// @notice Unpause the contract
     function unpauseContract() external onlyRelayAddress {
         _unpause();
     }
 
-    /**
-     * @dev Change the allowed relay address.
-     */
+    /// @notice Change the allowed relay address
     function setAllowedAddress(address _newAllowedAddress) external onlyOwner {
         allowedRelayAddress = _newAllowedAddress;
     }
 
-    // Function called when we adding new destination chain, in Single Market Maker mode onlyOwner modifier is used, and the program hash cannot be modified or deleted once added
+    /// @notice Function called when adding a new destination chain, in Single Market Maker mode. onlyOwner modifier is used,
+    ///         and the program hash cannot be modified or deleted once added
     function addDestinationChain(bytes32 _destinationChain, bytes32 _hdpProgramHash, bytes32 _paymentRegistryAddress)
         external
         onlyOwner
@@ -313,6 +312,7 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
         return hdpConnections[destinationChainId];
     }
 
+    /// @notice Add addresses to the whitelist
     function batchAddToWhitelist(address[] calldata _addresses) external onlyOwner {
         for (uint256 i = 0; i < _addresses.length; i++) {
             whitelist[_addresses[i]] = true;
