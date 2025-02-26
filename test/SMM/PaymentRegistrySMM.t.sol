@@ -36,7 +36,7 @@ contract PaymentRegistryTest is Test {
             )
         );
 
-        assertTrue(paymentRegistry.getTransfers(orderHash), "Order was not marked as processed.");
+        assertTrue(paymentRegistry.getFulfillment(orderHash), "Order was not marked as processed.");
         assertEq(address(destinationAddress).balance, 2 ether, "Destination address balance did not increase.");
         assertEq(address(mmDstAddress).balance, 9 ether, "Market maker balance did not decrease.");
     }

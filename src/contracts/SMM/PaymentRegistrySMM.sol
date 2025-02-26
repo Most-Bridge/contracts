@@ -15,10 +15,10 @@ contract PaymentRegistry is Pausable {
     address public allowedMMAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
 
     /// Storage
-    mapping(bytes32 => bool) public transfers;
+    mapping(bytes32 => bool) public fulfillments;
 
     /// Events
-    event Transfer(
+    event FulfillmentReceipt(
         uint256 _orderId,
         address _usrDstAddress,
         uint256 _expirationTimestamp,
@@ -62,14 +62,14 @@ contract PaymentRegistry is Pausable {
             )
         );
 
-        require(transfers[orderHash] == false, "Transfer already processed.");
+        require(fulfillments[orderHash] == false, "Transfer already processed.");
 
-        transfers[orderHash] = true;
+        fulfillments[orderHash] = true;
 
         (bool success,) = payable(_usrDstAddress).call{value: msg.value}(""); // transfer to user
         require(success, "Transfer failed.");
 
-        emit Transfer(
+        emit FulfillmentReceipt(
             _orderId, _usrDstAddress, _expirationTimestamp, msg.value, _fee, _usrSrcAddress, _destinationChainId
         );
     }
@@ -92,8 +92,8 @@ contract PaymentRegistry is Pausable {
         allowedMMAddress = _newAllowedMMAddress;
     }
 
-    function getTransfers(bytes32 _orderHash) public view returns (bool) {
-        return transfers[_orderHash];
+    function getFulfillment(bytes32 _orderHash) public view returns (bool) {
+        return fulfillments[_orderHash];
     }
 
     /// onlyAllowedAddress functions
