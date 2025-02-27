@@ -7,6 +7,7 @@ import {ModuleTask} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.sol
 import {ModuleCodecs} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.sol";
 import {TaskCode} from "lib/hdp-solidity/src/datatypes/Task.sol";
 import {IHdpExecutionStore} from "src/interface/IHdpExecutionStore.sol";
+import {Whitelist} from "src/contracts/SMM/Whitelist.sol";
 
 /// @title Escrow SMM (Single Market Maker)
 ///
@@ -14,7 +15,7 @@ import {IHdpExecutionStore} from "src/interface/IHdpExecutionStore.sol";
 ///
 /// @notice Handles the bridging of assets between a src chain and a dst chain, in conjunction with Payment Registry and a
 ///         facilitator service.
-contract Escrow is ReentrancyGuard, Pausable {
+contract Escrow is ReentrancyGuard, Pausable, Whitelist {
     using ModuleCodecs for ModuleTask;
 
     // State variables
@@ -105,6 +106,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         payable
         nonReentrant
         whenNotPaused
+        onlyWhitelist
     {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
