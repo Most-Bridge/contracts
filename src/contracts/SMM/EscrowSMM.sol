@@ -36,18 +36,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     mapping(bytes32 => HDPConnection) public hdpConnections; // mapping chainId -> HdpConnection
 
     /// Events
-    ///
-    /// @param usrDstAddress Stored as a uint256 to allow for starknet addresses to be stored
-    /// @param dstChainId    Stored as a hex in bytes32 to allow for longer chain ids
-    event OrderPlaced(
-        uint256 orderId,
-        uint256 usrDstAddress,
-        uint256 expirationTimestamp,
-        uint256 amount,
-        uint256 fee,
-        address usrSrcAddress,
-        bytes32 dstChainId
-    );
+    event OrderPlaced(uint256 indexed orderId, Order newOrder);
     event ProveBridgeAggregatedSuccess(uint256[] orderIds);
     event WithdrawSuccessBatch(uint256[] orderIds);
     event OrdersReclaimed(uint256[] orderIds);
@@ -67,6 +56,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     // Structs
+    /// @param usrDstAddress Stored as a uint256 to allow for starknet addresses to be stored
+    /// @param dstChainId    Stored as a hex in bytes32 to allow for longer chain ids
     struct Order {
         uint256 id;
         uint256 usrDstAddress;
@@ -121,18 +112,29 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 currentTimestamp = block.timestamp;
         uint256 _expirationTimestamp = currentTimestamp + ONE_YEAR;
         address _usrSrcAddress = msg.sender;
-        uint256 bridgeAmount = msg.value - _fee; //no underflow since previous check is made
+        uint256 _bridgeAmount = msg.value - _fee; //no underflow since previous check is made
+
+        // Order to be emitted
+        Order memory newOrder = Order({
+            id: orderId,
+            usrDstAddress: _usrDstAddress,
+            expirationTimestamp: _expirationTimestamp,
+            bridgeAmount: _bridgeAmount,
+            fee: _fee,
+            usrSrcAddress: _usrSrcAddress,
+            dstChainId: _dstChainId
+        });
 
         bytes32 orderHash = keccak256(
             abi.encodePacked(
-                orderId, _usrDstAddress, _expirationTimestamp, bridgeAmount, _fee, _usrSrcAddress, _dstChainId
+                orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _dstChainId
             )
         );
 
         orders[orderId] = orderHash;
         orderStatus[orderId] = OrderState.PENDING;
 
-        emit OrderPlaced(orderId, _usrDstAddress, _expirationTimestamp, bridgeAmount, _fee, _usrSrcAddress, _dstChainId);
+        emit OrderPlaced(orderId, newOrder);
 
         orderId += 1;
     }
