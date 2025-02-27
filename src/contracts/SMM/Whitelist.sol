@@ -7,14 +7,15 @@ pragma solidity ^0.8.20;
 ///
 /// @notice Manages address whitelisting for contract access
 contract Whitelist {
-    address public owner;
+    // address public owner;
     mapping(address => bool) private whitelist;
 
     /// @notice Ensures function caller is the owner
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Caller is not the owner");
-        _;
-    }
+    // modifier onlyOwner() {
+    //     require(msg.sender == owner, "Caller is not the owner");
+    //     _;
+    // }
+    // TODO
 
     /// @notice Ensures function caller is whitelisted
     modifier onlyWhitelist() {
@@ -23,13 +24,14 @@ contract Whitelist {
     }
 
     constructor() {
-        owner = msg.sender;
+        // owner = msg.sender;
+        // TODO
     }
 
     /// @notice Add addresses to the whitelist
     ///
     /// @param _addresses Array of addresses to whitelist
-    function batchAddToWhitelist(address[] calldata _addresses) external onlyOwner {
+    function batchAddToWhitelist(address[] calldata _addresses) external {
         for (uint256 i = 0; i < _addresses.length; i++) {
             whitelist[_addresses[i]] = true;
         }

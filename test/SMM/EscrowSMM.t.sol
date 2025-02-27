@@ -251,4 +251,8 @@ contract EscrowTest is Test {
             "Program hash mismatch"
         );
     }
+
+    function testGas_createOrder() public {
+        escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, dstChainId);
+    }
 }

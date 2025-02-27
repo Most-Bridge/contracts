@@ -106,8 +106,8 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
         payable
         nonReentrant
         whenNotPaused
-        onlyWhitelist
     {
+        // TODO: add back whitelist
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
