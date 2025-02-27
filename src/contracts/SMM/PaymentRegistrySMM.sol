@@ -3,21 +3,22 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/Pausable.sol";
 
-/**
- * @title Payment Registry
- * @dev Handles the throughput of transactions from the Market Maker to a user, and saves the data
- * to be used to prove the transaction.
- */
+/// @title  Payment Registry
+///
+/// @author Most Bridge (https://github.com/Most-Bridge)
+///
+/// @notice Handles the throughput of transactions from the Market Maker to a user, and saves the data
+///         to be used to prove the transaction.
 contract PaymentRegistry is Pausable {
-    // State variables
+    /// State variables
     address public owner;
     address public allowedMMAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
 
-    // Storage
-    mapping(bytes32 => bool) public transfers;
+    /// Storage
+    mapping(bytes32 => bool) public fulfillments;
 
-    // Events
-    event Transfer(
+    /// Events
+    event FulfillmentReceipt(
         uint256 _orderId,
         address _usrDstAddress,
         uint256 _expirationTimestamp,
@@ -27,43 +28,23 @@ contract PaymentRegistry is Pausable {
         bytes32 _destinationChainId
     );
 
-    // Modifiers
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Caller is not the owner");
-        _;
-    }
-
-    modifier onlyAllowedAddress() {
-        require(msg.sender == allowedMMAddress, "Caller is not allowed");
-        _;
-    }
-
-    // Constructor
+    /// Constructor
     constructor() {
         owner = msg.sender;
     }
 
-    // External functions
-    /**
-     * @dev Allows the owner to change the allowed market maker address, who will be fulfilling the orders.
-     * @param _newAllowedMMAddress The new address that will fulfill the orders.
-     */
-    function setAllowedMMAddress(address _newAllowedMMAddress) public onlyOwner {
-        allowedMMAddress = _newAllowedMMAddress;
-    }
-
-    /**
-     * @dev Called by the allowed market maker to transfer funds to the user on the destination chain.
-     * The `transfer` mapping which is updated in this function, is what is used to prove the tx occurred.
-     * @param _orderId The order ID associated with the order being fulfilled.
-     * @param _usrDstAddress The user's destination address to receive the funds.
-     * @param _expirationTimestamp The order’s expiration time. If an expired timestamp is mistakenly passed,
-     * the funds in Escrow remain locked.
-     * @param _fee The fee paid to the MM.
-     * @param _usrSrcAddress The address of the user on the source chain.
-     * @param _destinationChainId The destination chain id in hex.
-     */
-    function transferTo(
+    /// External functions
+    /// @notice Called by the allowed market maker to transfer funds to the user on the destination chain
+    ///         The `transfer` mapping which is updated in this function, is what is used to prove the tx occurred
+    ///
+    /// @param _orderId             The order ID associated with the order being fulfilled
+    /// @param _usrDstAddress       The user's destination address to receive the funds
+    /// @param _expirationTimestamp The order’s expiration time. If an expired timestamp is mistakenly passed,
+    ///                             the funds in Escrow remain locked
+    /// @param _fee                 The fee paid to the MM
+    /// @param _usrSrcAddress       The address of the user on the source chain
+    /// @param _destinationChainId  The destination chain id in hex
+    function fulfillOrder(
         uint256 _orderId,
         address _usrDstAddress,
         uint256 _expirationTimestamp,
@@ -81,24 +62,41 @@ contract PaymentRegistry is Pausable {
             )
         );
 
-        require(transfers[orderHash] == false, "Transfer already processed.");
+        require(fulfillments[orderHash] == false, "Transfer already processed.");
 
-        transfers[orderHash] = true;
+        fulfillments[orderHash] = true;
 
         (bool success,) = payable(_usrDstAddress).call{value: msg.value}(""); // transfer to user
         require(success, "Transfer failed.");
 
-        emit Transfer(
+        emit FulfillmentReceipt(
             _orderId, _usrDstAddress, _expirationTimestamp, msg.value, _fee, _usrSrcAddress, _destinationChainId
         );
     }
 
-    // public functions
-    function getTransfers(bytes32 _orderHash) public view returns (bool) {
-        return transfers[_orderHash];
+    /// Modifiers
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Caller is not the owner");
+        _;
     }
 
-    // onlyAllowedAddress functions
+    modifier onlyAllowedAddress() {
+        require(msg.sender == allowedMMAddress, "Caller is not allowed");
+        _;
+    }
+
+    /// Public functions
+    /// @notice Allows the owner to change the allowed market maker address, who will be fulfilling the orders
+    /// @param _newAllowedMMAddress The new address that will fulfill the orders
+    function setAllowedMMAddress(address _newAllowedMMAddress) public onlyOwner {
+        allowedMMAddress = _newAllowedMMAddress;
+    }
+
+    function getFulfillment(bytes32 _orderHash) public view returns (bool) {
+        return fulfillments[_orderHash];
+    }
+
+    /// onlyAllowedAddress functions
     function pauseContract() external onlyAllowedAddress {
         _pause();
     }
