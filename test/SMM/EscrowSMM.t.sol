@@ -35,8 +35,8 @@ contract EscrowTest is Test {
 
         escrow = new Escrow(initialHDPChainConnections);
         vm.deal(user, 10 ether);
-        sendAmount = 1 ether;
-        feeAmount = 0.1 ether;
+        sendAmount = 0.00001 ether;
+        feeAmount = 0.000001 ether;
         owner = address(this);
         escrow.setAllowedAddress(owner);
         firstOrderId = 1;
@@ -128,7 +128,7 @@ contract EscrowTest is Test {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, dstChainId);
 
-        assertEq(user.balance, 9 ether); // user balance decreased by 1 eth
+        assertEq(user.balance, 9.99999 ether); // user balance decreased
 
         uint256 currentTimestamp = block.timestamp;
         uint256 expirationTimestamp = currentTimestamp + ONE_YEAR;

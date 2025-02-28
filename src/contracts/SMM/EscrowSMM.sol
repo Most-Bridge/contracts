@@ -24,6 +24,7 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
     uint256 public constant ONE_YEAR = 365 days;
+    uint256 public constant WHITELIST_LIMIT = 7500000000000000; // 0.0075 ether TODO remove after whitelist done
 
     // HDP
     address public HDP_EXECUTION_STORE_ADDRESS = 0xE321b311d860fA58a110fC93b756138678e0d00d;
@@ -116,11 +117,11 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
         whenNotPaused
         onlyWhitelist
     {
-        // TODO: add back onlyWhitelist modifier
+        // TODO:  remove onlyWhitelist modifier
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
-        // require(msg.value <= WHITELIST_LIMIT, "Amount exceeds 0.0075 ether");
-        // TODO for whitelist
+        require(msg.value <= WHITELIST_LIMIT, "Amount exceeds 0.0075 ether");
+        // TODO whitelist limit
 
         uint256 currentTimestamp = block.timestamp;
         uint256 _expirationTimestamp = currentTimestamp + ONE_YEAR;
