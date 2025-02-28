@@ -123,6 +123,7 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
         require(msg.value <= WHITELIST_LIMIT, "Amount exceeds 0.0075 ether");
         // TODO whitelist limit
 
+        // The order expires 24 hours after placement. If not proven by then, the user can withdraw funds.
         uint256 currentTimestamp = block.timestamp;
         uint256 _expirationTimestamp = currentTimestamp + ONE_YEAR;
         address _usrSrcAddress = msg.sender;
