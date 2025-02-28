@@ -130,18 +130,18 @@ contract EscrowWhitelist is ReentrancyGuard, Pausable {
         uint256 currentTimestamp = block.timestamp;
         uint256 _expirationTimestamp = currentTimestamp + ONE_YEAR;
         address _usrSrcAddress = msg.sender;
-        uint256 bridgeAmount = msg.value - _fee; //no underflow since previous check is made
+        uint256 _bridgeAmount = msg.value - _fee; //no underflow since previous check is made
 
         bytes32 orderHash = keccak256(
             abi.encodePacked(
-                orderId, _usrDstAddress, _expirationTimestamp, bridgeAmount, _fee, _usrSrcAddress, _dstChainId
+                orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _dstChainId
             )
         );
 
         orders[orderId] = orderHash;
         orderStatus[orderId] = OrderState.PENDING;
 
-        emit OrderPlaced(orderId, _usrDstAddress, _expirationTimestamp, bridgeAmount, _fee, _usrSrcAddress, _dstChainId);
+        emit OrderPlaced(orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _dstChainId);
 
         orderId += 1;
     }

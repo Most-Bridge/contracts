@@ -20,7 +20,7 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
 
     // State variables
     uint256 private orderId = 1;
-    address public owner;
+    // address public owner; // TODO bring back when not using whitelist
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
     uint256 public constant ONE_YEAR = 365 days;
@@ -90,7 +90,7 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
 
     /// Constructor
     constructor(HDPConnectionInitial[] memory initialHDPChainConnections) {
-        owner = msg.sender;
+        // owner = msg.sender; // TODO bring back when not using whitelist
 
         // Initial destination chain connections added at the time of contract deployment
         for (uint256 i = 0; i < initialHDPChainConnections.length; i++) {
@@ -114,10 +114,13 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
         payable
         nonReentrant
         whenNotPaused
+        onlyWhitelist
     {
-        // TODO: add back whitelist
+        // TODO: add back onlyWhitelist modifier
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
+        // require(msg.value <= WHITELIST_LIMIT, "Amount exceeds 0.0075 ether");
+        // TODO for whitelist
 
         uint256 currentTimestamp = block.timestamp;
         uint256 _expirationTimestamp = currentTimestamp + ONE_YEAR;
@@ -133,7 +136,9 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
         orders[orderId] = orderHash;
         orderStatus[orderId] = OrderState.PENDING;
 
-        emit OrderPlaced(orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _dstChainId);
+        emit OrderPlaced(
+            orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _dstChainId
+        );
 
         orderId += 1;
     }
@@ -314,8 +319,8 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
         _;
     }
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Caller is not the owner");
-        _;
-    }
+    // modifier onlyOwner() { // TODO bring back when not using whitelist
+    //     require(msg.sender == owner, "Caller is not the owner");
+    //     _;
+    // }
 }
