@@ -72,7 +72,10 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
         uint256 id;
         uint256 usrDstAddress;
         uint256 expirationTimestamp;
-        uint256 bridgeAmount;
+        uint256 sourceAmount;
+        uint256 destinationAmount;
+        address sourceToken;
+        address destinationToken;
         uint256 fee;
         address usrSrcAddress;
         bytes32 dstChainId;
