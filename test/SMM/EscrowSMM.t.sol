@@ -17,9 +17,7 @@ contract EscrowTest is Test {
     uint256 feeAmount;
     address owner;
     uint256 firstOrderId;
-    uint256 public constant ONE_YEAR = 365 days;
-
-    address[] public whitelistAddresses; // TODO: remove once done using whitelist
+    uint256 public constant ONE_DAY = 1 days;
 
     function setUp() public {
         Escrow.HDPConnectionInitial[] memory initialHDPChainConnections = new Escrow.HDPConnectionInitial[](1);
@@ -31,8 +29,6 @@ contract EscrowTest is Test {
             hdpProgramHash: bytes32(uint256(0x3e6ede9c31b71072c18c6d1453285eac4ae0cf7702e3e5b8fe17d470ed0ddf4))
         });
 
-        whitelistAddresses.push(user); // TODO: remove once done using whitelist
-
         escrow = new Escrow(initialHDPChainConnections);
         vm.deal(user, 10 ether);
         sendAmount = 0.00001 ether;
@@ -40,8 +36,6 @@ contract EscrowTest is Test {
         owner = address(this);
         escrow.setAllowedAddress(owner);
         firstOrderId = 1;
-
-        escrow.batchAddToWhitelist(whitelistAddresses);
     }
 
     function testCreateOrderSuccess() public {
@@ -52,7 +46,7 @@ contract EscrowTest is Test {
             abi.encodePacked(
                 firstOrderId,
                 destinationAddress,
-                block.timestamp + ONE_YEAR,
+                block.timestamp + ONE_DAY,
                 sendAmount - feeAmount,
                 feeAmount,
                 user,
@@ -111,7 +105,7 @@ contract EscrowTest is Test {
             abi.encodePacked(
                 firstOrderId,
                 destinationAddress,
-                block.timestamp + ONE_YEAR,
+                block.timestamp + ONE_DAY,
                 sendAmount - feeAmount,
                 feeAmount,
                 user,
@@ -131,10 +125,10 @@ contract EscrowTest is Test {
         assertEq(user.balance, 9.99999 ether); // user balance decreased
 
         uint256 currentTimestamp = block.timestamp;
-        uint256 expirationTimestamp = currentTimestamp + ONE_YEAR;
+        uint256 expirationTimestamp = currentTimestamp + ONE_DAY;
         uint256 bridgeAmount = sendAmount - feeAmount;
 
-        vm.warp(block.timestamp + ONE_YEAR + 1 days); // order is now expired
+        vm.warp(block.timestamp + ONE_DAY + 1 days); // order is now expired
 
         // Array with one order
         Escrow.Order[] memory ordersToRefund = new Escrow.Order[](1);
@@ -161,9 +155,9 @@ contract EscrowTest is Test {
         escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, dstChainId);
         vm.stopPrank();
 
-        uint256 expirationTimestamp = block.timestamp + ONE_YEAR;
+        uint256 expirationTimestamp = block.timestamp + ONE_DAY;
 
-        vm.warp(block.timestamp + ONE_YEAR + 2 days); // order expired
+        vm.warp(block.timestamp + ONE_DAY + 2 days); // order expired
 
         vm.startPrank(maliciousActor);
         // Create array with one order
@@ -194,7 +188,7 @@ contract EscrowTest is Test {
         ordersToRefund[0] = Escrow.Order({
             id: firstOrderId, // Changed from 1 to firstOrderId
             usrDstAddress: destinationAddress,
-            expirationTimestamp: block.timestamp + ONE_YEAR,
+            expirationTimestamp: block.timestamp + ONE_DAY,
             bridgeAmount: sendAmount - feeAmount,
             fee: feeAmount,
             usrSrcAddress: user,
@@ -211,7 +205,7 @@ contract EscrowTest is Test {
         escrow.createOrder{value: sendAmount}(destinationAddress, feeAmount, dstChainId);
         vm.stopPrank();
 
-        vm.warp(block.timestamp + ONE_YEAR + 1 days); // order expired
+        vm.warp(block.timestamp + ONE_DAY + 1 days); // order expired
 
         vm.startPrank(user);
         // Create array with one order with wrong details
