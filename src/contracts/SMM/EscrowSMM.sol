@@ -194,11 +194,14 @@ contract Escrow is ReentrancyGuard, Pausable {
             bytes32 orderHash = keccak256(
                 abi.encodePacked(
                     order.id,
+                    order.usrSrcAddress,
                     order.usrDstAddress,
                     order.expirationTimestamp,
-                    order.bridgeAmount,
+                    order.srcToken,
+                    order.srcAmount,
+                    order.dstToken,
+                    order.dstAmount,
                     order.fee,
-                    order.usrSrcAddress,
                     order.dstChainId
                 )
             );
@@ -243,11 +246,14 @@ contract Escrow is ReentrancyGuard, Pausable {
             bytes32 orderHash = keccak256(
                 abi.encodePacked(
                     order.id,
+                    order.usrSrcAddress,
                     order.usrDstAddress,
                     order.expirationTimestamp,
-                    order.bridgeAmount,
+                    order.srcToken,
+                    order.srcAmount,
+                    order.dstToken,
+                    order.dstAmount,
                     order.fee,
-                    order.usrSrcAddress,
                     order.dstChainId
                 )
             );
@@ -271,17 +277,21 @@ contract Escrow is ReentrancyGuard, Pausable {
     function refundOrderBatch(Order[] calldata calldataOrders) external payable nonReentrant {
         uint256 amountToRefund = 0;
         uint256[] memory refundedOrderIds = new uint256[](calldataOrders.length);
+        address _usrSrcAddress = msg.sender;
 
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             Order memory order = calldataOrders[i];
             bytes32 orderHash = keccak256(
                 abi.encodePacked(
                     order.id,
+                    _usrSrcAddress,
                     order.usrDstAddress,
                     order.expirationTimestamp,
-                    order.bridgeAmount,
+                    order.srcToken,
+                    order.srcAmount,
+                    order.dstToken,
+                    order.dstAmount,
                     order.fee,
-                    msg.sender,
                     order.dstChainId
                 )
             );
@@ -326,6 +336,14 @@ contract Escrow is ReentrancyGuard, Pausable {
             HDPConnection({paymentRegistryAddress: _paymentRegistryAddress, hdpProgramHash: _hdpProgramHash});
 
         hdpConnections[_destinationChain] = hdpConnection;
+    }
+
+    function addSupportForNewSrcToken(address _srcTokenToAdd) external onlyOwner {
+        supportedSrcTokens[_tokenToAdd] == true;
+    }
+
+    function addSupportForNewDstToken(bytes32 chainId, address _dstTokenToAdd) external onlyOwner {
+        supportedDstTokensByChain[chainId][_dstTokenToAdd] == true;
     }
 
     // This is only temporary
