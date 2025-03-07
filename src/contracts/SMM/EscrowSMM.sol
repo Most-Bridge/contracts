@@ -110,6 +110,13 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
     }
 
+    // address srcToken +
+    //     uint256 srcAmount
+    //     address dstToken,
+    //     uint256 dstAmount,
+
+    // should i do a separate logic for native eth vs non native eth?
+
     /// Functions
     ///
     /// @notice Allows the user to create an order
@@ -128,6 +135,9 @@ contract Escrow is ReentrancyGuard, Pausable {
     ) external payable nonReentrant whenNotPaused {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
+
+        require(supportedSrcTokens[_srcToken] == true, "The source token is not supported.");
+        require(supportedDstTokensByChain[_dstChainId][_dstToken] == true, "The destination token is not supported.");
 
         require(supportedSrcTokens[_srcToken] == true, "The source token is not supported.");
         require(supportedDstTokensByChain[_dstChainId][_dstToken] == true, "The destination token is not supported.");
