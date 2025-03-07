@@ -7,7 +7,6 @@ import {ModuleTask} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.sol
 import {ModuleCodecs} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.sol";
 import {TaskCode} from "lib/hdp-solidity/src/datatypes/Task.sol";
 import {IHdpExecutionStore} from "src/interface/IHdpExecutionStore.sol";
-import {Whitelist} from "src/contracts/SMM/Whitelist.sol";
 
 /// @title Escrow SMM (Single Market Maker)
 ///
@@ -15,16 +14,15 @@ import {Whitelist} from "src/contracts/SMM/Whitelist.sol";
 ///
 /// @notice Handles the bridging of assets between a src chain and a dst chain, in conjunction with Payment Registry and a
 ///         facilitator service.
-contract Escrow is ReentrancyGuard, Pausable, Whitelist {
+contract Escrow is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
 
     // State variables
     uint256 private orderId = 1;
-    // address public owner; // TODO bring back when not using whitelist
+    address public owner;
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
-    uint256 public constant ONE_YEAR = 365 days;
-    uint256 public constant WHITELIST_LIMIT = 7500000000000000; // 0.0075 ether TODO remove after whitelist done
+    uint256 public constant ONE_DAY = 1 days;
 
     // HDP
     address public HDP_EXECUTION_STORE_ADDRESS = 0xE321b311d860fA58a110fC93b756138678e0d00d;
@@ -100,7 +98,7 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
 
     /// Constructor
     constructor(HDPConnectionInitial[] memory initialHDPChainConnections) {
-        // owner = msg.sender; // TODO bring back when not using whitelist
+        owner = msg.sender;
 
         // Initial destination chain connections added at the time of contract deployment
         for (uint256 i = 0; i < initialHDPChainConnections.length; i++) {
@@ -134,25 +132,34 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
         uint256 _srcAmount,
         address _dstToken,
         uint256 _dstAmount
-    ) external payable nonReentrant whenNotPaused onlyWhitelist {
-        // TODO:  remove onlyWhitelist modifier
+    ) external payable nonReentrant whenNotPaused {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
-        require(msg.value <= WHITELIST_LIMIT, "Amount exceeds 0.0075 ether");
-        // TODO whitelist limit
+
+        require(supportedSrcTokens[_srcToken] == true, "The source token is not supported.");
+        require(supportedDstTokensByChain[_dstChainId][_dstToken] == true, "The destination token is not supported.");
 
         require(supportedSrcTokens[_srcToken] == true, "The source token is not supported.");
         require(supportedDstTokensByChain[_dstChainId][_dstToken] == true, "The destination token is not supported.");
 
         // The order expires 24 hours after placement. If not proven by then, the user can withdraw funds.
         uint256 currentTimestamp = block.timestamp;
-        uint256 _expirationTimestamp = currentTimestamp + ONE_YEAR;
+        uint256 _expirationTimestamp = currentTimestamp + ONE_DAY;
         address _usrSrcAddress = msg.sender;
         uint256 _bridgeAmount = msg.value - _fee; //no underflow since previous check is made
 
         bytes32 orderHash = keccak256(
             abi.encodePacked(
-                orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _dstChainId
+                orderId,
+                _usrSrcAddress,
+                _usrDstAddress,
+                _expirationTimestamp,
+                _srcToken,
+                _srcAmount,
+                _dstToken,
+                _dstAmount,
+                _fee,
+                _dstChainId
             )
         );
 
@@ -160,7 +167,16 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
         orderStatus[orderId] = OrderState.PENDING;
 
         emit OrderPlaced(
-            orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _dstChainId
+            orderId,
+            _usrSrcAddress,
+            _usrDstAddress,
+            _expirationTimestamp,
+            _srcToken,
+            _srcAmount,
+            _dstToken,
+            _dstAmount,
+            _fee,
+            _dstChainId
         );
 
         orderId += 1;
@@ -188,11 +204,14 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
             bytes32 orderHash = keccak256(
                 abi.encodePacked(
                     order.id,
+                    order.usrSrcAddress,
                     order.usrDstAddress,
                     order.expirationTimestamp,
-                    order.bridgeAmount,
+                    order.srcToken,
+                    order.srcAmount,
+                    order.dstToken,
+                    order.dstAmount,
                     order.fee,
-                    order.usrSrcAddress,
                     order.dstChainId
                 )
             );
@@ -237,11 +256,14 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
             bytes32 orderHash = keccak256(
                 abi.encodePacked(
                     order.id,
+                    order.usrSrcAddress,
                     order.usrDstAddress,
                     order.expirationTimestamp,
-                    order.bridgeAmount,
+                    order.srcToken,
+                    order.srcAmount,
+                    order.dstToken,
+                    order.dstAmount,
                     order.fee,
-                    order.usrSrcAddress,
                     order.dstChainId
                 )
             );
@@ -265,17 +287,21 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
     function refundOrderBatch(Order[] calldata calldataOrders) external payable nonReentrant {
         uint256 amountToRefund = 0;
         uint256[] memory refundedOrderIds = new uint256[](calldataOrders.length);
+        address _usrSrcAddress = msg.sender;
 
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             Order memory order = calldataOrders[i];
             bytes32 orderHash = keccak256(
                 abi.encodePacked(
                     order.id,
+                    _usrSrcAddress,
                     order.usrDstAddress,
                     order.expirationTimestamp,
-                    order.bridgeAmount,
+                    order.srcToken,
+                    order.srcAmount,
+                    order.dstToken,
+                    order.dstAmount,
                     order.fee,
-                    msg.sender,
                     order.dstChainId
                 )
             );
@@ -350,8 +376,8 @@ contract Escrow is ReentrancyGuard, Pausable, Whitelist {
         _;
     }
 
-    // modifier onlyOwner() { // TODO bring back when not using whitelist
-    //     require(msg.sender == owner, "Caller is not the owner");
-    //     _;
-    // }
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Caller is not the owner");
+        _;
+    }
 }
