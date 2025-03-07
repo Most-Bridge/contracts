@@ -34,17 +34,23 @@ contract Escrow is ReentrancyGuard, Pausable {
     mapping(uint256 => bytes32) public orders;
     mapping(uint256 => OrderState) public orderStatus;
     mapping(bytes32 => HDPConnection) public hdpConnections; // mapping chainId -> HdpConnection
+    mapping(address => bool) public supportedSrcTokens;
+    mapping(address => mapping(address => bool)) supportedDstTokensByChain; // mapping chainId -> token address -> is supported?
 
     /// Events
     /// @param usrDstAddress Stored as a uint256 to allow for starknet addresses to be stored
     /// @param dstChainId    Stored as a hex in bytes32 to allow for longer chain ids
+    /// @param fee           Calculated using the sourceToken
     event OrderPlaced(
         uint256 orderId,
+        address usrSrcAddress,
         uint256 usrDstAddress,
         uint256 expirationTimestamp,
-        uint256 amount,
+        address srcToken,
+        uint256 srcAmount,
+        address dstToken,
+        uint256 dstAmount,
         uint256 fee,
-        address usrSrcAddress,
         bytes32 dstChainId
     );
     event ProveBridgeAggregatedSuccess(uint256[] orderIds);
@@ -67,12 +73,15 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     // Structs
     struct Order {
-        uint256 id;
+        uint256 orderId;
+        address usrSrcAddress;
         uint256 usrDstAddress;
         uint256 expirationTimestamp;
-        uint256 bridgeAmount;
+        address srcToken;
+        uint256 srcAmount;
+        address dstToken;
+        uint256 dstAmount;
         uint256 fee;
-        address usrSrcAddress;
         bytes32 dstChainId;
     }
 
@@ -108,14 +117,20 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param _usrDstAddress The destination address of the user
     /// @param _fee           The fee for the market maker
     /// @param _dstChainId    Destination Chain Id as a hex
-    function createOrder(uint256 _usrDstAddress, uint256 _fee, bytes32 _dstChainId)
-        external
-        payable
-        nonReentrant
-        whenNotPaused
-    {
+    function createOrder(
+        uint256 _usrDstAddress,
+        uint256 _fee,
+        bytes32 _dstChainId,
+        address _srcToken,
+        uint256 _srcAmount,
+        address _dstToken,
+        uint256 _dstAmount
+    ) external payable nonReentrant whenNotPaused {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
+
+        require(supportedSrcTokens[_srcToken] == true, "The source token is not supported.");
+        require(supportedDstTokensByChain[_dstChainId][_dstToken] == true, "The destination token is not supported.");
 
         // The order expires 24 hours after placement. If not proven by then, the user can withdraw funds.
         uint256 currentTimestamp = block.timestamp;
@@ -125,7 +140,16 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         bytes32 orderHash = keccak256(
             abi.encodePacked(
-                orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _dstChainId
+                orderId,
+                _usrSrcAddress,
+                _usrDstAddress,
+                _expirationTimestamp,
+                _srcToken,
+                _srcAmount,
+                _dstToken,
+                _dstAmount,
+                _fee,
+                _dstChainId
             )
         );
 
@@ -133,7 +157,16 @@ contract Escrow is ReentrancyGuard, Pausable {
         orderStatus[orderId] = OrderState.PENDING;
 
         emit OrderPlaced(
-            orderId, _usrDstAddress, _expirationTimestamp, _bridgeAmount, _fee, _usrSrcAddress, _dstChainId
+            orderId,
+            _usrSrcAddress,
+            _usrDstAddress,
+            _expirationTimestamp,
+            _srcToken,
+            _srcAmount,
+            _dstToken,
+            _dstAmount,
+            _fee,
+            _dstChainId
         );
 
         orderId += 1;
