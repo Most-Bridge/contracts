@@ -197,20 +197,8 @@ contract Escrow is ReentrancyGuard, Pausable {
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             // validate the call data
             Order memory order = calldataOrders[i];
-            bytes32 orderHash = keccak256(
-                abi.encodePacked(
-                    order.id,
-                    order.usrSrcAddress,
-                    order.usrDstAddress,
-                    order.expirationTimestamp,
-                    order.srcToken,
-                    order.srcAmount,
-                    order.dstToken,
-                    order.dstAmount,
-                    order.fee,
-                    order.dstChainId
-                )
-            );
+            bytes32 orderHash = _createOrderHash(order);
+
             require(orders[order.id] == orderHash, "Order hash mismatch");
             taskInputs[i + 3] = orderHash; // offset because first 3 arguments are destination chain id, payment registry address and block number
         }
@@ -249,20 +237,8 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             Order memory order = calldataOrders[i];
-            bytes32 orderHash = keccak256(
-                abi.encodePacked(
-                    order.id,
-                    order.usrSrcAddress,
-                    order.usrDstAddress,
-                    order.expirationTimestamp,
-                    order.srcToken,
-                    order.srcAmount,
-                    order.dstToken,
-                    order.dstAmount,
-                    order.fee,
-                    order.dstChainId
-                )
-            );
+            bytes32 orderHash = _createOrderHash(order);
+
             require(orders[order.id] == orderHash, "Order hash mismatch");
             require(orderStatus[order.id] == OrderState.PROVED, "Order has not been proved");
 
@@ -287,20 +263,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             Order memory order = calldataOrders[i];
-            bytes32 orderHash = keccak256(
-                abi.encodePacked(
-                    order.id,
-                    _usrSrcAddress,
-                    order.usrDstAddress,
-                    order.expirationTimestamp,
-                    order.srcToken,
-                    order.srcAmount,
-                    order.dstToken,
-                    order.dstAmount,
-                    order.fee,
-                    order.dstChainId
-                )
-            );
+            bytes32 orderHash = _createOrderHash(order);
 
             require(orders[order.id] == orderHash, "Order hash mismatch");
             require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund an order if it is not pending.");
@@ -314,6 +277,23 @@ contract Escrow is ReentrancyGuard, Pausable {
         (bool success,) = payable(msg.sender).call{value: amountToRefund}("");
         require(success, "Refund Order: Transfer failed");
         emit OrdersReclaimed(refundedOrderIds);
+    }
+
+    function _createOrderHash(Order calldataOrder) internal returns (bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                order.id,
+                _usrSrcAddress,
+                order.usrDstAddress,
+                order.expirationTimestamp,
+                order.srcToken,
+                order.srcAmount,
+                order.dstToken,
+                order.dstAmount,
+                order.fee,
+                order.dstChainId
+            )
+        );
     }
 
     /// Restricted functions
