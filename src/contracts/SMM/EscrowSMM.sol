@@ -259,10 +259,10 @@ contract Escrow is ReentrancyGuard, Pausable {
     function refundOrderBatch(Order[] calldata calldataOrders) external payable nonReentrant {
         uint256 amountToRefund = 0;
         uint256[] memory refundedOrderIds = new uint256[](calldataOrders.length);
-        address _usrSrcAddress = msg.sender;
 
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             Order memory order = calldataOrders[i];
+            require(msg.sender == order.usrSrcAddress);
             bytes32 orderHash = _createOrderHash(order);
 
             require(orders[order.id] == orderHash, "Order hash mismatch");
@@ -279,19 +279,19 @@ contract Escrow is ReentrancyGuard, Pausable {
         emit OrdersReclaimed(refundedOrderIds);
     }
 
-    function _createOrderHash(Order calldataOrder) internal returns (bytes32) {
+    function _createOrderHash(Order memory orderDetails) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
-                order.id,
-                _usrSrcAddress,
-                order.usrDstAddress,
-                order.expirationTimestamp,
-                order.srcToken,
-                order.srcAmount,
-                order.dstToken,
-                order.dstAmount,
-                order.fee,
-                order.dstChainId
+                orderDetails.id,
+                orderDetails.usrSrcAddress,
+                orderDetails.usrDstAddress,
+                orderDetails.expirationTimestamp,
+                orderDetails.srcToken,
+                orderDetails.srcAmount,
+                orderDetails.dstToken,
+                orderDetails.dstAmount,
+                orderDetails.fee,
+                orderDetails.dstChainId
             )
         );
     }
