@@ -35,7 +35,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     mapping(uint256 => OrderState) public orderStatus;
     mapping(bytes32 => HDPConnection) public hdpConnections; // mapping chainId -> HdpConnection
     mapping(address => bool) public supportedSrcTokens;
-    mapping(address => mapping(address => bool)) supportedDstTokensByChain; // mapping chainId -> token address -> is supported?
+    mapping(bytes32 => mapping(address => bool)) supportedDstTokensByChain; // mapping chainId -> token address -> is token supported?
 
     /// Events
     /// @param usrDstAddress Stored as a uint256 to allow for starknet addresses to be stored
@@ -73,7 +73,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     // Structs
     struct Order {
-        uint256 orderId;
+        uint256 id;
         address usrSrcAddress;
         uint256 usrDstAddress;
         uint256 expirationTimestamp;
@@ -123,11 +123,17 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 _dstChainId,
         address _srcToken,
         uint256 _srcAmount,
-        address _dstToken,
-        uint256 _dstAmount
-    ) external payable nonReentrant whenNotPaused {
+        address _dstToken
+    )
+        // uint256 _dstAmount
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+    {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value > _fee, "Fee must be less than the total value sent");
+        require(msg.value == _srcAmount, "The amount sent must match the msg.value");
 
         require(supportedSrcTokens[_srcToken] == true, "The source token is not supported.");
         require(supportedDstTokensByChain[_dstChainId][_dstToken] == true, "The destination token is not supported.");
@@ -136,7 +142,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 currentTimestamp = block.timestamp;
         uint256 _expirationTimestamp = currentTimestamp + ONE_DAY;
         address _usrSrcAddress = msg.sender;
-        uint256 _bridgeAmount = msg.value - _fee; //no underflow since previous check is made
+        uint256 _dstAmount = _srcAmount - _fee; //no underflow since previous check is made
 
         bytes32 orderHash = keccak256(
             abi.encodePacked(
@@ -260,7 +266,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             require(orders[order.id] == orderHash, "Order hash mismatch");
             require(orderStatus[order.id] == OrderState.PROVED, "Order has not been proved");
 
-            amountToWithdraw += order.bridgeAmount + order.fee;
+            amountToWithdraw += order.srcAmount + order.fee;
             orderStatus[order.id] = OrderState.COMPLETED;
             withdrawnOrderIds[i] = order.id;
         }
@@ -300,7 +306,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund an order if it is not pending.");
             require(block.timestamp > order.expirationTimestamp, "Cannot refund an order that has not expired.");
 
-            amountToRefund += order.bridgeAmount + order.fee;
+            amountToRefund += order.srcAmount + order.fee;
             orderStatus[order.id] = OrderState.RECLAIMED;
             refundedOrderIds[i] = order.id;
         }
@@ -340,12 +346,12 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /// @notice Add a new supported token that is able to be locked up on the source chain
     function addSupportForNewSrcToken(address _srcTokenToAdd) external onlyOwner {
-        supportedSrcTokens[_tokenToAdd] == true;
+        supportedSrcTokens[_srcTokenToAdd] = true;
     }
 
     // @notice Add a new destination token, based on the destination chain
     function addSupportForNewDstToken(bytes32 chainId, address _dstTokenToAdd) external onlyOwner {
-        supportedDstTokensByChain[chainId][_dstTokenToAdd] == true;
+        supportedDstTokensByChain[chainId][_dstTokenToAdd] = true;
     }
 
     // This is only temporary
