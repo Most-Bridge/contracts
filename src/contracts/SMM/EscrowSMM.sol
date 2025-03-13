@@ -242,7 +242,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             require(orders[order.id] == orderHash, "Order hash mismatch");
             require(orderStatus[order.id] == OrderState.PROVED, "Order has not been proved");
 
-            amountToWithdraw += order.srcAmount + order.fee;
+            amountToWithdraw += order.srcAmount; // srcAmount includes the fee
             orderStatus[order.id] = OrderState.COMPLETED;
             withdrawnOrderIds[i] = order.id;
         }
@@ -262,14 +262,14 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             Order memory order = calldataOrders[i];
-            require(msg.sender == order.usrSrcAddress);
+            require(msg.sender == order.usrSrcAddress, "Only the original address can refund an intent.");
             bytes32 orderHash = _createOrderHash(order);
 
             require(orders[order.id] == orderHash, "Order hash mismatch");
             require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund an order if it is not pending.");
             require(block.timestamp > order.expirationTimestamp, "Cannot refund an order that has not expired.");
 
-            amountToRefund += order.srcAmount + order.fee;
+            amountToRefund += order.srcAmount; // srcAmount includes the fee
             orderStatus[order.id] = OrderState.RECLAIMED;
             refundedOrderIds[i] = order.id;
         }
