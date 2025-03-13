@@ -24,9 +24,9 @@ contract PaymentRegistryTest is Test {
         paymentRegistry.setAllowedMMAddress(mmDstAddress);
     }
 
-    function testFulfillOrder() public {
+    function testFulfillIntent() public {
         vm.prank(mmDstAddress); // mm calls
-        paymentRegistry.fulfillOrder{value: sendAmount}(
+        paymentRegistry.fulfillIntent{value: sendAmount}(
             orderId, destinationAddress, expirationTimestamp, fee, mmSrcAddress, destinationChainId
         );
 
@@ -41,23 +41,23 @@ contract PaymentRegistryTest is Test {
         assertEq(address(mmDstAddress).balance, 9 ether, "Market maker balance did not decrease.");
     }
 
-    function testFulfillOrderFailsIfAlreadyProcessed() public {
+    function testFulfillIntentFailsIfAlreadyProcessed() public {
         vm.startPrank(mmDstAddress);
-        paymentRegistry.fulfillOrder{value: 1 ether}(
+        paymentRegistry.fulfillIntent{value: 1 ether}(
             orderId, destinationAddress, expirationTimestamp, fee, mmSrcAddress, destinationChainId
         );
 
         vm.expectRevert("Transfer already processed.");
-        paymentRegistry.fulfillOrder{value: 1 ether}(
+        paymentRegistry.fulfillIntent{value: 1 ether}(
             orderId, destinationAddress, expirationTimestamp, fee, mmSrcAddress, destinationChainId
         );
         vm.stopPrank();
     }
 
-    function testFulfillOrderFailsIfNoValue() public {
+    function testFulfillIntentFailsIfNoValue() public {
         vm.prank(mmDstAddress);
         vm.expectRevert("Funds being sent must exceed 0.");
-        paymentRegistry.fulfillOrder{value: 0}(
+        paymentRegistry.fulfillIntent{value: 0}(
             orderId, destinationAddress, expirationTimestamp, fee, mmSrcAddress, destinationChainId
         );
     }
@@ -67,7 +67,7 @@ contract PaymentRegistryTest is Test {
         vm.expectRevert("Cannot fulfill an expired order.");
         // warping time to expire order
         vm.warp(block.timestamp + 2 days);
-        paymentRegistry.fulfillOrder{value: 1 ether}(
+        paymentRegistry.fulfillIntent{value: 1 ether}(
             orderId, destinationAddress, expirationTimestamp, fee, mmSrcAddress, destinationChainId
         );
     }
