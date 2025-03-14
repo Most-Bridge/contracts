@@ -197,6 +197,12 @@ contract Escrow is ReentrancyGuard, Pausable {
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             // validate the call data
             Order memory order = calldataOrders[i];
+            
+            require(
+                orderStatus[order.id] == OrderState.PENDING,
+                "Order not in PENDING state"
+            );
+            
             bytes32 orderHash = _createOrderHash(order);
 
             require(orders[order.id] == orderHash, "Order hash mismatch");
@@ -318,6 +324,8 @@ contract Escrow is ReentrancyGuard, Pausable {
         external
         onlyOwner
     {
+        require(hdpConnections[_destinationChain] == 0x0, "Destination chain already added");
+        
         HDPConnection memory hdpConnection =
             HDPConnection({paymentRegistryAddress: _paymentRegistryAddress, hdpProgramHash: _hdpProgramHash});
 
