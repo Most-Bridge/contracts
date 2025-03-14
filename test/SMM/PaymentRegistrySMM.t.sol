@@ -24,9 +24,9 @@ contract PaymentRegistryTest is Test {
         paymentRegistry.setAllowedMMAddress(mmDstAddress);
     }
 
-    function testFulfillIntent() public {
+    function testFulfillmentSuccess() public {
         vm.prank(mmDstAddress); // mm calls
-        paymentRegistry.fulfillIntent{value: sendAmount}(
+        paymentRegistry.mostFulfillment{value: sendAmount}(
             orderId, destinationAddress, expirationTimestamp, fee, mmSrcAddress, destinationChainId
         );
 
@@ -41,33 +41,33 @@ contract PaymentRegistryTest is Test {
         assertEq(address(mmDstAddress).balance, 9 ether, "Market maker balance did not decrease.");
     }
 
-    function testFulfillIntentFailsIfAlreadyProcessed() public {
+    function testFulfillmentFailsIfAlreadyProcessed() public {
         vm.startPrank(mmDstAddress);
-        paymentRegistry.fulfillIntent{value: 1 ether}(
+        paymentRegistry.mostFulfillment{value: 1 ether}(
             orderId, destinationAddress, expirationTimestamp, fee, mmSrcAddress, destinationChainId
         );
 
         vm.expectRevert("Transfer already processed.");
-        paymentRegistry.fulfillIntent{value: 1 ether}(
+        paymentRegistry.mostFulfillment{value: 1 ether}(
             orderId, destinationAddress, expirationTimestamp, fee, mmSrcAddress, destinationChainId
         );
         vm.stopPrank();
     }
 
-    function testFulfillIntentFailsIfNoValue() public {
+    function testFulfillmentFailsIfNoValue() public {
         vm.prank(mmDstAddress);
         vm.expectRevert("Funds being sent must exceed 0.");
-        paymentRegistry.fulfillIntent{value: 0}(
+        paymentRegistry.mostFulfillment{value: 0}(
             orderId, destinationAddress, expirationTimestamp, fee, mmSrcAddress, destinationChainId
         );
     }
 
-    function testFulfillOrderFailsOnExpiredOrder() public {
+    function testFulfillmentFailsOnExpiredOrder() public {
         vm.prank(mmDstAddress);
         vm.expectRevert("Cannot fulfill an expired order.");
         // warping time to expire order
         vm.warp(block.timestamp + 2 days);
-        paymentRegistry.fulfillIntent{value: 1 ether}(
+        paymentRegistry.mostFulfillment{value: 1 ether}(
             orderId, destinationAddress, expirationTimestamp, fee, mmSrcAddress, destinationChainId
         );
     }

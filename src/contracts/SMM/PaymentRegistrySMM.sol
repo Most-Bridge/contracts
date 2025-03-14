@@ -44,7 +44,7 @@ contract PaymentRegistry is Pausable {
     /// @param _fee                 The fee paid to the MM
     /// @param _usrSrcAddress       The address of the user on the source chain
     /// @param _destinationChainId  The destination chain id in hex
-    function fulfillIntent(
+    function mostFulfillment(
         uint256 _orderId,
         address _usrDstAddress,
         uint256 _expirationTimestamp,
