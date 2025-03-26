@@ -60,7 +60,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// Enums
     enum OrderState {
         PENDING,
-        PROVED,
         COMPLETED,
         RECLAIMED,
         DROPPED
@@ -234,36 +233,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(success, "Withdraw transfer failed");
 
         emit ProveBridgeAggregatedSuccess(validOrderIds);
-    }
-
-    /// @notice Allows the market maker to batch unlock the funds for transactions fulfilled by them
-    ///
-    /// @param calldataOrders Order info of the orders to be withdrawn
-    function withdrawProvedBatch(Order[] calldata calldataOrders)
-        external
-        nonReentrant
-        whenNotPaused
-        onlyRelayAddress
-    {
-        uint256 amountToWithdraw = 0;
-        uint256[] memory withdrawnOrderIds = new uint256[](calldataOrders.length);
-
-        for (uint256 i = 0; i < calldataOrders.length; i++) {
-            Order memory order = calldataOrders[i];
-            bytes32 orderHash = _createOrderHash(order);
-
-            require(orders[order.id] == orderHash, "Order hash mismatch");
-            require(orderStatus[order.id] == OrderState.PROVED, "Order has not been proved");
-
-            amountToWithdraw += order.srcAmount; // srcAmount includes the fee
-            orderStatus[order.id] = OrderState.COMPLETED;
-            withdrawnOrderIds[i] = order.id;
-        }
-        // payout MM
-        require(address(this).balance >= amountToWithdraw, "Escrow: Insufficient balance to withdraw");
-        (bool success,) = payable(allowedWithdrawalAddress).call{value: amountToWithdraw}("");
-        require(success, "Withdraw Proved Batch: Transfer failed");
-        emit WithdrawSuccessBatch(withdrawnOrderIds);
     }
 
     /// @notice Allows the user to refund their order if it has not been fulfilled by the expiration date
