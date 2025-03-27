@@ -294,14 +294,21 @@ contract Escrow is ReentrancyGuard, Pausable {
         allowedRelayAddress = _newAllowedAddress;
     }
 
+    /// @notice Check if given bridging destination chain exist
+    function isHDPConnectionAvailable(bytes32 _destinationChain) public view returns (bool) {
+        HDPConnection storage connection = hdpConnections[_destinationChain];
+        return connection.hdpProgramHash != bytes32(0) 
+            && connection.paymentRegistryAddress != bytes32(0);
+    }
+
     /// @notice Function called when adding a new destination chain, in Single Market Maker mode. onlyOwner modifier is used,
     ///         and the program hash cannot be modified or deleted once added
     function addDestinationChain(bytes32 _destinationChain, bytes32 _hdpProgramHash, bytes32 _paymentRegistryAddress)
         external
         onlyOwner
     {
-        require(hdpConnections[_destinationChain] == 0x0, "Destination chain already added");
-
+        require(isHDPConnectionAvailable(_destinationChain) == false, "Destination chain already added");
+        
         HDPConnection memory hdpConnection =
             HDPConnection({paymentRegistryAddress: _paymentRegistryAddress, hdpProgramHash: _hdpProgramHash});
 
