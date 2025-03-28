@@ -232,10 +232,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         (bool success,) = payable(allowedWithdrawalAddress).call{value: amountToWithdraw}("");
         require(success, "Withdraw transfer failed");
 
-        require(address(this).balance >= amountToWithdraw, "Escrow: Insufficient balance to withdraw");
-        (bool success,) = payable(allowedWithdrawalAddress).call{value: amountToWithdraw}("");
-        require(success, "Withdraw transfer failed");
-
         emit ProveBridgeAggregatedSuccess(validOrderIds);
     }
 
