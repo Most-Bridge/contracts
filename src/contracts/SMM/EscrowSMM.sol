@@ -126,16 +126,10 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 _srcAmount,
         address _dstToken,
         uint256 _dstAmount
-    )
-        // uint256 _dstAmount
-        external
-        payable
-        nonReentrant
-        whenNotPaused
-    {
+    ) external payable nonReentrant whenNotPaused {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
-        require(msg.value > _fee, "Fee must be less than the total value sent");
         require(msg.value == _srcAmount, "The amount sent must match the msg.value");
+        require(msg.value > _fee, "Fee must be less than the total value sent");
 
         require(supportedSrcTokens[_srcToken] == true, "The source token is not supported.");
         require(supportedDstTokensByChain[_dstChainId][_dstToken] == true, "The destination token is not supported.");
@@ -144,7 +138,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 currentTimestamp = block.timestamp;
         uint256 _expirationTimestamp = currentTimestamp + ONE_DAY;
         address _usrSrcAddress = msg.sender;
-        uint256 _dstAmount = _srcAmount - _fee; //no underflow since previous check is made
 
         bytes32 orderHash = keccak256(
             abi.encodePacked(
@@ -157,6 +150,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                 _dstToken,
                 _dstAmount,
                 _fee,
+                SRC_CHAIN_ID,
                 _dstChainId
             )
         );
