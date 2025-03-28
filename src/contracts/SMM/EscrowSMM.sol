@@ -23,7 +23,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
     uint256 public constant ONE_DAY = 1 days;
-
+    bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7;
     // HDP
     address public HDP_EXECUTION_STORE_ADDRESS = 0xE321b311d860fA58a110fC93b756138678e0d00d;
 
@@ -81,6 +81,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         address dstToken;
         uint256 dstAmount;
         uint256 fee;
+        bytes32 srcChainId;
         bytes32 dstChainId;
     }
 
@@ -122,17 +123,12 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 _dstChainId,
         address _srcToken,
         uint256 _srcAmount,
-        address _dstToken
-    )
-        // uint256 _dstAmount
-        external
-        payable
-        nonReentrant
-        whenNotPaused
-    {
+        address _dstToken,
+        uint256 _dstAmount
+    ) external payable nonReentrant whenNotPaused {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
-        require(msg.value > _fee, "Fee must be less than the total value sent");
         require(msg.value == _srcAmount, "The amount sent must match the msg.value");
+        require(msg.value > _fee, "Fee must be less than the total value sent");
 
         require(supportedSrcTokens[_srcToken] == true, "The source token is not supported.");
         require(supportedDstTokensByChain[_dstChainId][_dstToken] == true, "The destination token is not supported.");
@@ -141,7 +137,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 currentTimestamp = block.timestamp;
         uint256 _expirationTimestamp = currentTimestamp + ONE_DAY;
         address _usrSrcAddress = msg.sender;
-        uint256 _dstAmount = _srcAmount - _fee; //no underflow since previous check is made
 
         bytes32 orderHash = keccak256(
             abi.encodePacked(
@@ -154,6 +149,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                 _dstToken,
                 _dstAmount,
                 _fee,
+                SRC_CHAIN_ID,
                 _dstChainId
             )
         );
@@ -273,6 +269,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                 orderDetails.dstToken,
                 orderDetails.dstAmount,
                 orderDetails.fee,
+                orderDetails.srcChainId,
                 orderDetails.dstChainId
             )
         );
@@ -297,8 +294,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @notice Check if given bridging destination chain exist
     function isHDPConnectionAvailable(bytes32 _destinationChain) public view returns (bool) {
         HDPConnection storage connection = hdpConnections[_destinationChain];
-        return connection.hdpProgramHash != bytes32(0) 
-            && connection.paymentRegistryAddress != bytes32(0);
+        return connection.hdpProgramHash != bytes32(0) && connection.paymentRegistryAddress != bytes32(0);
     }
 
     /// @notice Function called when adding a new destination chain, in Single Market Maker mode. onlyOwner modifier is used,

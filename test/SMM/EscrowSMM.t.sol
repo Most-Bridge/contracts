@@ -15,6 +15,7 @@ contract EscrowTest is Test {
     address _dstToken = _srcToken;
 
     bytes32 dstChainId = bytes32(uint256(1));
+    bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7;
 
     uint256 firstOrderId = 1;
     uint256 public constant ONE_DAY = 1 days;
@@ -44,7 +45,7 @@ contract EscrowTest is Test {
     function testCreateOrderSuccess() public {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken
+            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken, _dstAmount
         );
 
         bytes32 expectedOrderHash = keccak256(
@@ -58,6 +59,7 @@ contract EscrowTest is Test {
                 _dstToken,
                 _dstAmount,
                 feeAmount,
+                SRC_CHAIN_ID,
                 dstChainId
             )
         );
@@ -70,14 +72,16 @@ contract EscrowTest is Test {
     function testCreateOrderWithNoValue() public {
         vm.startPrank(user);
         vm.expectRevert("Funds being sent must be greater than 0.");
-        escrow.createOrder(destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken);
+        escrow.createOrder(destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken, _dstAmount);
         vm.stopPrank();
     }
 
     function testCreateOrderWithFeeBiggerThanValueSent() public {
         vm.startPrank(user);
         vm.expectRevert("Fee must be less than the total value sent");
-        escrow.createOrder{value: sendAmount}(destinationAddress, 5 ether, dstChainId, _srcToken, sendAmount, _dstToken);
+        escrow.createOrder{value: sendAmount}(
+            destinationAddress, 5 ether, dstChainId, _srcToken, sendAmount, _dstToken, _dstAmount
+        );
         vm.stopPrank();
     }
 
@@ -89,7 +93,7 @@ contract EscrowTest is Test {
         vm.startPrank(user);
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken
+            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken, _dstAmount
         );
         vm.stopPrank();
     }
@@ -101,7 +105,7 @@ contract EscrowTest is Test {
         vm.prank(user);
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken
+            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken, _dstAmount
         );
 
         vm.prank(owner);
@@ -109,7 +113,7 @@ contract EscrowTest is Test {
 
         vm.prank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken
+            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken, _dstAmount
         );
         bytes32 expectedOrderHash = keccak256(
             abi.encodePacked(
@@ -122,6 +126,7 @@ contract EscrowTest is Test {
                 _dstToken,
                 _dstAmount,
                 feeAmount,
+                SRC_CHAIN_ID,
                 dstChainId
             )
         );
@@ -133,7 +138,7 @@ contract EscrowTest is Test {
     function testRefundOrder() public {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken
+            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken, _dstAmount
         );
         assertEq(user.balance, 9.99999 ether); // user balance decreased
 
@@ -154,6 +159,7 @@ contract EscrowTest is Test {
             dstToken: _dstToken,
             dstAmount: _dstAmount,
             fee: feeAmount,
+            srcChainId: SRC_CHAIN_ID,
             dstChainId: dstChainId
         });
         // Call the batch refund function
@@ -167,7 +173,7 @@ contract EscrowTest is Test {
     function testRefundOrderByWrongUser() public {
         vm.prank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken
+            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken, _dstAmount
         );
         uint256 expirationTimestamp = block.timestamp + ONE_DAY;
 
@@ -185,6 +191,7 @@ contract EscrowTest is Test {
             dstToken: _dstToken,
             dstAmount: _dstAmount,
             fee: feeAmount,
+            srcChainId: SRC_CHAIN_ID,
             dstChainId: dstChainId
         });
 
@@ -196,7 +203,7 @@ contract EscrowTest is Test {
     function testRefundOrderBeforeExpiration() public {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken
+            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken, _dstAmount
         );
         uint256 expirationTimestamp = block.timestamp + ONE_DAY;
         // Create array with one order
@@ -211,6 +218,7 @@ contract EscrowTest is Test {
             dstToken: _dstToken,
             dstAmount: _dstAmount,
             fee: feeAmount,
+            srcChainId: SRC_CHAIN_ID,
             dstChainId: dstChainId
         });
 
@@ -222,7 +230,7 @@ contract EscrowTest is Test {
     function testRefundOrderWithWrongDetails() public {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken
+            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken, _dstAmount
         );
         vm.stopPrank();
 
@@ -241,6 +249,7 @@ contract EscrowTest is Test {
             dstToken: _dstToken,
             dstAmount: _dstAmount,
             fee: feeAmount,
+            srcChainId: SRC_CHAIN_ID,
             dstChainId: dstChainId
         });
 
@@ -279,7 +288,7 @@ contract EscrowTest is Test {
     function testGas_createOrder() public {
         vm.prank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken
+            destinationAddress, feeAmount, dstChainId, _srcToken, sendAmount, _dstToken, _dstAmount
         );
     }
 }
