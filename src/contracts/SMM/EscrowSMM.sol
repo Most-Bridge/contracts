@@ -60,7 +60,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// Enums
     enum OrderState {
         PENDING,
-        PROVED,
         COMPLETED,
         RECLAIMED,
         DROPPED
@@ -183,35 +182,38 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param calldataOrders      Array containing the data of the orders to be proven
     /// @param _blockNumber        The point in time when all the submitted orders have been fulfilled
     /// @param _destinationChainId The chain on which the order was fulfilled
-    function proveHDPFulfillmentBatch(
-        Order[] calldata calldataOrders,
-        uint256 _blockNumber,
-        bytes32 _destinationChainId
-    ) public onlyRelayAddress {
+    function proveAndWithdrawBatch(Order[] calldata calldataOrders, uint256 _blockNumber, bytes32 _destinationChainId)
+        public
+        onlyRelayAddress
+    {
         // For proving in aggregated mode using HDP
         bytes32[] memory taskInputs = new bytes32[](calldataOrders.length + 3);
         taskInputs[0] = bytes32(_destinationChainId); // The bridging destination chain, where PaymentRegistry is located
         taskInputs[1] = bytes32(hdpConnections[_destinationChainId].paymentRegistryAddress); // The address which contains the order fulfillment
         taskInputs[2] = bytes32(_blockNumber); // The point in time at which to prove the orders
 
+        uint256 amountToWithdraw = 0;
+        uint256[] memory validOrderIds = new uint256[](calldataOrders.length);
+
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             // validate the call data
             Order memory order = calldataOrders[i];
-            
-            require(
-                orderStatus[order.id] == OrderState.PENDING,
-                "Order not in PENDING state"
-            );
-            
             bytes32 orderHash = _createOrderHash(order);
 
             require(orders[order.id] == orderHash, "Order hash mismatch");
+            require(orderStatus[order.id] == OrderState.PENDING, "Order not in PENDING state");
+
             taskInputs[i + 3] = orderHash; // offset because first 3 arguments are destination chain id, payment registry address and block number
+            amountToWithdraw += order.srcAmount; // srcAmount includes the fee
+            validOrderIds[i] = order.id;
         }
 
+        // Prove the HDP task
         ModuleTask memory hdpModuleTask =
             ModuleTask({programHash: bytes32(hdpConnections[_destinationChainId].hdpProgramHash), inputs: taskInputs});
+
         bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
+
         require(
             hdpExecutionStore.cachedTasksResult(taskCommitment).status == IHdpExecutionStore.TaskStatus.FINALIZED,
             "HDP Task is not finalized"
@@ -221,42 +223,16 @@ contract Escrow is ReentrancyGuard, Pausable {
             "Unable to prove PaymentRegistry transfer execution"
         );
 
-        uint256[] memory provedOrderIds = new uint256[](calldataOrders.length);
+        // Once validated, update the status of all the orders
         for (uint256 i = 0; i < calldataOrders.length; i++) {
-            orderStatus[calldataOrders[i].id] = OrderState.PROVED;
-            provedOrderIds[i] = calldataOrders[i].id;
+            orderStatus[calldataOrders[i].id] = OrderState.COMPLETED;
         }
-        emit ProveBridgeAggregatedSuccess(provedOrderIds);
-    }
 
-    /// @notice Allows the market maker to batch unlock the funds for transactions fulfilled by them
-    ///
-    /// @param calldataOrders Order info of the orders to be withdrawn
-    function withdrawProvedBatch(Order[] calldata calldataOrders)
-        external
-        nonReentrant
-        whenNotPaused
-        onlyRelayAddress
-    {
-        uint256 amountToWithdraw = 0;
-        uint256[] memory withdrawnOrderIds = new uint256[](calldataOrders.length);
-
-        for (uint256 i = 0; i < calldataOrders.length; i++) {
-            Order memory order = calldataOrders[i];
-            bytes32 orderHash = _createOrderHash(order);
-
-            require(orders[order.id] == orderHash, "Order hash mismatch");
-            require(orderStatus[order.id] == OrderState.PROVED, "Order has not been proved");
-
-            amountToWithdraw += order.srcAmount; // srcAmount includes the fee
-            orderStatus[order.id] = OrderState.COMPLETED;
-            withdrawnOrderIds[i] = order.id;
-        }
-        // payout MM
         require(address(this).balance >= amountToWithdraw, "Escrow: Insufficient balance to withdraw");
         (bool success,) = payable(allowedWithdrawalAddress).call{value: amountToWithdraw}("");
-        require(success, "Withdraw Proved Batch: Transfer failed");
-        emit WithdrawSuccessBatch(withdrawnOrderIds);
+        require(success, "Withdraw transfer failed");
+
+        emit ProveBridgeAggregatedSuccess(validOrderIds);
     }
 
     /// @notice Allows the user to refund their order if it has not been fulfilled by the expiration date
@@ -332,7 +308,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         onlyOwner
     {
         require(isHDPConnectionAvailable(_destinationChain) == false, "Destination chain already added");
-        
         HDPConnection memory hdpConnection =
             HDPConnection({paymentRegistryAddress: _paymentRegistryAddress, hdpProgramHash: _hdpProgramHash});
 
