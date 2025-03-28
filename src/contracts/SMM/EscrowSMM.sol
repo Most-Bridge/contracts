@@ -23,6 +23,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
     uint256 public constant ONE_DAY = 1 days;
+    bytes32 public constant SRC_CHAIN_ID = 0xAA36A7;
 
     // HDP
     address public HDP_EXECUTION_STORE_ADDRESS = 0xE321b311d860fA58a110fC93b756138678e0d00d;
@@ -81,6 +82,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         address dstToken;
         uint256 dstAmount;
         uint256 fee;
+        bytes32 srcChainId;
         bytes32 dstChainId;
     }
 
@@ -122,7 +124,8 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 _dstChainId,
         address _srcToken,
         uint256 _srcAmount,
-        address _dstToken
+        address _dstToken,
+        uint256 _dstAmount
     )
         // uint256 _dstAmount
         external
@@ -273,6 +276,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                 orderDetails.dstToken,
                 orderDetails.dstAmount,
                 orderDetails.fee,
+                orderDetails.srcChainId,
                 orderDetails.dstChainId
             )
         );
@@ -297,8 +301,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @notice Check if given bridging destination chain exist
     function isHDPConnectionAvailable(bytes32 _destinationChain) public view returns (bool) {
         HDPConnection storage connection = hdpConnections[_destinationChain];
-        return connection.hdpProgramHash != bytes32(0) 
-            && connection.paymentRegistryAddress != bytes32(0);
+        return connection.hdpProgramHash != bytes32(0) && connection.paymentRegistryAddress != bytes32(0);
     }
 
     /// @notice Function called when adding a new destination chain, in Single Market Maker mode. onlyOwner modifier is used,
