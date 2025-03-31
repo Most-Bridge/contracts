@@ -20,15 +20,20 @@ contract Escrow is ReentrancyGuard, Pausable {
     // State variables
     uint256 private orderId = 1;
     address public owner;
-    address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
-    address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
+    address public allowedRelayAddress =
+        0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
+    address public allowedWithdrawalAddress =
+        0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
     uint256 public constant ONE_DAY = 1 days;
-    bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7;
+    bytes32 public constant SRC_CHAIN_ID =
+        0x0000000000000000000000000000000000000000000000000000000000AA36A7;
     // HDP
-    address public HDP_EXECUTION_STORE_ADDRESS = 0xE321b311d860fA58a110fC93b756138678e0d00d;
+    address public HDP_EXECUTION_STORE_ADDRESS =
+        0xE321b311d860fA58a110fC93b756138678e0d00d;
 
     // Interfaces
-    IHdpExecutionStore hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
+    IHdpExecutionStore hdpExecutionStore =
+        IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
 
     // Storage
     mapping(uint256 => bytes32) public orders;
@@ -96,15 +101,33 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 paymentRegistryAddress;
     }
 
+    // Struct to help reduce stack variables
+    struct OrderData {
+        uint256 id;
+        address usrSrcAddress;
+        uint256 usrDstAddress;
+        uint256 expirationTimestamp;
+        address srcToken;
+        uint256 srcAmount;
+        address dstToken;
+        uint256 dstAmount;
+        uint256 fee;
+        bytes32 dstChainId;
+    }
+
     /// Constructor
     constructor(HDPConnectionInitial[] memory initialHDPChainConnections) {
         owner = msg.sender;
 
         // Initial destination chain connections added at the time of contract deployment
         for (uint256 i = 0; i < initialHDPChainConnections.length; i++) {
-            HDPConnectionInitial memory hdpConnectionInitial = initialHDPChainConnections[i];
-            hdpConnections[hdpConnectionInitial.destinationChainId] = HDPConnection({
-                paymentRegistryAddress: hdpConnectionInitial.paymentRegistryAddress,
+            HDPConnectionInitial
+                memory hdpConnectionInitial = initialHDPChainConnections[i];
+            hdpConnections[
+                hdpConnectionInitial.destinationChainId
+            ] = HDPConnection({
+                paymentRegistryAddress: hdpConnectionInitial
+                    .paymentRegistryAddress,
                 hdpProgramHash: hdpConnectionInitial.hdpProgramHash
             });
         }
@@ -127,50 +150,81 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 _dstAmount
     ) external payable nonReentrant whenNotPaused {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
-        require(msg.value == _srcAmount, "The amount sent must match the msg.value");
+        require(
+            msg.value == _srcAmount,
+            "The amount sent must match the msg.value"
+        );
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
-        require(supportedSrcTokens[_srcToken] == true, "The source token is not supported.");
-        require(supportedDstTokensByChain[_dstChainId][_dstToken] == true, "The destination token is not supported.");
-
-        // The order expires 24 hours after placement. If not proven by then, the user can withdraw funds.
-        uint256 currentTimestamp = block.timestamp;
-        uint256 _expirationTimestamp = currentTimestamp + ONE_DAY;
-        address _usrSrcAddress = msg.sender;
-
-        bytes32 orderHash = keccak256(
-            abi.encodePacked(
-                orderId,
-                _usrSrcAddress,
-                _usrDstAddress,
-                _expirationTimestamp,
-                _srcToken,
-                _srcAmount,
-                _dstToken,
-                _dstAmount,
-                _fee,
-                SRC_CHAIN_ID,
-                _dstChainId
-            )
+        require(
+            supportedSrcTokens[_srcToken] == true,
+            "The source token is not supported."
+        );
+        require(
+            supportedDstTokensByChain[_dstChainId][_dstToken] == true,
+            "The destination token is not supported."
         );
 
+        // The order expires 24 hours after placement. If not proven by then, the user can withdraw funds.
+        uint256 _expirationTimestamp = block.timestamp + ONE_DAY;
+
+        // Store order data in a struct to avoid stack too deep issues
+        OrderData memory orderData = OrderData({
+            id: orderId,
+            usrSrcAddress: msg.sender,
+            usrDstAddress: _usrDstAddress,
+            expirationTimestamp: _expirationTimestamp,
+            srcToken: _srcToken,
+            srcAmount: _srcAmount,
+            dstToken: _dstToken,
+            dstAmount: _dstAmount,
+            fee: _fee,
+            dstChainId: _dstChainId
+        });
+
+        // Calculate and store order hash
+        bytes32 orderHash = _calculateOrderHash(orderData);
         orders[orderId] = orderHash;
         orderStatus[orderId] = OrderState.PENDING;
 
         emit OrderPlaced(
-            orderId,
-            _usrSrcAddress,
-            _usrDstAddress,
-            _expirationTimestamp,
-            _srcToken,
-            _srcAmount,
-            _dstToken,
-            _dstAmount,
-            _fee,
-            _dstChainId
+            orderData.id,
+            orderData.usrSrcAddress,
+            orderData.usrDstAddress,
+            orderData.expirationTimestamp,
+            orderData.srcToken,
+            orderData.srcAmount,
+            orderData.dstToken,
+            orderData.dstAmount,
+            orderData.fee,
+            orderData.dstChainId
         );
 
         orderId += 1;
+    }
+
+    /// @notice Helper function to calculate the order hash to avoid stack too deep
+    /// @param orderData The order data
+    /// @return The hash of the order
+    function _calculateOrderHash(
+        OrderData memory orderData
+    ) private pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked(
+                    orderData.id,
+                    orderData.usrSrcAddress,
+                    orderData.usrDstAddress,
+                    orderData.expirationTimestamp,
+                    orderData.srcToken,
+                    orderData.srcAmount,
+                    orderData.dstToken,
+                    orderData.dstAmount,
+                    orderData.fee,
+                    SRC_CHAIN_ID,
+                    orderData.dstChainId
+                )
+            );
     }
 
     /// @notice Allows a MM to prove order fulfillment by submitting the order details
@@ -178,14 +232,17 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param calldataOrders      Array containing the data of the orders to be proven
     /// @param _blockNumber        The point in time when all the submitted orders have been fulfilled
     /// @param _destinationChainId The chain on which the order was fulfilled
-    function proveAndWithdrawBatch(Order[] calldata calldataOrders, uint256 _blockNumber, bytes32 _destinationChainId)
-        public
-        onlyRelayAddress
-    {
+    function proveAndWithdrawBatch(
+        Order[] calldata calldataOrders,
+        uint256 _blockNumber,
+        bytes32 _destinationChainId
+    ) public onlyRelayAddress {
         // For proving in aggregated mode using HDP
         bytes32[] memory taskInputs = new bytes32[](calldataOrders.length + 3);
         taskInputs[0] = bytes32(_destinationChainId); // The bridging destination chain, where PaymentRegistry is located
-        taskInputs[1] = bytes32(hdpConnections[_destinationChainId].paymentRegistryAddress); // The address which contains the order fulfillment
+        taskInputs[1] = bytes32(
+            hdpConnections[_destinationChainId].paymentRegistryAddress
+        ); // The address which contains the order fulfillment
         taskInputs[2] = bytes32(_blockNumber); // The point in time at which to prove the orders
 
         uint256 amountToWithdraw = 0;
@@ -197,7 +254,10 @@ contract Escrow is ReentrancyGuard, Pausable {
             bytes32 orderHash = _createOrderHash(order);
 
             require(orders[order.id] == orderHash, "Order hash mismatch");
-            require(orderStatus[order.id] == OrderState.PENDING, "Order not in PENDING state");
+            require(
+                orderStatus[order.id] == OrderState.PENDING,
+                "Order not in PENDING state"
+            );
 
             taskInputs[i + 3] = orderHash; // offset because first 3 arguments are destination chain id, payment registry address and block number
             amountToWithdraw += order.srcAmount; // srcAmount includes the fee
@@ -205,17 +265,23 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
 
         // Prove the HDP task
-        ModuleTask memory hdpModuleTask =
-            ModuleTask({programHash: bytes32(hdpConnections[_destinationChainId].hdpProgramHash), inputs: taskInputs});
+        ModuleTask memory hdpModuleTask = ModuleTask({
+            programHash: bytes32(
+                hdpConnections[_destinationChainId].hdpProgramHash
+            ),
+            inputs: taskInputs
+        });
 
         bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
 
         require(
-            hdpExecutionStore.cachedTasksResult(taskCommitment).status == IHdpExecutionStore.TaskStatus.FINALIZED,
+            hdpExecutionStore.cachedTasksResult(taskCommitment).status ==
+                IHdpExecutionStore.TaskStatus.FINALIZED,
             "HDP Task is not finalized"
         );
         require(
-            hdpExecutionStore.getFinalizedTaskResult(taskCommitment) == bytes32(uint256(HDPProvingStatus.PROVEN)),
+            hdpExecutionStore.getFinalizedTaskResult(taskCommitment) ==
+                bytes32(uint256(HDPProvingStatus.PROVEN)),
             "Unable to prove PaymentRegistry transfer execution"
         );
 
@@ -224,8 +290,13 @@ contract Escrow is ReentrancyGuard, Pausable {
             orderStatus[calldataOrders[i].id] = OrderState.COMPLETED;
         }
 
-        require(address(this).balance >= amountToWithdraw, "Escrow: Insufficient balance to withdraw");
-        (bool success,) = payable(allowedWithdrawalAddress).call{value: amountToWithdraw}("");
+        require(
+            address(this).balance >= amountToWithdraw,
+            "Escrow: Insufficient balance to withdraw"
+        );
+        (bool success, ) = payable(allowedWithdrawalAddress).call{
+            value: amountToWithdraw
+        }("");
         require(success, "Withdraw transfer failed");
 
         emit ProveBridgeAggregatedSuccess(validOrderIds);
@@ -234,45 +305,64 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @notice Allows the user to refund their order if it has not been fulfilled by the expiration date
     ///
     /// @custom:security This function should never be pausable
-    function refundOrderBatch(Order[] calldata calldataOrders) external payable nonReentrant {
+    function refundOrderBatch(
+        Order[] calldata calldataOrders
+    ) external payable nonReentrant {
         uint256 amountToRefund = 0;
-        uint256[] memory refundedOrderIds = new uint256[](calldataOrders.length);
+        uint256[] memory refundedOrderIds = new uint256[](
+            calldataOrders.length
+        );
 
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             Order memory order = calldataOrders[i];
-            require(msg.sender == order.usrSrcAddress, "Only the original address can refund an intent.");
+            require(
+                msg.sender == order.usrSrcAddress,
+                "Only the original address can refund an intent."
+            );
             bytes32 orderHash = _createOrderHash(order);
 
             require(orders[order.id] == orderHash, "Order hash mismatch");
-            require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund an order if it is not pending.");
-            require(block.timestamp > order.expirationTimestamp, "Cannot refund an order that has not expired.");
+            require(
+                orderStatus[order.id] == OrderState.PENDING,
+                "Cannot refund an order if it is not pending."
+            );
+            require(
+                block.timestamp > order.expirationTimestamp,
+                "Cannot refund an order that has not expired."
+            );
 
             amountToRefund += order.srcAmount; // srcAmount includes the fee
             orderStatus[order.id] = OrderState.RECLAIMED;
             refundedOrderIds[i] = order.id;
         }
-        require(address(this).balance >= amountToRefund, "Insufficient contract balance for refund");
-        (bool success,) = payable(msg.sender).call{value: amountToRefund}("");
+        require(
+            address(this).balance >= amountToRefund,
+            "Insufficient contract balance for refund"
+        );
+        (bool success, ) = payable(msg.sender).call{value: amountToRefund}("");
         require(success, "Refund Order: Transfer failed");
         emit OrdersReclaimed(refundedOrderIds);
     }
 
-    function _createOrderHash(Order memory orderDetails) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encodePacked(
-                orderDetails.id,
-                orderDetails.usrSrcAddress,
-                orderDetails.usrDstAddress,
-                orderDetails.expirationTimestamp,
-                orderDetails.srcToken,
-                orderDetails.srcAmount,
-                orderDetails.dstToken,
-                orderDetails.dstAmount,
-                orderDetails.fee,
-                orderDetails.srcChainId,
-                orderDetails.dstChainId
-            )
-        );
+    function _createOrderHash(
+        Order memory orderDetails
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked(
+                    orderDetails.id,
+                    orderDetails.usrSrcAddress,
+                    orderDetails.usrDstAddress,
+                    orderDetails.expirationTimestamp,
+                    orderDetails.srcToken,
+                    orderDetails.srcAmount,
+                    orderDetails.dstToken,
+                    orderDetails.dstAmount,
+                    orderDetails.fee,
+                    orderDetails.srcChainId,
+                    orderDetails.dstChainId
+                )
+            );
     }
 
     /// Restricted functions
@@ -292,31 +382,46 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     /// @notice Check if given bridging destination chain exist
-    function isHDPConnectionAvailable(bytes32 _destinationChain) public view returns (bool) {
+    function isHDPConnectionAvailable(
+        bytes32 _destinationChain
+    ) public view returns (bool) {
         HDPConnection storage connection = hdpConnections[_destinationChain];
-        return connection.hdpProgramHash != bytes32(0) && connection.paymentRegistryAddress != bytes32(0);
+        return
+            connection.hdpProgramHash != bytes32(0) &&
+            connection.paymentRegistryAddress != bytes32(0);
     }
 
     /// @notice Function called when adding a new destination chain, in Single Market Maker mode. onlyOwner modifier is used,
     ///         and the program hash cannot be modified or deleted once added
-    function addDestinationChain(bytes32 _destinationChain, bytes32 _hdpProgramHash, bytes32 _paymentRegistryAddress)
-        external
-        onlyOwner
-    {
-        require(isHDPConnectionAvailable(_destinationChain) == false, "Destination chain already added");
-        HDPConnection memory hdpConnection =
-            HDPConnection({paymentRegistryAddress: _paymentRegistryAddress, hdpProgramHash: _hdpProgramHash});
+    function addDestinationChain(
+        bytes32 _destinationChain,
+        bytes32 _hdpProgramHash,
+        bytes32 _paymentRegistryAddress
+    ) external onlyOwner {
+        require(
+            isHDPConnectionAvailable(_destinationChain) == false,
+            "Destination chain already added"
+        );
+        HDPConnection memory hdpConnection = HDPConnection({
+            paymentRegistryAddress: _paymentRegistryAddress,
+            hdpProgramHash: _hdpProgramHash
+        });
 
         hdpConnections[_destinationChain] = hdpConnection;
     }
 
     /// @notice Add a new supported token that is able to be locked up on the source chain
-    function addSupportForNewSrcToken(address _srcTokenToAdd) external onlyOwner {
+    function addSupportForNewSrcToken(
+        address _srcTokenToAdd
+    ) external onlyOwner {
         supportedSrcTokens[_srcTokenToAdd] = true;
     }
 
     // @notice Add a new destination token, based on the destination chain
-    function addSupportForNewDstToken(bytes32 chainId, address _dstTokenToAdd) external onlyOwner {
+    function addSupportForNewDstToken(
+        bytes32 chainId,
+        address _dstTokenToAdd
+    ) external onlyOwner {
         supportedDstTokensByChain[chainId][_dstTokenToAdd] = true;
     }
 
@@ -326,11 +431,9 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     // Public functions
-    function getHDPDestinationChainConnectionDetails(bytes32 destinationChainId)
-        public
-        view
-        returns (HDPConnection memory)
-    {
+    function getHDPDestinationChainConnectionDetails(
+        bytes32 destinationChainId
+    ) public view returns (HDPConnection memory) {
         return hdpConnections[destinationChainId];
     }
 
