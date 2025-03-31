@@ -96,6 +96,20 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 paymentRegistryAddress;
     }
 
+    // Struct to help reduce stack variables
+    struct OrderData {
+        uint256 id;
+        address usrSrcAddress;
+        uint256 usrDstAddress;
+        uint256 expirationTimestamp;
+        address srcToken;
+        uint256 srcAmount;
+        address dstToken;
+        uint256 dstAmount;
+        uint256 fee;
+        bytes32 dstChainId;
+    }
+
     /// Constructor
     constructor(HDPConnectionInitial[] memory initialHDPChainConnections) {
         owner = msg.sender;
@@ -134,43 +148,62 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(supportedDstTokensByChain[_dstChainId][_dstToken] == true, "The destination token is not supported.");
 
         // The order expires 24 hours after placement. If not proven by then, the user can withdraw funds.
-        uint256 currentTimestamp = block.timestamp;
-        uint256 _expirationTimestamp = currentTimestamp + ONE_DAY;
-        address _usrSrcAddress = msg.sender;
+        uint256 _expirationTimestamp = block.timestamp + ONE_DAY;
 
-        bytes32 orderHash = keccak256(
-            abi.encodePacked(
-                orderId,
-                _usrSrcAddress,
-                _usrDstAddress,
-                _expirationTimestamp,
-                _srcToken,
-                _srcAmount,
-                _dstToken,
-                _dstAmount,
-                _fee,
-                SRC_CHAIN_ID,
-                _dstChainId
-            )
-        );
+        // Store order data in a struct to avoid stack too deep issues
+        OrderData memory orderData = OrderData({
+            id: orderId,
+            usrSrcAddress: msg.sender,
+            usrDstAddress: _usrDstAddress,
+            expirationTimestamp: _expirationTimestamp,
+            srcToken: _srcToken,
+            srcAmount: _srcAmount,
+            dstToken: _dstToken,
+            dstAmount: _dstAmount,
+            fee: _fee,
+            dstChainId: _dstChainId
+        });
 
+        // Calculate and store order hash
+        bytes32 orderHash = _calculateOrderHash(orderData);
         orders[orderId] = orderHash;
         orderStatus[orderId] = OrderState.PENDING;
 
         emit OrderPlaced(
-            orderId,
-            _usrSrcAddress,
-            _usrDstAddress,
-            _expirationTimestamp,
-            _srcToken,
-            _srcAmount,
-            _dstToken,
-            _dstAmount,
-            _fee,
-            _dstChainId
+            orderData.id,
+            orderData.usrSrcAddress,
+            orderData.usrDstAddress,
+            orderData.expirationTimestamp,
+            orderData.srcToken,
+            orderData.srcAmount,
+            orderData.dstToken,
+            orderData.dstAmount,
+            orderData.fee,
+            orderData.dstChainId
         );
 
         orderId += 1;
+    }
+
+    /// @notice Helper function to calculate the order hash to avoid stack too deep
+    /// @param orderData The order data
+    /// @return The hash of the order
+    function _calculateOrderHash(OrderData memory orderData) private pure returns (bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                orderData.id,
+                orderData.usrSrcAddress,
+                orderData.usrDstAddress,
+                orderData.expirationTimestamp,
+                orderData.srcToken,
+                orderData.srcAmount,
+                orderData.dstToken,
+                orderData.dstAmount,
+                orderData.fee,
+                SRC_CHAIN_ID,
+                orderData.dstChainId
+            )
+        );
     }
 
     /// @notice Allows a MM to prove order fulfillment by submitting the order details
