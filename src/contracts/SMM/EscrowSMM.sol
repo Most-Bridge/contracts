@@ -28,7 +28,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public HDP_EXECUTION_STORE_ADDRESS = 0x59c0B3D09151aA2C0201808fEC0860f1168A4173;
 
     // Interfaces
-    IDataProcessorModule hdpExecutionStore = IDataProcessorModule(HDP_EXECUTION_STORE_ADDRESS);
+    IDataProcessorModule herodotusDataProcessorModule = IDataProcessorModule(HDP_EXECUTION_STORE_ADDRESS);
 
     // Storage
     mapping(uint256 => bytes32) public orders;
@@ -208,11 +208,11 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
 
         require(
-            hdpExecutionStore.getDataProcessorTaskStatus(taskCommitment) == IDataProcessorModule.TaskStatus.FINALIZED,
+            herodotusDataProcessorModule.getDataProcessorTaskStatus(taskCommitment) == IDataProcessorModule.TaskStatus.FINALIZED,
             "HDP Task is not finalized"
         );
         require(
-            hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment) == bytes32(uint256(HDPProvingStatus.PROVEN)),
+            herodotusDataProcessorModule.getDataProcessorFinalizedTaskResult(taskCommitment) == bytes32(uint256(HDPProvingStatus.PROVEN)),
             "Unable to prove PaymentRegistry transfer execution"
         );
 
