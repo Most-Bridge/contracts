@@ -3,9 +3,9 @@ pragma solidity ^0.8.20;
 
 import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
-import {ModuleTask} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.sol";
-import {ModuleCodecs} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.sol";
-import {TaskCode} from "lib/hdp-solidity/src/datatypes/Task.sol";
+// import {ModuleTask} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.sol";
+// import {ModuleCodecs} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.sol";
+// import {TaskCode} from "lib/hdp-solidity/src/datatypes/Task.sol";
 import {IHdpExecutionStore} from "src/interface/IHdpExecutionStore.sol";
 
 /// @title Escrow SMM (Single Market Maker)
@@ -213,7 +213,8 @@ contract Escrow is ReentrancyGuard, Pausable {
             "HDP Task is not finalized"
         );
         require(
-            hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment) == bytes32(uint256(HDPProvingStatus.PROVEN)),
+            hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment)
+                == bytes32(uint256(HDPProvingStatus.PROVEN)),
             "Unable to prove PaymentRegistry transfer execution"
         );
 
