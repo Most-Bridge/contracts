@@ -159,7 +159,6 @@ contract EscrowTest is Test {
             dstToken: _dstToken,
             dstAmount: _dstAmount,
             fee: feeAmount,
-            srcChainId: SRC_CHAIN_ID,
             dstChainId: dstChainId
         });
         // Call the batch refund function
@@ -191,7 +190,6 @@ contract EscrowTest is Test {
             dstToken: _dstToken,
             dstAmount: _dstAmount,
             fee: feeAmount,
-            srcChainId: SRC_CHAIN_ID,
             dstChainId: dstChainId
         });
 
@@ -218,7 +216,6 @@ contract EscrowTest is Test {
             dstToken: _dstToken,
             dstAmount: _dstAmount,
             fee: feeAmount,
-            srcChainId: SRC_CHAIN_ID,
             dstChainId: dstChainId
         });
 
@@ -249,7 +246,6 @@ contract EscrowTest is Test {
             dstToken: _dstToken,
             dstAmount: _dstAmount,
             fee: feeAmount,
-            srcChainId: SRC_CHAIN_ID,
             dstChainId: dstChainId
         });
 
