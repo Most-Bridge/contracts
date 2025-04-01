@@ -7,4 +7,3 @@
 [submodule "lib/herodotus-evm-v2"]
 	path = lib/herodotus-evm-v2
 	url = https://github.com/HerodotusDev/herodotus-evm-v2
-	branch = dev
