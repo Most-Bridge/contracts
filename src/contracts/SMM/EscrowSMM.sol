@@ -213,7 +213,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             "HDP Task is not finalized"
         );
         require(
-            hdpExecutionStore.getFinalizedTaskResult(taskCommitment) == bytes32(uint256(HDPProvingStatus.PROVEN)),
+            hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment) == bytes32(uint256(HDPProvingStatus.PROVEN)),
             "Unable to prove PaymentRegistry transfer execution"
         );
 
