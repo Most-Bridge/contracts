@@ -70,7 +70,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         PROVEN
     }
 
-    // Structs
+    /// Structs
     struct Order {
         uint256 id;
         address usrSrcAddress;
@@ -81,7 +81,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         address dstToken;
         uint256 dstAmount;
         uint256 fee;
-        bytes32 srcChainId;
         bytes32 dstChainId;
     }
 
@@ -96,19 +95,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 paymentRegistryAddress;
     }
 
-    // Struct to help reduce stack variables
-    struct OrderData {
-        uint256 id;
-        address usrSrcAddress;
-        uint256 usrDstAddress;
-        uint256 expirationTimestamp;
-        address srcToken;
-        uint256 srcAmount;
-        address dstToken;
-        uint256 dstAmount;
-        uint256 fee;
-        bytes32 dstChainId;
-    }
 
     /// Constructor
     constructor(HDPConnectionInitial[] memory initialHDPChainConnections) {
@@ -151,7 +137,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 _expirationTimestamp = block.timestamp + ONE_DAY;
 
         // Store order data in a struct to avoid stack too deep issues
-        OrderData memory orderData = OrderData({
+        Order memory orderData = Order({
             id: orderId,
             usrSrcAddress: msg.sender,
             usrDstAddress: _usrDstAddress,
@@ -165,7 +151,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         });
 
         // Calculate and store order hash
-        bytes32 orderHash = _calculateOrderHash(orderData);
+        bytes32 orderHash = _createOrderHash(orderData);
         orders[orderId] = orderHash;
         orderStatus[orderId] = OrderState.PENDING;
 
@@ -183,27 +169,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         );
 
         orderId += 1;
-    }
-
-    /// @notice Helper function to calculate the order hash to avoid stack too deep
-    /// @param orderData The order data
-    /// @return The hash of the order
-    function _calculateOrderHash(OrderData memory orderData) private pure returns (bytes32) {
-        return keccak256(
-            abi.encodePacked(
-                orderData.id,
-                orderData.usrSrcAddress,
-                orderData.usrDstAddress,
-                orderData.expirationTimestamp,
-                orderData.srcToken,
-                orderData.srcAmount,
-                orderData.dstToken,
-                orderData.dstAmount,
-                orderData.fee,
-                SRC_CHAIN_ID,
-                orderData.dstChainId
-            )
-        );
     }
 
     /// @notice Allows a MM to prove order fulfillment by submitting the order details
@@ -302,7 +267,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                 orderDetails.dstToken,
                 orderDetails.dstAmount,
                 orderDetails.fee,
-                orderDetails.srcChainId,
+                SRC_CHAIN_ID,
                 orderDetails.dstChainId
             )
         );
