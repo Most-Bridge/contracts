@@ -3,10 +3,9 @@ pragma solidity ^0.8.20;
 
 import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
-// import {ModuleTask} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.sol";
-// import {ModuleCodecs} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.sol";
-// import {TaskCode} from "lib/hdp-solidity/src/datatypes/Task.sol";
-import {IHdpExecutionStore} from "src/interface/IHdpExecutionStore.sol";
+
+import {ModuleTask, ModuleCodecs} from "lib/herodotus-evm-v2/src/libraries/internal/data-processor/ModuleCodecs.sol";
+import {IDataProcessorModule} from "lib/herodotus-evm-v2/src/interfaces/modules/IDataProcessorModule.sol";
 
 /// @title Escrow SMM (Single Market Maker)
 ///
@@ -29,7 +28,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public HDP_EXECUTION_STORE_ADDRESS = 0x59c0B3D09151aA2C0201808fEC0860f1168A4173;
 
     // Interfaces
-    IHdpExecutionStore hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
+    IDataProcessorModule hdpExecutionStore = IDataProcessorModule(HDP_EXECUTION_STORE_ADDRESS);
 
     // Storage
     mapping(uint256 => bytes32) public orders;
@@ -209,12 +208,11 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
 
         require(
-            hdpExecutionStore.cachedTasksResult(taskCommitment).status == IHdpExecutionStore.TaskStatus.FINALIZED,
+            hdpExecutionStore.getDataProcessorTaskStatus(taskCommitment) == IDataProcessorModule.TaskStatus.FINALIZED,
             "HDP Task is not finalized"
         );
         require(
-            hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment)
-                == bytes32(uint256(HDPProvingStatus.PROVEN)),
+            hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment) == bytes32(uint256(HDPProvingStatus.PROVEN)),
             "Unable to prove PaymentRegistry transfer execution"
         );
 
