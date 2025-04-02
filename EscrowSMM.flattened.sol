@@ -1,11 +1,373 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.20 ^0.8.26 ^0.8.27;
 
-import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
-import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
+// lib/herodotus-evm-v2/src/interfaces/external/IFactsRegistry.sol
 
-import {ModuleTask, ModuleCodecs} from "lib/herodotus-evm-v2/src/libraries/internal/data-processor/ModuleCodecs.sol";
-import {IDataProcessorModule} from "lib/herodotus-evm-v2/src/interfaces/modules/IDataProcessorModule.sol";
+interface IFactsRegistry {
+    function isValid(bytes32 fact) external view returns (bool);
+}
+
+// lib/herodotus-evm-v2/src/interfaces/modules/common/IFactsRegistryCommon.sol
+
+interface IFactsRegistryCommon {
+    error InvalidFact();
+}
+
+// lib/herodotus-evm-v2/src/libraries/internal/data-processor/Task.sol
+
+/// @notice Task type.
+enum TaskCode {
+    // Datalake,
+    Module
+}
+
+// lib/openzeppelin-contracts/contracts/utils/Context.sol
+
+// OpenZeppelin Contracts (last updated v5.0.1) (utils/Context.sol)
+
+/**
+ * @dev Provides information about the current execution context, including the
+ * sender of the transaction and its data. While these are generally available
+ * via msg.sender and msg.data, they should not be accessed in such a direct
+ * manner, since when dealing with meta-transactions the account sending and
+ * paying for execution may not be the actual sender (as far as an application
+ * is concerned).
+ *
+ * This contract is only required for intermediate, library-like contracts.
+ */
+abstract contract Context {
+    function _msgSender() internal view virtual returns (address) {
+        return msg.sender;
+    }
+
+    function _msgData() internal view virtual returns (bytes calldata) {
+        return msg.data;
+    }
+
+    function _contextSuffixLength() internal view virtual returns (uint256) {
+        return 0;
+    }
+}
+
+// lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol
+
+// OpenZeppelin Contracts (last updated v5.0.0) (utils/ReentrancyGuard.sol)
+
+/**
+ * @dev Contract module that helps prevent reentrant calls to a function.
+ *
+ * Inheriting from `ReentrancyGuard` will make the {nonReentrant} modifier
+ * available, which can be applied to functions to make sure there are no nested
+ * (reentrant) calls to them.
+ *
+ * Note that because there is a single `nonReentrant` guard, functions marked as
+ * `nonReentrant` may not call one another. This can be worked around by making
+ * those functions `private`, and then adding `external` `nonReentrant` entry
+ * points to them.
+ *
+ * TIP: If you would like to learn more about reentrancy and alternative ways
+ * to protect against it, check out our blog post
+ * https://blog.openzeppelin.com/reentrancy-after-istanbul/[Reentrancy After Istanbul].
+ */
+abstract contract ReentrancyGuard {
+    // Booleans are more expensive than uint256 or any type that takes up a full
+    // word because each write operation emits an extra SLOAD to first read the
+    // slot's contents, replace the bits taken up by the boolean, and then write
+    // back. This is the compiler's defense against contract upgrades and
+    // pointer aliasing, and it cannot be disabled.
+
+    // The values being non-zero value makes deployment a bit more expensive,
+    // but in exchange the refund on every call to nonReentrant will be lower in
+    // amount. Since refunds are capped to a percentage of the total
+    // transaction's gas, it is best to keep them low in cases like this one, to
+    // increase the likelihood of the full refund coming into effect.
+    uint256 private constant NOT_ENTERED = 1;
+    uint256 private constant ENTERED = 2;
+
+    uint256 private _status;
+
+    /**
+     * @dev Unauthorized reentrant call.
+     */
+    error ReentrancyGuardReentrantCall();
+
+    constructor() {
+        _status = NOT_ENTERED;
+    }
+
+    /**
+     * @dev Prevents a contract from calling itself, directly or indirectly.
+     * Calling a `nonReentrant` function from another `nonReentrant`
+     * function is not supported. It is possible to prevent this from happening
+     * by making the `nonReentrant` function external, and making it call a
+     * `private` function that does the actual work.
+     */
+    modifier nonReentrant() {
+        _nonReentrantBefore();
+        _;
+        _nonReentrantAfter();
+    }
+
+    function _nonReentrantBefore() private {
+        // On the first call to nonReentrant, _status will be NOT_ENTERED
+        if (_status == ENTERED) {
+            revert ReentrancyGuardReentrantCall();
+        }
+
+        // Any calls to nonReentrant after this point will fail
+        _status = ENTERED;
+    }
+
+    function _nonReentrantAfter() private {
+        // By storing the original value once again, a refund is triggered (see
+        // https://eips.ethereum.org/EIPS/eip-2200)
+        _status = NOT_ENTERED;
+    }
+
+    /**
+     * @dev Returns true if the reentrancy guard is currently set to "entered", which indicates there is a
+     * `nonReentrant` function in the call stack.
+     */
+    function _reentrancyGuardEntered() internal view returns (bool) {
+        return _status == ENTERED;
+    }
+}
+
+// lib/herodotus-evm-v2/src/libraries/internal/data-processor/ModuleCodecs.sol
+
+/// @dev A module task.
+/// @param programHash The program hash of the module.
+/// @param inputs The inputs to the module.
+struct ModuleTask {
+    bytes32 programHash;
+    bytes32[] inputs;
+}
+
+/// @notice Codecs for ModuleTask.
+/// @dev Represent module with a program hash and inputs.
+library ModuleCodecs {
+    /// @dev Get the commitment of a Module.
+    /// @param module The Module to commit.
+    function commit(ModuleTask memory module) internal pure returns (bytes32) {
+        return keccak256(abi.encode(module.programHash, module.inputs));
+    }
+}
+
+// lib/openzeppelin-contracts/contracts/utils/Pausable.sol
+
+// OpenZeppelin Contracts (last updated v5.0.0) (utils/Pausable.sol)
+
+/**
+ * @dev Contract module which allows children to implement an emergency stop
+ * mechanism that can be triggered by an authorized account.
+ *
+ * This module is used through inheritance. It will make available the
+ * modifiers `whenNotPaused` and `whenPaused`, which can be applied to
+ * the functions of your contract. Note that they will not be pausable by
+ * simply including this module, only once the modifiers are put in place.
+ */
+abstract contract Pausable is Context {
+    bool private _paused;
+
+    /**
+     * @dev Emitted when the pause is triggered by `account`.
+     */
+    event Paused(address account);
+
+    /**
+     * @dev Emitted when the pause is lifted by `account`.
+     */
+    event Unpaused(address account);
+
+    /**
+     * @dev The operation failed because the contract is paused.
+     */
+    error EnforcedPause();
+
+    /**
+     * @dev The operation failed because the contract is not paused.
+     */
+    error ExpectedPause();
+
+    /**
+     * @dev Initializes the contract in unpaused state.
+     */
+    constructor() {
+        _paused = false;
+    }
+
+    /**
+     * @dev Modifier to make a function callable only when the contract is not paused.
+     *
+     * Requirements:
+     *
+     * - The contract must not be paused.
+     */
+    modifier whenNotPaused() {
+        _requireNotPaused();
+        _;
+    }
+
+    /**
+     * @dev Modifier to make a function callable only when the contract is paused.
+     *
+     * Requirements:
+     *
+     * - The contract must be paused.
+     */
+    modifier whenPaused() {
+        _requirePaused();
+        _;
+    }
+
+    /**
+     * @dev Returns true if the contract is paused, and false otherwise.
+     */
+    function paused() public view virtual returns (bool) {
+        return _paused;
+    }
+
+    /**
+     * @dev Throws if the contract is paused.
+     */
+    function _requireNotPaused() internal view virtual {
+        if (paused()) {
+            revert EnforcedPause();
+        }
+    }
+
+    /**
+     * @dev Throws if the contract is not paused.
+     */
+    function _requirePaused() internal view virtual {
+        if (!paused()) {
+            revert ExpectedPause();
+        }
+    }
+
+    /**
+     * @dev Triggers stopped state.
+     *
+     * Requirements:
+     *
+     * - The contract must not be paused.
+     */
+    function _pause() internal virtual whenNotPaused {
+        _paused = true;
+        emit Paused(_msgSender());
+    }
+
+    /**
+     * @dev Returns to normal state.
+     *
+     * Requirements:
+     *
+     * - The contract must be paused.
+     */
+    function _unpause() internal virtual whenPaused {
+        _paused = false;
+        emit Unpaused(_msgSender());
+    }
+}
+
+// lib/herodotus-evm-v2/src/interfaces/modules/IDataProcessorModule.sol
+
+interface IDataProcessorModule is IFactsRegistryCommon {
+    /// @notice The status of a task
+    enum TaskStatus {
+        NONE,
+        SCHEDULED,
+        FINALIZED
+    }
+
+    /// @notice The struct representing a task result
+    struct TaskResult {
+        TaskStatus status;
+        bytes32 result;
+    }
+
+    /// @notice Storage structure for the module
+    struct DataProcessorModuleStorage {
+        IFactsRegistry factsRegistry;
+        mapping(bytes32 => TaskResult) cachedTasksResult;
+        mapping(bytes32 => bool) authorizedProgramHashes;
+    }
+
+    struct MmrData {
+        uint256 chainId;
+        uint256 mmrId;
+        uint256 mmrSize;
+    }
+
+    /// @param mmrData For each used MMR, its chain ID, ID and size
+    /// @param taskResultLow The low part of the task result
+    /// @param taskResultHigh The high part of the task result
+    /// @param taskHashLow The low part of the task hash
+    /// @param taskHashHigh The high part of the task hash
+    /// @param moduleHash The module hash that was used to compute the task
+    /// @param programHash The program hash that was used to compute the task
+    struct TaskData {
+        MmrData[] mmrData;
+        uint256 taskResultLow;
+        uint256 taskResultHigh;
+        uint256 taskHashLow;
+        uint256 taskHashHigh;
+        bytes32 moduleHash;
+        bytes32 programHash;
+    }
+
+    /// @notice emitted when a task already stored
+    event TaskAlreadyStored(bytes32 result);
+
+    /// @notice emitted when a new module task is scheduled
+    event ModuleTaskScheduled(ModuleTask moduleTask);
+
+    /// Task is already registered
+    error DoubleRegistration();
+    /// Element is not in the batch
+    error NotInBatch();
+    /// Task is not finalized
+    error NotFinalized();
+    /// Unauthorized or inactive program hash
+    error UnauthorizedProgramHash();
+    /// Invalid MMR root
+    error InvalidMmrRoot();
+
+    /// @notice Emitted when a program hash is enabled
+    event ProgramHashEnabled(bytes32 enabledProgramHash);
+
+    /// @notice Emitted when some program hashes are disabled
+    event ProgramHashesDisabled(bytes32[] disabledProgramHashes);
+
+    /// @notice Set the program hash for the HDP program
+    function setDataProcessorProgramHash(bytes32 programHash) external;
+
+    /// @notice Disable some program hashes
+    function disableProgramHashes(bytes32[] calldata programHashes) external;
+
+    /// @notice Set the facts registry contract
+    function setDataProcessorFactsRegistry(IFactsRegistry factsRegistry) external;
+
+    /// @notice Requests the execution of a task with a module
+    /// @param moduleTask module task
+    function requestDataProcessorExecutionOfTask(ModuleTask calldata moduleTask) external;
+
+    /// @notice Authenticates the execution of a task is finalized
+    ///         by verifying the locally computed fact with the FactsRegistry
+    /// @param taskData The task data
+    function authenticateDataProcessorTaskExecution(TaskData calldata taskData) external;
+
+    /// @notice Returns the result of a finalized task
+    function getDataProcessorFinalizedTaskResult(bytes32 taskCommitment) external view returns (bytes32);
+
+    /// @notice Returns the status of a task
+    function getDataProcessorTaskStatus(bytes32 taskCommitment) external view returns (TaskStatus);
+
+    /// @notice Checks if a program hash is currently authorized
+    function isProgramHashAuthorized(bytes32 programHash) external view returns (bool);
+}
+
+// src/contracts/SMM/EscrowSMM.sol
 
 /// @title Escrow SMM (Single Market Maker)
 ///
@@ -343,3 +705,4 @@ contract Escrow is ReentrancyGuard, Pausable {
         _;
     }
 }
+
