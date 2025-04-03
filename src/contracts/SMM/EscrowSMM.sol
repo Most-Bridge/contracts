@@ -34,21 +34,21 @@ contract Escrow is ReentrancyGuard, Pausable {
     mapping(uint256 => bytes32) public orders;
     mapping(uint256 => OrderState) public orderStatus;
     mapping(bytes32 => HDPConnection) public hdpConnections; // mapping chainId -> HdpConnection
-    mapping(address => bool) public supportedSrcTokens;
-    mapping(bytes32 => mapping(address => bool)) supportedDstTokensByChain; // mapping chainId -> token address -> is token supported?
+    // mapping(address => bool) public supportedSrcTokens;
+    // mapping(bytes32 => mapping(address => bool)) supportedDstTokensByChain; // mapping chainId -> token address -> is token supported?
 
     /// Events
-    /// @param usrDstAddress Stored as a uint256 to allow for starknet addresses to be stored
+    /// @param usrDstAddress Stored as a bytes32 to allow for starknet addresses to be stored
     /// @param dstChainId    Stored as a hex in bytes32 to allow for longer chain ids
     /// @param fee           Calculated using the sourceToken
     event OrderPlaced(
         uint256 orderId,
         address usrSrcAddress,
-        uint256 usrDstAddress,
+        bytes32 usrDstAddress,
         uint256 expirationTimestamp,
         address srcToken,
         uint256 srcAmount,
-        address dstToken,
+        bytes32 dstToken,
         uint256 dstAmount,
         uint256 fee,
         bytes32 dstChainId
@@ -74,11 +74,11 @@ contract Escrow is ReentrancyGuard, Pausable {
     struct Order {
         uint256 id;
         address usrSrcAddress;
-        uint256 usrDstAddress;
+        bytes32 usrDstAddress;
         uint256 expirationTimestamp;
         address srcToken;
         uint256 srcAmount;
-        address dstToken;
+        bytes32 dstToken;
         uint256 dstAmount;
         uint256 fee;
         bytes32 dstChainId;
@@ -117,20 +117,20 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param _fee           The fee for the market maker
     /// @param _dstChainId    Destination Chain Id as a hex
     function createOrder(
-        uint256 _usrDstAddress,
-        uint256 _fee,
-        bytes32 _dstChainId,
+        bytes32 _usrDstAddress,
         address _srcToken,
         uint256 _srcAmount,
-        address _dstToken,
-        uint256 _dstAmount
+        bytes32 _dstToken,
+        uint256 _dstAmount,
+        uint256 _fee,
+        bytes32 _dstChainId
     ) external payable nonReentrant whenNotPaused {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value == _srcAmount, "The amount sent must match the msg.value");
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
-        require(supportedSrcTokens[_srcToken] == true, "The source token is not supported.");
-        require(supportedDstTokensByChain[_dstChainId][_dstToken] == true, "The destination token is not supported.");
+        // require(supportedSrcTokens[_srcToken] == true, "The source token is not supported.");
+        // require(supportedDstTokensByChain[_dstChainId][_dstToken] == true, "The destination token is not supported.");
 
         // The order expires 24 hours after placement. If not proven by then, the user can withdraw funds.
         uint256 _expirationTimestamp = block.timestamp + ONE_DAY;
@@ -308,15 +308,15 @@ contract Escrow is ReentrancyGuard, Pausable {
         hdpConnections[_destinationChain] = hdpConnection;
     }
 
-    /// @notice Add a new supported token that is able to be locked up on the source chain
-    function addSupportForNewSrcToken(address _srcTokenToAdd) external onlyOwner {
-        supportedSrcTokens[_srcTokenToAdd] = true;
-    }
+    // /// @notice Add a new supported token that is able to be locked up on the source chain
+    // function addSupportForNewSrcToken(address _srcTokenToAdd) external onlyOwner {
+    //     supportedSrcTokens[_srcTokenToAdd] = true;
+    // }
 
-    // @notice Add a new destination token, based on the destination chain
-    function addSupportForNewDstToken(bytes32 chainId, address _dstTokenToAdd) external onlyOwner {
-        supportedDstTokensByChain[chainId][_dstTokenToAdd] = true;
-    }
+    // // @notice Add a new destination token, based on the destination chain
+    // function addSupportForNewDstToken(bytes32 chainId, bytes32 _dstTokenToAdd) external onlyOwner {
+    //     supportedDstTokensByChain[chainId][_dstTokenToAdd] = true;
+    // }
 
     // This is only temporary
     function setHDPAddress(address _newHDPExecutionStore) external onlyOwner {
