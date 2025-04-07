@@ -20,8 +20,8 @@ contract DeployEscrow is Script {
         // For Starknet Sepolia
         initialHDPChainConnections[1] = Escrow.HDPConnectionInitial({
             destinationChainId: bytes32(uint256(0x534e5f5345504f4c4941)),
-            paymentRegistryAddress: bytes32(uint256(0x3e6ede9c31b71072c18c6d1453285eac4ae0cf7702e3e5b8fe17d470ed0ddf4)),
-            hdpProgramHash: bytes32(uint256(0x4b92de77e8a7ba6eb68c6ade761c76612f626ba85b3224320955247b770aa76)) // CairoVM custom module program hash
+            paymentRegistryAddress: bytes32(uint256(0x0740aa1758532dd9cb945a52a59d949aed280733fb243b7721666a1aa1989d55)),
+            hdpProgramHash: bytes32(uint256(0x228737596cc16de4a733aec478701996f6c0f937fe66144781d91537b6df629)) // CairoVM custom module program hash
         });
 
         new Escrow(initialHDPChainConnections);

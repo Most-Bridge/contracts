@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.26;
 
 import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
-import {ModuleTask} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.sol";
-import {ModuleCodecs} from "lib/hdp-solidity/src/datatypes/module/ModuleCodecs.sol";
-import {TaskCode} from "lib/hdp-solidity/src/datatypes/Task.sol";
-import {IHdpExecutionStore} from "src/interface/IHdpExecutionStore.sol";
+
+import {ModuleTask, ModuleCodecs} from "lib/herodotus-evm-v2/src/libraries/internal/data-processor/ModuleCodecs.sol";
+import {IDataProcessorModule} from "lib/herodotus-evm-v2/src/interfaces/modules/IDataProcessorModule.sol";
 
 /// @title Escrow SMM (Single Market Maker)
 ///
@@ -24,31 +23,32 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
     uint256 public constant ONE_DAY = 1 days;
     bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7;
+
     // HDP
-    address public HDP_EXECUTION_STORE_ADDRESS = 0xE321b311d860fA58a110fC93b756138678e0d00d;
+    address public HDP_EXECUTION_STORE_ADDRESS = 0x59c0B3D09151aA2C0201808fEC0860f1168A4173;
 
     // Interfaces
-    IHdpExecutionStore hdpExecutionStore = IHdpExecutionStore(HDP_EXECUTION_STORE_ADDRESS);
+    IDataProcessorModule hdpExecutionStore = IDataProcessorModule(HDP_EXECUTION_STORE_ADDRESS);
 
     // Storage
     mapping(uint256 => bytes32) public orders;
     mapping(uint256 => OrderState) public orderStatus;
     mapping(bytes32 => HDPConnection) public hdpConnections; // mapping chainId -> HdpConnection
-    mapping(address => bool) public supportedSrcTokens;
-    mapping(bytes32 => mapping(address => bool)) supportedDstTokensByChain; // mapping chainId -> token address -> is token supported?
+    // mapping(address => bool) public supportedSrcTokens;
+    // mapping(bytes32 => mapping(address => bool)) supportedDstTokensByChain; // mapping chainId -> token address -> is token supported?
 
     /// Events
-    /// @param usrDstAddress Stored as a uint256 to allow for starknet addresses to be stored
+    /// @param usrDstAddress Stored as a bytes32 to allow for starknet addresses to be stored
     /// @param dstChainId    Stored as a hex in bytes32 to allow for longer chain ids
     /// @param fee           Calculated using the sourceToken
     event OrderPlaced(
         uint256 orderId,
         address usrSrcAddress,
-        uint256 usrDstAddress,
+        bytes32 usrDstAddress,
         uint256 expirationTimestamp,
         address srcToken,
         uint256 srcAmount,
-        address dstToken,
+        bytes32 dstToken,
         uint256 dstAmount,
         uint256 fee,
         bytes32 dstChainId
@@ -74,11 +74,11 @@ contract Escrow is ReentrancyGuard, Pausable {
     struct Order {
         uint256 id;
         address usrSrcAddress;
-        uint256 usrDstAddress;
+        bytes32 usrDstAddress;
         uint256 expirationTimestamp;
         address srcToken;
         uint256 srcAmount;
-        address dstToken;
+        bytes32 dstToken;
         uint256 dstAmount;
         uint256 fee;
         bytes32 dstChainId;
@@ -94,7 +94,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 hdpProgramHash;
         bytes32 paymentRegistryAddress;
     }
-
 
     /// Constructor
     constructor(HDPConnectionInitial[] memory initialHDPChainConnections) {
@@ -118,20 +117,20 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param _fee           The fee for the market maker
     /// @param _dstChainId    Destination Chain Id as a hex
     function createOrder(
-        uint256 _usrDstAddress,
-        uint256 _fee,
-        bytes32 _dstChainId,
+        bytes32 _usrDstAddress,
         address _srcToken,
         uint256 _srcAmount,
-        address _dstToken,
-        uint256 _dstAmount
+        bytes32 _dstToken,
+        uint256 _dstAmount,
+        uint256 _fee,
+        bytes32 _dstChainId
     ) external payable nonReentrant whenNotPaused {
         require(msg.value > 0, "Funds being sent must be greater than 0.");
         require(msg.value == _srcAmount, "The amount sent must match the msg.value");
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
-        require(supportedSrcTokens[_srcToken] == true, "The source token is not supported.");
-        require(supportedDstTokensByChain[_dstChainId][_dstToken] == true, "The destination token is not supported.");
+        // require(supportedSrcTokens[_srcToken] == true, "The source token is not supported.");
+        // require(supportedDstTokensByChain[_dstChainId][_dstToken] == true, "The destination token is not supported.");
 
         // The order expires 24 hours after placement. If not proven by then, the user can withdraw funds.
         uint256 _expirationTimestamp = block.timestamp + ONE_DAY;
@@ -209,11 +208,12 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 taskCommitment = hdpModuleTask.commit(); // Calculate task commitment hash based on program hash and program inputs
 
         require(
-            hdpExecutionStore.cachedTasksResult(taskCommitment).status == IHdpExecutionStore.TaskStatus.FINALIZED,
+            hdpExecutionStore.getDataProcessorTaskStatus(taskCommitment) == IDataProcessorModule.TaskStatus.FINALIZED,
             "HDP Task is not finalized"
         );
         require(
-            hdpExecutionStore.getFinalizedTaskResult(taskCommitment) == bytes32(uint256(HDPProvingStatus.PROVEN)),
+            hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment)
+                == bytes32(uint256(HDPProvingStatus.PROVEN)),
             "Unable to prove PaymentRegistry transfer execution"
         );
 
@@ -308,15 +308,15 @@ contract Escrow is ReentrancyGuard, Pausable {
         hdpConnections[_destinationChain] = hdpConnection;
     }
 
-    /// @notice Add a new supported token that is able to be locked up on the source chain
-    function addSupportForNewSrcToken(address _srcTokenToAdd) external onlyOwner {
-        supportedSrcTokens[_srcTokenToAdd] = true;
-    }
+    // /// @notice Add a new supported token that is able to be locked up on the source chain
+    // function addSupportForNewSrcToken(address _srcTokenToAdd) external onlyOwner {
+    //     supportedSrcTokens[_srcTokenToAdd] = true;
+    // }
 
-    // @notice Add a new destination token, based on the destination chain
-    function addSupportForNewDstToken(bytes32 chainId, address _dstTokenToAdd) external onlyOwner {
-        supportedDstTokensByChain[chainId][_dstTokenToAdd] = true;
-    }
+    // // @notice Add a new destination token, based on the destination chain
+    // function addSupportForNewDstToken(bytes32 chainId, bytes32 _dstTokenToAdd) external onlyOwner {
+    //     supportedDstTokensByChain[chainId][_dstTokenToAdd] = true;
+    // }
 
     // This is only temporary
     function setHDPAddress(address _newHDPExecutionStore) external onlyOwner {
