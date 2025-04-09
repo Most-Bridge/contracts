@@ -5,10 +5,25 @@ source .env && \
 
 
 export ETHERSCAN_API_KEY=$ETH_ETHERSCAN_API_KEY
-forge script script/escrow/create_order/CreateOrder.s.sol:CreateOrder \
-    --rpc-url $ETH_SEPOLIA_RPC \
-    --broadcast \
-    --private-key $USR_SRC_PRIVATE_KEY \
+cast send \
+  --rpc-url $ETH_SEPOLIA_RPC \
+  --private-key $USR_SRC_PRIVATE_KEY \
+  0x9c46f4d7Aaf6fa5507220CB843D873C1f5D2342a \
+  "createOrder(bytes32,address,uint256,bytes32,uint256,uint256,bytes32)" \
+  0x034501931e05c7934A0c6246fC7409CF9e650538F330A6B7a36f134c3B0577Ee \
+  0x0000000000000000000000000000000000000000 \
+  1000000000000000 \
+  0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7 \
+  900000000000000 \
+  100000000000000 \
+  0x534e5f5345504f4c494100000000000000000000000000000000000000000000 \
+  --value 1000000000000000
+
+# forge script script/escrow/create_order/CreateOrder.s.sol:CreateOrder \
+#     --rpc-url $ETH_SEPOLIA_RPC \
+#     --broadcast \
+#     --private-key $USR_SRC_PRIVATE_KEY \
+#     --value 1000000000000000 
 
 # call the create order function on the escrow contract - order from OP to ETH
 # cast send \
