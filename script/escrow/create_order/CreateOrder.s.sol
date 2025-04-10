@@ -4,9 +4,9 @@ pragma solidity ^0.8.0;
 import {Script} from "forge-std/Script.sol";
 import {Escrow} from "../../../src/contracts/SMM/EscrowSMM.sol";
 
-contract SolidityInteraction is Script {
+contract CreateOrder is Script {
     function run() external {
-        address escrowAddress = 0xA5AeC461aeAD380f35991ceB444890a653167826;
+        address escrowAddress = 0x9c46f4d7Aaf6fa5507220CB843D873C1f5D2342a;
         Escrow escrow = Escrow(escrowAddress);
 
         // Parameters for the createOrder function
@@ -16,11 +16,9 @@ contract SolidityInteraction is Script {
         bytes32 dstToken = bytes32(uint256(0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7));
         uint256 dstAmount = 900000000000000;
         uint256 fee = 100000000000000;
-        bytes32 dstChainId = bytes32(uint256(111555111));
+        bytes32 dstChainId = bytes32(uint256(0x534e5f5345504f4c4941));
 
         // Call the createOrder function
-        escrow.createOrder(usrDstAddress, srcToken, srcAmount, dstToken, dstAmount, fee, dstChainId);
-
-        // Optionally, check results or states if needed
+        escrow.createOrder{value: srcAmount}(usrDstAddress, srcToken, srcAmount, dstToken, dstAmount, fee, dstChainId);
     }
 }
