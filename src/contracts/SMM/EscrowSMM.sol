@@ -34,8 +34,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     mapping(uint256 => bytes32) public orders;
     mapping(uint256 => OrderState) public orderStatus;
     mapping(bytes32 => HDPConnection) public hdpConnections; // mapping chainId -> HdpConnection
-    // mapping(address => bool) public supportedSrcTokens;
-    // mapping(bytes32 => mapping(address => bool)) supportedDstTokensByChain; // mapping chainId -> token address -> is token supported?
 
     /// Events
     /// @param usrDstAddress Stored as a bytes32 to allow for starknet addresses to be stored
