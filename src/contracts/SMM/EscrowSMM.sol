@@ -257,7 +257,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     function _createOrderHash(Order memory orderDetails) internal pure returns (bytes32) {
         return keccak256(
-            abi.encodePacked(
+            abi.encode(
                 orderDetails.id,
                 orderDetails.usrSrcAddress,
                 orderDetails.usrDstAddress,
