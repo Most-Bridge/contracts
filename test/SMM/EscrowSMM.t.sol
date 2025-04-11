@@ -49,7 +49,7 @@ contract EscrowTest is Test {
         );
 
         bytes32 expectedOrderHash = keccak256(
-            abi.encodePacked(
+            abi.encode(
                 firstOrderId,
                 user,
                 destinationAddress,
@@ -116,7 +116,7 @@ contract EscrowTest is Test {
             destinationAddress, _srcToken, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
         );
         bytes32 expectedOrderHash = keccak256(
-            abi.encodePacked(
+            abi.encode(
                 firstOrderId,
                 user,
                 destinationAddress,
@@ -269,8 +269,8 @@ contract EscrowTest is Test {
     }
 
     function testAddChain() public {
-        bytes32 newHDPProgramHash = keccak256(abi.encodePacked("new-program-hash"));
-        bytes32 newPaymentRegistryAddress = keccak256(abi.encodePacked("new-program-hash"));
+        bytes32 newHDPProgramHash = keccak256(abi.encode("new-program-hash"));
+        bytes32 newPaymentRegistryAddress = keccak256(abi.encode("new-program-hash"));
         bytes32 destinationChain = bytes32(uint256(0x1));
         vm.prank(owner);
         escrow.addDestinationChain(destinationChain, newHDPProgramHash, newPaymentRegistryAddress);
