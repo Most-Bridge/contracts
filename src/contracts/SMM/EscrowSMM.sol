@@ -127,9 +127,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(msg.value == _srcAmount, "The amount sent must match the msg.value");
         require(msg.value > _fee, "Fee must be less than the total value sent");
 
-        // require(supportedSrcTokens[_srcToken] == true, "The source token is not supported.");
-        // require(supportedDstTokensByChain[_dstChainId][_dstToken] == true, "The destination token is not supported.");
-
         // The order expires 24 hours after placement. If not proven by then, the user can withdraw funds.
         uint256 _expirationTimestamp = block.timestamp + ONE_DAY;
 
@@ -305,16 +302,6 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         hdpConnections[_destinationChain] = hdpConnection;
     }
-
-    // /// @notice Add a new supported token that is able to be locked up on the source chain
-    // function addSupportForNewSrcToken(address _srcTokenToAdd) external onlyOwner {
-    //     supportedSrcTokens[_srcTokenToAdd] = true;
-    // }
-
-    // // @notice Add a new destination token, based on the destination chain
-    // function addSupportForNewDstToken(bytes32 chainId, bytes32 _dstTokenToAdd) external onlyOwner {
-    //     supportedDstTokensByChain[chainId][_dstTokenToAdd] = true;
-    // }
 
     // This is only temporary
     function setHDPAddress(address _newHDPExecutionStore) external onlyOwner {
