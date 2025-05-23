@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
 import {ModuleTask, ModuleCodecs} from "lib/herodotus-evm-v2/src/libraries/internal/data-processor/ModuleCodecs.sol";
 import {IDataProcessorModule} from "lib/herodotus-evm-v2/src/interfaces/modules/IDataProcessorModule.sol";
@@ -22,7 +23,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
     uint256 public constant ONE_DAY = 1 days;
-    bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7;
+    bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7; // THIS SHOULD BE ETH MAINNET
+    // bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000000001;
 
     // HDP
     address public HDP_EXECUTION_STORE_ADDRESS = 0x59c0B3D09151aA2C0201808fEC0860f1168A4173;
@@ -123,9 +125,26 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 _fee,
         bytes32 _dstChainId
     ) external payable nonReentrant whenNotPaused {
-        require(msg.value > 0, "Funds being sent must be greater than 0.");
-        require(msg.value == _srcAmount, "The amount sent must match the msg.value");
-        require(msg.value > _fee, "Fee must be less than the total value sent");
+        bool isNativeToken = _srcToken == address(0);
+        // The fee is always paid in the src token
+        require(_fee > 0, "The fee must be greater than 0.");
+
+        if (isNativeToken) {
+            // Native ETH logic
+            require(msg.value > 0, "Funds being sent must be greater than 0.");
+            require(msg.value == _srcAmount, "The amount sent must match the msg.value");
+            require(msg.value > _fee, "Fee must be less than the total value sent");
+        } else {
+            // ERC20 logic
+            require(msg.value == 0, "Native ETH logic must be used for native ETH transfers");
+            require(_srcAmount > 0, "ERC20 transfers must be greater than 0.");
+            require(_fee > 0, "The fee must be greater than 0.");
+            require(_srcAmount > _fee, "Fee must be less than the total value sent");
+
+            // Transfer ERC20 tokens from user to this contract
+            IERC20 token = IERC20(_srcToken);
+            require(token.transferFrom(msg.sender, address(this), _srcAmount), "ERC20 transfer failed");
+        }
 
         // The order expires 24 hours after placement. If not proven by then, the user can withdraw funds.
         uint256 _expirationTimestamp = block.timestamp + ONE_DAY;
@@ -176,12 +195,17 @@ contract Escrow is ReentrancyGuard, Pausable {
     {
         // For proving in aggregated mode using HDP
         bytes32[] memory taskInputs = new bytes32[](calldataOrders.length + 3);
-        taskInputs[0] = bytes32(_destinationChainId); // The bridging destination chain, where PaymentRegistry is located
-        taskInputs[1] = bytes32(hdpConnections[_destinationChainId].paymentRegistryAddress); // The address which contains the order fulfillment
-        taskInputs[2] = bytes32(_blockNumber); // The point in time at which to prove the orders
+        taskInputs[0] = bytes32(_destinationChainId);
+        taskInputs[1] = bytes32(hdpConnections[_destinationChainId].paymentRegistryAddress);
+        taskInputs[2] = bytes32(_blockNumber);
 
-        uint256 amountToWithdraw = 0;
         uint256[] memory validOrderIds = new uint256[](calldataOrders.length);
+
+        // Storage of tokens to withdraw
+        address[] memory tokens = new address[](calldataOrders.length);
+        uint256[] memory amounts = new uint256[](calldataOrders.length);
+        uint256 tokenCount = 0;
+        uint256 ethToWithdraw = 0;
 
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             // validate the call data
@@ -192,11 +216,23 @@ contract Escrow is ReentrancyGuard, Pausable {
             require(orderStatus[order.id] == OrderState.PENDING, "Order not in PENDING state");
 
             taskInputs[i + 3] = orderHash; // offset because first 3 arguments are destination chain id, payment registry address and block number
-            amountToWithdraw += order.srcAmount; // srcAmount includes the fee
+            bool isNativeToken = order.srcToken == address(0);
+
+            if (isNativeToken) {
+                ethToWithdraw += order.srcAmount;
+            } else {
+                // Check if token already exists in our array
+                uint256 tokenIndex = findOrAddToken(tokens, order.srcToken, tokenCount);
+                if (tokenIndex == tokenCount) {
+                    // New token added
+                    tokenCount++;
+                }
+                amounts[tokenIndex] += order.srcAmount;
+            }
             validOrderIds[i] = order.id;
         }
 
-        // Prove the HDP task
+        // HDP verification code
         ModuleTask memory hdpModuleTask =
             ModuleTask({programHash: bytes32(hdpConnections[_destinationChainId].hdpProgramHash), inputs: taskInputs});
 
@@ -217,9 +253,21 @@ contract Escrow is ReentrancyGuard, Pausable {
             orderStatus[calldataOrders[i].id] = OrderState.COMPLETED;
         }
 
-        require(address(this).balance >= amountToWithdraw, "Escrow: Insufficient balance to withdraw");
-        (bool success,) = payable(allowedWithdrawalAddress).call{value: amountToWithdraw}("");
-        require(success, "Withdraw transfer failed");
+        // Withdraw ETH if any
+        if (ethToWithdraw > 0) {
+            require(address(this).balance >= ethToWithdraw, "Insufficient ETH balance");
+            (bool success,) = payable(allowedWithdrawalAddress).call{value: ethToWithdraw}("");
+            require(success, "ETH transfer failed");
+        }
+
+        // Withdraw ERC20 tokens
+        for (uint256 i = 0; i < tokenCount; i++) {
+            address token = tokens[i];
+            uint256 amount = amounts[i];
+            if (amount > 0) {
+                require(IERC20(token).transfer(allowedWithdrawalAddress, amount), "ERC20 transfer failed");
+            }
+        }
 
         emit ProveBridgeAggregatedSuccess(validOrderIds);
     }
@@ -228,7 +276,10 @@ contract Escrow is ReentrancyGuard, Pausable {
     ///
     /// @custom:security This function should never be pausable
     function refundOrderBatch(Order[] calldata calldataOrders) external payable nonReentrant {
-        uint256 amountToRefund = 0;
+        address[] memory tokens = new address[](calldataOrders.length);
+        uint256[] memory amounts = new uint256[](calldataOrders.length);
+        uint256 tokenCount = 0;
+        uint256 ethToRefund = 0;
         uint256[] memory refundedOrderIds = new uint256[](calldataOrders.length);
 
         for (uint256 i = 0; i < calldataOrders.length; i++) {
@@ -240,13 +291,37 @@ contract Escrow is ReentrancyGuard, Pausable {
             require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund an order if it is not pending.");
             require(block.timestamp > order.expirationTimestamp, "Cannot refund an order that has not expired.");
 
-            amountToRefund += order.srcAmount; // srcAmount includes the fee
+            bool isNativeToken = order.srcToken == address(0);
+            if (isNativeToken) {
+                ethToRefund += order.srcAmount;
+            } else {
+                uint256 tokenIndex = findOrAddToken(tokens, order.srcToken, tokenCount);
+                if (tokenIndex == tokenCount) {
+                    // New token added
+                    tokenCount++;
+                }
+                amounts[tokenIndex] += order.srcAmount;
+            }
             orderStatus[order.id] = OrderState.RECLAIMED;
             refundedOrderIds[i] = order.id;
         }
-        require(address(this).balance >= amountToRefund, "Insufficient contract balance for refund");
-        (bool success,) = payable(msg.sender).call{value: amountToRefund}("");
-        require(success, "Refund Order: Transfer failed");
+
+        // Refund ETH if any
+        if (ethToRefund > 0) {
+            require(address(this).balance >= ethToRefund, "Insufficient ETH balance");
+            (bool success,) = payable(msg.sender).call{value: ethToRefund}("");
+            require(success, "ETH refund failed");
+        }
+
+        // Refund ERC20 tokens
+        for (uint256 i = 0; i < tokenCount; i++) {
+            address token = tokens[i];
+            uint256 amount = amounts[i];
+            if (amount > 0) {
+                require(IERC20(token).transfer(msg.sender, amount), "ERC20 refund failed");
+            }
+        }
+
         emit OrdersReclaimed(refundedOrderIds);
     }
 
@@ -266,6 +341,21 @@ contract Escrow is ReentrancyGuard, Pausable {
                 orderDetails.dstChainId
             )
         );
+    }
+
+    // Helper function to find a token in the array or add it if not found
+    function findOrAddToken(address[] memory tokens, address token, uint256 currentCount)
+        private
+        pure
+        returns (uint256)
+    {
+        for (uint256 i = 0; i < currentCount; i++) {
+            if (tokens[i] == token) {
+                return i;
+            }
+        }
+        tokens[currentCount] = token;
+        return currentCount;
     }
 
     /// Restricted functions
