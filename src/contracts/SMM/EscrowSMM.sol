@@ -116,6 +116,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param _usrDstAddress The destination address of the user
     /// @param _fee           The fee for the market maker
     /// @param _dstChainId    Destination Chain Id as a hex
+    /// @notice srcToken and usrSrcAddress are native to this chain (EVM), so stored as `address`
+    /// @notice dstToken and usrDstAddress are for a foreign chain (e.g., Starknet), so stored as `bytes32`
     function createOrder(
         bytes32 _usrDstAddress,
         address _srcToken,
@@ -328,17 +330,17 @@ contract Escrow is ReentrancyGuard, Pausable {
     function _createOrderHash(Order memory orderDetails) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
-                orderDetails.id,
-                orderDetails.usrSrcAddress,
-                orderDetails.usrDstAddress,
-                orderDetails.expirationTimestamp,
-                orderDetails.srcToken,
-                orderDetails.srcAmount,
-                orderDetails.dstToken,
-                orderDetails.dstAmount,
-                orderDetails.fee,
-                SRC_CHAIN_ID,
-                orderDetails.dstChainId
+                orderDetails.id, // uint256
+                bytes32(uint256(uint160(orderDetails.usrSrcAddress))), // address
+                orderDetails.usrDstAddress, // bytes32
+                orderDetails.expirationTimestamp, // uint256
+                bytes32(uint256(uint160(orderDetails.srcToken))), // address
+                orderDetails.srcAmount, // uint256
+                orderDetails.dstToken, // bytes32
+                orderDetails.dstAmount, // uint256
+                orderDetails.fee, // uint256
+                SRC_CHAIN_ID, // bytes32
+                orderDetails.dstChainId // bytes32
             )
         );
     }

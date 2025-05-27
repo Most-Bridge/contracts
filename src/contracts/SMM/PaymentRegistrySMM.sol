@@ -10,12 +10,13 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 /// @notice Handles the throughput of transactions from the Market Maker to a user, and saves the data
 ///         to be used to prove the transaction.
 contract PaymentRegistry is Pausable {
+    /// Storage
+    mapping(bytes32 => bool) public fulfillments;
+
     /// State variables
     address public owner;
     address public allowedMMAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
-
-    /// Storage
-    mapping(bytes32 => bool) public fulfillments;
+    bytes32 constant DST_CHAIN_ID = "THE (EVM) CHAIN ID WHERE THIS CONTRACT IS DEPLOYED"; // TODO
 
     /// Events
     event FulfillmentReceipt(
@@ -44,21 +45,38 @@ contract PaymentRegistry is Pausable {
     /// @param _fee                 The fee paid to the MM
     /// @param _usrSrcAddress       The address of the user on the source chain
     /// @param _destinationChainId  The destination chain id in hex
+
+    /// @notice srcToken and usrSrcAddress come from a foreign chain (e.g., Starknet), so passed as `bytes32`
+    /// @notice dstToken and usrDstAddress are native to this chain (EVM), so stored as `address`
     function mostFulfillment(
         uint256 _orderId,
+        bytes32 _usrSrcAddress,
         address _usrDstAddress,
         uint256 _expirationTimestamp,
+        bytes32 _srcToken,
+        uint256 _srcAmount,
+        address _dstToken,
+        uint256 _dstAmount,
         uint256 _fee,
-        address _usrSrcAddress,
-        bytes32 _destinationChainId
+        bytes32 _srcChainId
     ) external payable onlyAllowedAddress whenNotPaused {
         require(msg.value > 0, "Funds being sent must exceed 0.");
         uint256 currentTimestamp = block.timestamp;
         require(_expirationTimestamp > currentTimestamp, "Cannot fulfill an expired order.");
 
         bytes32 orderHash = keccak256(
-            abi.encodePacked(
-                _orderId, _usrDstAddress, _expirationTimestamp, msg.value, _fee, _usrSrcAddress, _destinationChainId
+            abi.encode(
+                _orderId,
+                _usrSrcAddress,
+                bytes32(uint256(uint160(_usrDstAddress))),
+                _expirationTimestamp,
+                _srcToken,
+                _srcAmount,
+                bytes32(uint256(uint160(_dstToken))),
+                msg.value,
+                _fee,
+                _srcChainId,
+                DST_CHAIN_ID
             )
         );
 
@@ -70,7 +88,7 @@ contract PaymentRegistry is Pausable {
         require(success, "Transfer failed.");
 
         emit FulfillmentReceipt(
-            _orderId, _usrDstAddress, _expirationTimestamp, msg.value, _fee, _usrSrcAddress, _destinationChainId
+            //     _orderId, _usrDstAddress, _expirationTimestamp, msg.value, _fee, _usrSrcAddress, DST_CHAIN_ID
         );
     }
 
