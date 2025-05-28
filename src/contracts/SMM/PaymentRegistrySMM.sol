@@ -20,13 +20,17 @@ contract PaymentRegistry is Pausable {
 
     /// Events
     event FulfillmentReceipt(
-        uint256 _orderId,
-        address _usrDstAddress,
-        uint256 _expirationTimestamp,
-        uint256 _bridgeAmount,
-        uint256 _fee,
-        address _usrSrcAddress,
-        bytes32 _destinationChainId
+        uint256 orderId,
+        bytes32 usrSrcAddress,
+        address usrDstAddress,
+        uint256 expirationTimestamp,
+        bytes32 srcToken,
+        uint256 srcAmount,
+        address dstToken,
+        uint256 dstAmount,
+        uint256 fee,
+        bytes32 srcChainId,
+        bytes32 destinationChainId
     );
 
     /// Constructor
