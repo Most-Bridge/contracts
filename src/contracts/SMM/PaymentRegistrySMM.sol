@@ -123,10 +123,6 @@ contract PaymentRegistry is Pausable {
         allowedMMAddress = _newAllowedMMAddress;
     }
 
-    // function getFulfillment(bytes32 _orderHash) public view returns (bool) {
-    //     return fulfillments[_orderHash];
-    // } // TODO: REMOVE 
-
     /// onlyAllowedAddress functions
     function pauseContract() external onlyAllowedAddress {
         _pause();
