@@ -71,11 +71,11 @@ contract PaymentRegistry is Pausable {
             abi.encode(
                 _orderId,
                 _usrSrcAddress,
-                bytes32(uint256(uint160(_usrDstAddress))),
+                _usrDstAddress,
                 _expirationTimestamp,
                 _srcToken,
                 _srcAmount,
-                bytes32(uint256(uint160(_dstToken))),
+                _dstToken,
                 msg.value,
                 _fee,
                 _srcChainId,
@@ -123,9 +123,9 @@ contract PaymentRegistry is Pausable {
         allowedMMAddress = _newAllowedMMAddress;
     }
 
-    function getFulfillment(bytes32 _orderHash) public view returns (bool) {
-        return fulfillments[_orderHash];
-    }
+    // function getFulfillment(bytes32 _orderHash) public view returns (bool) {
+    //     return fulfillments[_orderHash];
+    // } // TODO: REMOVE 
 
     /// onlyAllowedAddress functions
     function pauseContract() external onlyAllowedAddress {

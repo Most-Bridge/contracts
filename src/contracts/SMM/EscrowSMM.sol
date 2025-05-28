@@ -335,10 +335,10 @@ contract Escrow is ReentrancyGuard, Pausable {
         return keccak256(
             abi.encode(
                 orderDetails.id, // uint256
-                bytes32(uint256(uint160(orderDetails.usrSrcAddress))), // address
+                orderDetails.usrSrcAddress, // address
                 orderDetails.usrDstAddress, // bytes32
                 orderDetails.expirationTimestamp, // uint256
-                bytes32(uint256(uint160(orderDetails.srcToken))), // address
+                orderDetails.srcToken, // address
                 orderDetails.srcAmount, // uint256
                 orderDetails.dstToken, // bytes32
                 orderDetails.dstAmount, // uint256
