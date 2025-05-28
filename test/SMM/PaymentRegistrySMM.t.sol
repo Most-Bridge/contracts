@@ -64,34 +64,70 @@ contract PaymentRegistryTest is Test {
         assertEq(address(MMAddress).balance, 9.1 ether, "MM balance did not decrease.");
     }
 
-    // function testFulfillmentFailsIfAlreadyProcessed() public {
-    //     vm.startPrank(MMAddress);
-    //     paymentRegistry.mostFulfillment{value: 1 ether}(
-    //         orderId, userDstAddress, expirationTimestamp, fee, MMAddress, dstChainId
-    //     );
+    function testFulfillmentFailsIfAlreadyProcessed() public {
+        vm.startPrank(MMAddress);
+        paymentRegistry.mostFulfillment{value: dstAmount}(
+            orderId,
+            userSrcAddress,
+            userDstAddress,
+            expirationTimestamp,
+            srcToken,
+            srcAmount,
+            dstToken,
+            dstAmount,
+            fee,
+            srcChainId
+        );
 
-    //     vm.expectRevert("Transfer already processed.");
-    //     paymentRegistry.mostFulfillment{value: 1 ether}(
-    //         orderId, userDstAddress, expirationTimestamp, fee, MMAddress, dstChainId
-    //     );
-    //     vm.stopPrank();
-    // }
+        vm.expectRevert("Transfer already processed.");
+        paymentRegistry.mostFulfillment{value: dstAmount}(
+            orderId,
+            userSrcAddress,
+            userDstAddress,
+            expirationTimestamp,
+            srcToken,
+            srcAmount,
+            dstToken,
+            dstAmount,
+            fee,
+            srcChainId
+        );
+        vm.stopPrank();
+    }
 
-    // function testFulfillmentFailsIfNoValue() public {
-    //     vm.prank(MMAddress);
-    //     vm.expectRevert("Funds being sent must exceed 0.");
-    //     paymentRegistry.mostFulfillment{value: 0}(
-    //         orderId, userDstAddress, expirationTimestamp, fee, MMAddress, dstChainId
-    //     );
-    // }
+    function testFulfillmentFailsIfNoValue() public {
+        vm.prank(MMAddress);
+        vm.expectRevert("Funds being sent must exceed 0.");
+        paymentRegistry.mostFulfillment{value: 0}(
+            orderId,
+            userSrcAddress,
+            userDstAddress,
+            expirationTimestamp,
+            srcToken,
+            srcAmount,
+            dstToken,
+            dstAmount,
+            fee,
+            srcChainId
+        );
+    }
 
-    // function testFulfillmentFailsOnExpiredOrder() public {
-    //     vm.prank(MMAddress);
-    //     vm.expectRevert("Cannot fulfill an expired order.");
-    //     // warping time to expire order
-    //     vm.warp(block.timestamp + 2 days);
-    //     paymentRegistry.mostFulfillment{value: 1 ether}(
-    //         orderId, userDstAddress, expirationTimestamp, fee, MMAddress, dstChainId
-    //     );
-    // }
+    function testFulfillmentFailsOnExpiredOrder() public {
+        vm.prank(MMAddress);
+        vm.expectRevert("Cannot fulfill an expired order.");
+        // warping time to expire order
+        vm.warp(block.timestamp + 2 days);
+        paymentRegistry.mostFulfillment{value: dstAmount}(
+            orderId,
+            userSrcAddress,
+            userDstAddress,
+            expirationTimestamp,
+            srcToken,
+            srcAmount,
+            dstToken,
+            dstAmount,
+            fee,
+            srcChainId
+        );
+    }
 }
