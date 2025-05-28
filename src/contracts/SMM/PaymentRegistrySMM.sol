@@ -16,7 +16,7 @@ contract PaymentRegistry is Pausable {
     /// State variables
     address public owner;
     address public allowedMMAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
-    bytes32 constant DST_CHAIN_ID = "THE (EVM) CHAIN ID WHERE THIS CONTRACT IS DEPLOYED"; // TODO
+    bytes32 constant DST_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000000001; // TODO
 
     /// Events
     event FulfillmentReceipt(
@@ -30,7 +30,7 @@ contract PaymentRegistry is Pausable {
         uint256 dstAmount,
         uint256 fee,
         bytes32 srcChainId,
-        bytes32 destinationChainId
+        bytes32 dstChainId
     );
 
     /// Constructor
@@ -48,8 +48,7 @@ contract PaymentRegistry is Pausable {
     ///                             the funds in Escrow remain locked
     /// @param _fee                 The fee paid to the MM
     /// @param _usrSrcAddress       The address of the user on the source chain
-    /// @param _destinationChainId  The destination chain id in hex
-
+    ///
     /// @notice srcToken and usrSrcAddress come from a foreign chain (e.g., Starknet), so passed as `bytes32`
     /// @notice dstToken and usrDstAddress are native to this chain (EVM), so stored as `address`
     function mostFulfillment(
@@ -92,7 +91,17 @@ contract PaymentRegistry is Pausable {
         require(success, "Transfer failed.");
 
         emit FulfillmentReceipt(
-            //     _orderId, _usrDstAddress, _expirationTimestamp, msg.value, _fee, _usrSrcAddress, DST_CHAIN_ID
+            _orderId,
+            _usrSrcAddress,
+            _usrDstAddress,
+            _expirationTimestamp,
+            _srcToken,
+            _srcAmount,
+            _dstToken,
+            msg.value, // dstAmount
+            _fee,
+            _srcChainId,
+            DST_CHAIN_ID
         );
     }
 
