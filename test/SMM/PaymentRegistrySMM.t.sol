@@ -3,6 +3,15 @@ pragma solidity >=0.8;
 
 import {Test, console} from "forge-std/Test.sol";
 import {PaymentRegistry} from "../../src/contracts/SMM/PaymentRegistrySMM.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+contract MockERC20 is ERC20 {
+    constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
+
+    function mint(address to, uint256 amount) public {
+        _mint(to, amount);
+    }
+}
 
 contract PaymentRegistryTest is Test {
     PaymentRegistry public paymentRegistry;
@@ -12,12 +21,14 @@ contract PaymentRegistryTest is Test {
     uint256 expirationTimestamp = block.timestamp + 1 days;
     bytes32 srcToken = bytes32(uint256(11));
     uint256 srcAmount = 1 ether;
-    address dstToken = address(2);
+    address dstTokenETH = address(0);
     uint256 dstAmount = 0.9 ether;
     uint256 fee = 0.1 ether;
     bytes32 srcChainId = bytes32(uint256(2));
-    // TODO: must match whatever is in the payment registry contract. 
-    bytes32 constant DST_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000000001; 
+    // TODO: must match whatever is in the payment registry contract.
+    bytes32 constant DST_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000000001;
+
+    MockERC20 public mockERC;
 
     address MMAddress = address(3);
 
@@ -27,6 +38,10 @@ contract PaymentRegistryTest is Test {
         vm.deal(userDstAddress, 1 ether);
         vm.prank(address(this));
         paymentRegistry.setAllowedMMAddress(MMAddress);
+
+        // deploy mock ERC20 token and mint it to MM
+        mockERC = new MockERC20("MockToken", "MOCK");
+        mockERC.mint(MMAddress, 10 ether);
     }
 
     function testFulfillmentSuccess() public {
@@ -38,7 +53,7 @@ contract PaymentRegistryTest is Test {
             expirationTimestamp,
             srcToken,
             srcAmount,
-            dstToken,
+            dstTokenETH,
             dstAmount,
             fee,
             srcChainId
@@ -52,7 +67,7 @@ contract PaymentRegistryTest is Test {
                 expirationTimestamp,
                 srcToken,
                 srcAmount,
-                dstToken,
+                dstTokenETH,
                 dstAmount,
                 fee,
                 srcChainId,
@@ -74,13 +89,13 @@ contract PaymentRegistryTest is Test {
             expirationTimestamp,
             srcToken,
             srcAmount,
-            dstToken,
+            dstTokenETH,
             dstAmount,
             fee,
             srcChainId
         );
 
-        vm.expectRevert("Transfer already processed.");
+        vm.expectRevert("Transfer already processed");
         paymentRegistry.mostFulfillment{value: dstAmount}(
             orderId,
             userSrcAddress,
@@ -88,7 +103,7 @@ contract PaymentRegistryTest is Test {
             expirationTimestamp,
             srcToken,
             srcAmount,
-            dstToken,
+            dstTokenETH,
             dstAmount,
             fee,
             srcChainId
@@ -98,7 +113,7 @@ contract PaymentRegistryTest is Test {
 
     function testFulfillmentFailsIfNoValue() public {
         vm.prank(MMAddress);
-        vm.expectRevert("Funds being sent must exceed 0.");
+        vm.expectRevert("Native ETH: msg.value mismatch with destination amount");
         paymentRegistry.mostFulfillment{value: 0}(
             orderId,
             userSrcAddress,
@@ -106,7 +121,7 @@ contract PaymentRegistryTest is Test {
             expirationTimestamp,
             srcToken,
             srcAmount,
-            dstToken,
+            dstTokenETH,
             dstAmount,
             fee,
             srcChainId
@@ -125,10 +140,58 @@ contract PaymentRegistryTest is Test {
             expirationTimestamp,
             srcToken,
             srcAmount,
-            dstToken,
+            dstTokenETH,
             dstAmount,
             fee,
             srcChainId
         );
+    }
+
+    function testMMSendsMoreThanBalance() public {
+        vm.prank(MMAddress);
+        // warping time to expire order
+        vm.expectRevert();
+        paymentRegistry.mostFulfillment{value: 20 ether}(
+            orderId,
+            userSrcAddress,
+            userDstAddress,
+            expirationTimestamp,
+            srcToken,
+            srcAmount,
+            dstTokenETH,
+            dstAmount,
+            fee,
+            srcChainId
+        );
+    }
+
+    function testFulfillmentPassesOnERC20() public {
+        // send a good erc20 transfer
+        vm.startPrank(MMAddress);
+        mockERC.approve(address(paymentRegistry), dstAmount);
+        paymentRegistry.mostFulfillment{value: 0}(
+            orderId,
+            userSrcAddress,
+            userDstAddress,
+            expirationTimestamp,
+            srcToken,
+            srcAmount,
+            address(mockERC),
+            dstAmount,
+            fee,
+            srcChainId
+        );
+        vm.stopPrank();
+
+        assertEq(mockERC.balanceOf(userDstAddress), dstAmount, "User destination did not receive ERC20 tokens");
+        assertEq(mockERC.balanceOf(MMAddress), 10 ether - dstAmount, "MM ERC20 balance did not decrease correctly");
+    }
+
+    function testFulfillmentFailsOnEthSentOnERC20() public {
+        // attach eth while doing a erc20 transfer
+    }
+
+    function testFulfillmentFailsOnERCAmountZero() public {
+        // the dst amount is zero
     }
 }
