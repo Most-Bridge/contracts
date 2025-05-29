@@ -16,7 +16,8 @@ contract PaymentRegistryTest is Test {
     uint256 dstAmount = 0.9 ether;
     uint256 fee = 0.1 ether;
     bytes32 srcChainId = bytes32(uint256(2));
-    bytes32 constant DST_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000000001; // TODO
+    // TODO: must match whatever is in the payment registry contract. 
+    bytes32 constant DST_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000000001; 
 
     address MMAddress = address(3);
 

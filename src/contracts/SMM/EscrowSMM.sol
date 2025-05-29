@@ -63,7 +63,8 @@ contract Escrow is ReentrancyGuard, Pausable {
         PENDING,
         COMPLETED,
         RECLAIMED,
-        DROPPED
+        DROPPED // TODO: this does not get used
+
     }
 
     enum HDPProvingStatus {
@@ -131,19 +132,19 @@ contract Escrow is ReentrancyGuard, Pausable {
     ) external payable nonReentrant whenNotPaused {
         bool isNativeToken = _srcToken == address(0);
         // The fee is always paid in the src token
-        require(_fee > 0, "The fee must be greater than 0.");
+        require(_fee > 0, "The fee must be greater than 0");
 
         if (isNativeToken) {
             // Native ETH logic
-            require(msg.value > 0, "Funds being sent must be greater than 0.");
+            require(msg.value > 0, "Funds being sent must be greater than 0");
             require(msg.value == _srcAmount, "The amount sent must match the msg.value");
             require(msg.value > _fee, "Fee must be less than the total value sent");
         } else {
             // ERC20 logic
-            require(msg.value == 0, "Native ETH logic must be used for native ETH transfers");
-            require(_srcAmount > 0, "ERC20 transfers must be greater than 0.");
-            require(_fee > 0, "The fee must be greater than 0.");
-            require(_srcAmount > _fee, "Fee must be less than the total value sent");
+            require(msg.value == 0, "ERC20: msg.value must be 0");
+            require(_srcAmount > 0, "ERC20: _srcAmount must be greater than 0");
+            require(_fee > 0, "ERC20: The fee must be greater than 0");
+            require(_srcAmount > _fee, "ERC20: Total amount sent must be greater than the fee");
 
             // Transfer ERC20 tokens from user to this contract
             IERC20 token = IERC20(_srcToken);
@@ -290,12 +291,12 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             Order memory order = calldataOrders[i];
-            require(msg.sender == order.usrSrcAddress, "Only the original address can refund an intent.");
+            require(msg.sender == order.usrSrcAddress, "Only the original address can refund an intent");
             bytes32 orderHash = _createOrderHash(order);
 
             require(orders[order.id] == orderHash, "Order hash mismatch");
-            require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund an order if it is not pending.");
-            require(block.timestamp > order.expirationTimestamp, "Cannot refund an order that has not expired.");
+            require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund an order if it is not pending");
+            require(block.timestamp > order.expirationTimestamp, "Cannot refund an order that has not expired");
 
             bool isNativeToken = order.srcToken == address(0);
             if (isNativeToken) {

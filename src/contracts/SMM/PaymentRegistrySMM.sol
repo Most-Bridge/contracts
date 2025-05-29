@@ -2,6 +2,9 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title  Payment Registry
 ///
@@ -9,7 +12,9 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 ///
 /// @notice Handles the throughput of transactions from the Market Maker to a user, and saves the data
 ///         to be used to prove the transaction.
-contract PaymentRegistry is Pausable {
+contract PaymentRegistry is Pausable, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     /// Storage
     mapping(bytes32 => bool) public fulfillments;
 
@@ -39,18 +44,19 @@ contract PaymentRegistry is Pausable {
     }
 
     /// External functions
-    /// @notice Called by the allowed market maker to transfer funds to the user on the destination chain
-    ///         The `transfer` mapping which is updated in this function, is what is used to prove the tx occurred
+    /// @notice Called by the allowed market maker to transfer funds (native ETH or ERC20) to the user on the destination chain.
+    ///         The fulfillment record is what is used to prove the transaction occurred.
     ///
-    /// @param _orderId             The order ID associated with the order being fulfilled
-    /// @param _usrDstAddress       The user's destination address to receive the funds
-    /// @param _expirationTimestamp The order’s expiration time. If an expired timestamp is mistakenly passed,
-    ///                             the funds in Escrow remain locked
-    /// @param _fee                 The fee paid to the MM
-    /// @param _usrSrcAddress       The address of the user on the source chain
-    ///
-    /// @notice srcToken and usrSrcAddress come from a foreign chain (e.g., Starknet), so passed as `bytes32`
-    /// @notice dstToken and usrDstAddress are native to this chain (EVM), so stored as `address`
+    /// @param _orderId             The order ID associated with the order being fulfilled.
+    /// @param _usrSrcAddress       The address of the user on the source chain (format: bytes32).
+    /// @param _usrDstAddress       The user's destination address (native EVM address) to receive the funds.
+    /// @param _expirationTimestamp The order's expiration time. Must be in the future.
+    /// @param _srcToken            The token address (identifier) on the source chain (format: bytes32).
+    /// @param _srcAmount           The amount of tokens sent from the source chain.
+    /// @param _dstToken            The token address on the destination (this) chain. For native ETH, use address(0).
+    /// @param _dstAmount           The amount of tokens (native ETH or ERC20) to be received by the user on this chain.
+    /// @param _fee                 The fee paid to the Market Maker for this fulfillment.
+    /// @param _srcChainId          The chain ID of the source chain (format: bytes32).
     function mostFulfillment(
         uint256 _orderId,
         bytes32 _usrSrcAddress,
@@ -62,8 +68,7 @@ contract PaymentRegistry is Pausable {
         uint256 _dstAmount,
         uint256 _fee,
         bytes32 _srcChainId
-    ) external payable onlyAllowedAddress whenNotPaused {
-        require(msg.value > 0, "Funds being sent must exceed 0.");
+    ) external payable onlyAllowedAddress whenNotPaused nonReentrant {
         uint256 currentTimestamp = block.timestamp;
         require(_expirationTimestamp > currentTimestamp, "Cannot fulfill an expired order.");
 
@@ -76,19 +81,29 @@ contract PaymentRegistry is Pausable {
                 _srcToken,
                 _srcAmount,
                 _dstToken,
-                msg.value,
+                _dstAmount,
                 _fee,
                 _srcChainId,
                 DST_CHAIN_ID
             )
         );
 
-        require(fulfillments[orderHash] == false, "Transfer already processed.");
-
+        require(!fulfillments[orderHash], "Transfer already processed");
         fulfillments[orderHash] = true;
 
-        (bool success,) = payable(_usrDstAddress).call{value: msg.value}(""); // transfer to user
-        require(success, "Transfer failed.");
+        if (_dstToken == address(0)) {
+            // Native ETH transfer
+            require(msg.value == _dstAmount, "Native ETH: msg.value mismatch with destination amount");
+            require(_dstAmount > 0, "Native ETH: Amount must be > 0");
+            (bool success,) = payable(_usrDstAddress).call{value: _dstAmount}("");
+            require(success, "Native ETH: Transfer failed");
+        } else {
+            // ERC20 token transfer
+            require(msg.value == 0, "ERC20: msg.value must be 0");
+            require(_dstAmount > 0, "ERC20: Amount must be > 0");
+
+            IERC20(_dstToken).safeTransferFrom(msg.sender, _usrDstAddress, _dstAmount);
+        }
 
         emit FulfillmentReceipt(
             _orderId,
@@ -98,7 +113,7 @@ contract PaymentRegistry is Pausable {
             _srcToken,
             _srcAmount,
             _dstToken,
-            msg.value, // dstAmount
+            _dstAmount,
             _fee,
             _srcChainId,
             DST_CHAIN_ID
