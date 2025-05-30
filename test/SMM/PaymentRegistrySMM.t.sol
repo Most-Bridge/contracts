@@ -25,7 +25,6 @@ contract PaymentRegistryTest is Test {
     uint256 dstAmount = 0.9 ether;
     uint256 fee = 0.1 ether;
     bytes32 srcChainId = bytes32(uint256(2));
-    // TODO: must match whatever is in the payment registry contract.
     bytes32 constant DST_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000000001;
 
     MockERC20 public mockERC;
@@ -33,7 +32,7 @@ contract PaymentRegistryTest is Test {
     address MMAddress = address(3);
 
     function setUp() public {
-        paymentRegistry = new PaymentRegistry();
+        paymentRegistry = new PaymentRegistry(DST_CHAIN_ID, MMAddress);
         vm.deal(MMAddress, 10 ether);
         vm.deal(userDstAddress, 1 ether);
         vm.prank(address(this));
@@ -46,7 +45,7 @@ contract PaymentRegistryTest is Test {
 
     function testFulfillmentSuccess() public {
         vm.prank(MMAddress); // mm calls
-        paymentRegistry.mostFulfillment{value: dstAmount}(
+        paymentRegistry.mostFulfillOrder{value: dstAmount}(
             orderId,
             userSrcAddress,
             userDstAddress,
@@ -82,7 +81,7 @@ contract PaymentRegistryTest is Test {
 
     function testFulfillmentFailsIfAlreadyProcessed() public {
         vm.startPrank(MMAddress);
-        paymentRegistry.mostFulfillment{value: dstAmount}(
+        paymentRegistry.mostFulfillOrder{value: dstAmount}(
             orderId,
             userSrcAddress,
             userDstAddress,
@@ -96,7 +95,7 @@ contract PaymentRegistryTest is Test {
         );
 
         vm.expectRevert("Transfer already processed");
-        paymentRegistry.mostFulfillment{value: dstAmount}(
+        paymentRegistry.mostFulfillOrder{value: dstAmount}(
             orderId,
             userSrcAddress,
             userDstAddress,
@@ -114,7 +113,7 @@ contract PaymentRegistryTest is Test {
     function testFulfillmentFailsIfNoValue() public {
         vm.prank(MMAddress);
         vm.expectRevert("Native ETH: msg.value mismatch with destination amount");
-        paymentRegistry.mostFulfillment{value: 0}(
+        paymentRegistry.mostFulfillOrder{value: 0}(
             orderId,
             userSrcAddress,
             userDstAddress,
@@ -131,7 +130,7 @@ contract PaymentRegistryTest is Test {
     function testFulfillmentFailsIfWrongValue() public {
         vm.prank(MMAddress);
         vm.expectRevert("Native ETH: msg.value mismatch with destination amount");
-        paymentRegistry.mostFulfillment{value: dstAmount}(
+        paymentRegistry.mostFulfillOrder{value: dstAmount}(
             orderId,
             userSrcAddress,
             userDstAddress,
@@ -150,7 +149,7 @@ contract PaymentRegistryTest is Test {
         vm.expectRevert("Cannot fulfill an expired order.");
         // warping time to expire order
         vm.warp(block.timestamp + 2 days);
-        paymentRegistry.mostFulfillment{value: dstAmount}(
+        paymentRegistry.mostFulfillOrder{value: dstAmount}(
             orderId,
             userSrcAddress,
             userDstAddress,
@@ -167,7 +166,7 @@ contract PaymentRegistryTest is Test {
     function testMMSendsMoreThanBalance() public {
         vm.prank(MMAddress);
         vm.expectRevert();
-        paymentRegistry.mostFulfillment{value: 20 ether}(
+        paymentRegistry.mostFulfillOrder{value: 20 ether}(
             orderId,
             userSrcAddress,
             userDstAddress,
@@ -185,7 +184,7 @@ contract PaymentRegistryTest is Test {
         // send a good erc20 transfer
         vm.startPrank(MMAddress);
         mockERC.approve(address(paymentRegistry), dstAmount);
-        paymentRegistry.mostFulfillment{value: 0}(
+        paymentRegistry.mostFulfillOrder{value: 0}(
             orderId,
             userSrcAddress,
             userDstAddress,
@@ -207,7 +206,7 @@ contract PaymentRegistryTest is Test {
         // attach eth while doing an erc20 transfer
         vm.prank(MMAddress);
         vm.expectRevert("ERC20: msg.value must be 0");
-        paymentRegistry.mostFulfillment{value: dstAmount}(
+        paymentRegistry.mostFulfillOrder{value: dstAmount}(
             orderId,
             userSrcAddress,
             userDstAddress,
@@ -225,7 +224,7 @@ contract PaymentRegistryTest is Test {
         // the dst amount is zero
         vm.prank(MMAddress);
         vm.expectRevert("ERC20: Amount must be > 0");
-        paymentRegistry.mostFulfillment{value: 0}(
+        paymentRegistry.mostFulfillOrder{value: 0}(
             orderId,
             userSrcAddress,
             userDstAddress,
@@ -243,7 +242,7 @@ contract PaymentRegistryTest is Test {
         vm.startPrank(MMAddress);
         mockERC.approve(address(paymentRegistry), 100 ether);
         vm.expectRevert();
-        paymentRegistry.mostFulfillment{value: 0}(
+        paymentRegistry.mostFulfillOrder{value: 0}(
             orderId,
             userSrcAddress,
             userDstAddress,
@@ -262,7 +261,7 @@ contract PaymentRegistryTest is Test {
         vm.expectRevert("Caller is not the allowed MM");
         vm.deal(address(99), 99 ether);
         vm.prank(address(99));
-        paymentRegistry.mostFulfillment{value: dstAmount}(
+        paymentRegistry.mostFulfillOrder{value: dstAmount}(
             orderId,
             userSrcAddress,
             userDstAddress,
@@ -281,7 +280,7 @@ contract PaymentRegistryTest is Test {
         NonPayableReceiver nonPayable = new NonPayableReceiver();
         vm.prank(MMAddress);
         vm.expectRevert("Native ETH: Transfer failed");
-        paymentRegistry.mostFulfillment{value: dstAmount}(
+        paymentRegistry.mostFulfillOrder{value: dstAmount}(
             orderId,
             userSrcAddress,
             address(nonPayable),
@@ -298,7 +297,7 @@ contract PaymentRegistryTest is Test {
     function testERC20FailsWithoutApproval() public {
         vm.prank(MMAddress);
         vm.expectRevert();
-        paymentRegistry.mostFulfillment{value: 0}(
+        paymentRegistry.mostFulfillOrder{value: 0}(
             orderId,
             userSrcAddress,
             userDstAddress,
@@ -319,7 +318,7 @@ contract PaymentRegistryTest is Test {
         vm.startPrank(MMAddress);
         broken.approve(address(paymentRegistry), dstAmount);
         vm.expectRevert();
-        paymentRegistry.mostFulfillment{value: 0}(
+        paymentRegistry.mostFulfillOrder{value: 0}(
             orderId,
             userSrcAddress,
             userDstAddress,
@@ -333,10 +332,27 @@ contract PaymentRegistryTest is Test {
         );
         vm.stopPrank();
     }
+
+    function testFulfillmentFailsOnEthAmountZero() public {
+        vm.prank(MMAddress);
+        vm.expectRevert("Native ETH: Amount must be > 0");
+        paymentRegistry.mostFulfillOrder{value: 0}(
+            orderId,
+            userSrcAddress,
+            userDstAddress,
+            expirationTimestamp,
+            srcToken,
+            srcAmount,
+            dstTokenETH,
+            0, // dstAmount = 0
+            fee,
+            srcChainId
+        );
+    }
 }
 
 contract NonPayableReceiver {
-    // No receive() or fallback() function — can't receive ETH
+// No receive() or fallback() function — can't receive ETH
 }
 
 contract BrokenERC20 is ERC20 {

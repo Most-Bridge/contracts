@@ -19,15 +19,22 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     mapping(bytes32 => bool) public fulfillments;
 
     /// State variables
-    address public owner;
-    address public allowedMMAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
-    bytes32 constant DST_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000000001; // TODO
+    address public immutable owner;
+    bytes32 public immutable dstChainId;
+    address public allowedMMAddress;
+
+    /// Constructor
+    constructor(bytes32 _dstChainId, address _allowedMMAddress) {
+        owner = msg.sender;
+        dstChainId = _dstChainId;
+        allowedMMAddress = _allowedMMAddress;
+    }
 
     /// Events
     event FulfillmentReceipt(
-        uint256 orderId,
-        bytes32 usrSrcAddress,
-        address usrDstAddress,
+        uint256 indexed orderId,
+        bytes32 indexed usrSrcAddress,
+        address indexed usrDstAddress,
         uint256 expirationTimestamp,
         bytes32 srcToken,
         uint256 srcAmount,
@@ -37,11 +44,6 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         bytes32 srcChainId,
         bytes32 dstChainId
     );
-
-    /// Constructor
-    constructor() {
-        owner = msg.sender;
-    }
 
     /// External functions
     /// @notice Called by the allowed market maker to transfer funds (native ETH or ERC20) to the user on the destination chain.
@@ -57,7 +59,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     /// @param _dstAmount           The amount of tokens (native ETH or ERC20) to be received by the user on this chain.
     /// @param _fee                 The fee paid to the Market Maker for this fulfillment.
     /// @param _srcChainId          The chain ID of the source chain (format: bytes32).
-    function mostFulfillment(
+    function mostFulfillOrder(
         uint256 _orderId,
         bytes32 _usrSrcAddress,
         address _usrDstAddress,
@@ -84,7 +86,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
                 _dstAmount,
                 _fee,
                 _srcChainId,
-                DST_CHAIN_ID
+                dstChainId
             )
         );
 
@@ -116,7 +118,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             _dstAmount,
             _fee,
             _srcChainId,
-            DST_CHAIN_ID
+            dstChainId
         );
     }
 
@@ -131,7 +133,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         _;
     }
 
-    /// Public functions
+    /// onlyOwner functions
     /// @notice Allows the owner to change the allowed market maker address, who will be fulfilling the orders
     /// @param _newAllowedMMAddress The new address that will fulfill the orders
     function setAllowedMMAddress(address _newAllowedMMAddress) public onlyOwner {
