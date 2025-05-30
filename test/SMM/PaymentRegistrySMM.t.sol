@@ -275,4 +275,78 @@ contract PaymentRegistryTest is Test {
             srcChainId
         );
     }
+
+    function testRevertTransferToNonPayableContract() public {
+        // Deploy a contract that cannot receive ETH
+        NonPayableReceiver nonPayable = new NonPayableReceiver();
+        vm.prank(MMAddress);
+        vm.expectRevert("Native ETH: Transfer failed");
+        paymentRegistry.mostFulfillment{value: dstAmount}(
+            orderId,
+            userSrcAddress,
+            address(nonPayable),
+            expirationTimestamp,
+            srcToken,
+            srcAmount,
+            dstTokenETH,
+            dstAmount,
+            fee,
+            srcChainId
+        );
+    }
+
+    function testERC20FailsWithoutApproval() public {
+        vm.prank(MMAddress);
+        vm.expectRevert();
+        paymentRegistry.mostFulfillment{value: 0}(
+            orderId,
+            userSrcAddress,
+            userDstAddress,
+            expirationTimestamp,
+            srcToken,
+            srcAmount,
+            address(mockERC),
+            dstAmount,
+            fee,
+            srcChainId
+        );
+    }
+
+    function testRevertTransferWithBrokenERC20() public {
+        BrokenERC20 broken = new BrokenERC20("FailToken", "FAIL");
+        broken.mint(MMAddress, 10 ether);
+
+        vm.startPrank(MMAddress);
+        broken.approve(address(paymentRegistry), dstAmount);
+        vm.expectRevert();
+        paymentRegistry.mostFulfillment{value: 0}(
+            orderId,
+            userSrcAddress,
+            userDstAddress,
+            expirationTimestamp,
+            srcToken,
+            srcAmount,
+            address(broken),
+            dstAmount,
+            fee,
+            srcChainId
+        );
+        vm.stopPrank();
+    }
+}
+
+contract NonPayableReceiver {
+    // No receive() or fallback() function — can't receive ETH
+}
+
+contract BrokenERC20 is ERC20 {
+    constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
+
+    function mint(address to, uint256 amount) public {
+        _mint(to, amount);
+    }
+
+    function transferFrom(address, address, uint256) public pure override returns (bool) {
+        revert("Broken ERC20: transferFrom always fails");
+    }
 }
