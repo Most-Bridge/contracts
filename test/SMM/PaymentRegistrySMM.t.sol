@@ -128,6 +128,23 @@ contract PaymentRegistryTest is Test {
         );
     }
 
+    function testFulfillmentFailsIfWrongValue() public {
+        vm.prank(MMAddress);
+        vm.expectRevert("Native ETH: msg.value mismatch with destination amount");
+        paymentRegistry.mostFulfillment{value: dstAmount}(
+            orderId,
+            userSrcAddress,
+            userDstAddress,
+            expirationTimestamp,
+            srcToken,
+            srcAmount,
+            dstTokenETH,
+            dstAmount + 1 ether,
+            fee,
+            srcChainId
+        );
+    }
+
     function testFulfillmentFailsOnExpiredOrder() public {
         vm.prank(MMAddress);
         vm.expectRevert("Cannot fulfill an expired order.");
@@ -149,7 +166,6 @@ contract PaymentRegistryTest is Test {
 
     function testMMSendsMoreThanBalance() public {
         vm.prank(MMAddress);
-        // warping time to expire order
         vm.expectRevert();
         paymentRegistry.mostFulfillment{value: 20 ether}(
             orderId,
@@ -188,10 +204,75 @@ contract PaymentRegistryTest is Test {
     }
 
     function testFulfillmentFailsOnEthSentOnERC20() public {
-        // attach eth while doing a erc20 transfer
+        // attach eth while doing an erc20 transfer
+        vm.prank(MMAddress);
+        vm.expectRevert("ERC20: msg.value must be 0");
+        paymentRegistry.mostFulfillment{value: dstAmount}(
+            orderId,
+            userSrcAddress,
+            userDstAddress,
+            expirationTimestamp,
+            srcToken,
+            srcAmount,
+            address(mockERC),
+            dstAmount,
+            fee,
+            srcChainId
+        );
     }
 
     function testFulfillmentFailsOnERCAmountZero() public {
         // the dst amount is zero
+        vm.prank(MMAddress);
+        vm.expectRevert("ERC20: Amount must be > 0");
+        paymentRegistry.mostFulfillment{value: 0}(
+            orderId,
+            userSrcAddress,
+            userDstAddress,
+            expirationTimestamp,
+            srcToken,
+            srcAmount,
+            address(mockERC),
+            0,
+            fee,
+            srcChainId
+        );
+    }
+
+    function testSendingMoreERCThanInBalance() public {
+        vm.startPrank(MMAddress);
+        mockERC.approve(address(paymentRegistry), 100 ether);
+        vm.expectRevert();
+        paymentRegistry.mostFulfillment{value: 0}(
+            orderId,
+            userSrcAddress,
+            userDstAddress,
+            expirationTimestamp,
+            srcToken,
+            srcAmount,
+            address(mockERC),
+            100 ether,
+            fee,
+            srcChainId
+        );
+        vm.stopPrank();
+    }
+
+    function testRevertIfNotAllowedMM() public {
+        vm.expectRevert("Caller is not the allowed MM");
+        vm.deal(address(99), 99 ether);
+        vm.prank(address(99));
+        paymentRegistry.mostFulfillment{value: dstAmount}(
+            orderId,
+            userSrcAddress,
+            userDstAddress,
+            expirationTimestamp,
+            srcToken,
+            srcAmount,
+            dstTokenETH,
+            dstAmount,
+            fee,
+            srcChainId
+        );
     }
 }

@@ -127,7 +127,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     }
 
     modifier onlyAllowedAddress() {
-        require(msg.sender == allowedMMAddress, "Caller is not allowed");
+        require(msg.sender == allowedMMAddress, "Caller is not the allowed MM");
         _;
     }
 
