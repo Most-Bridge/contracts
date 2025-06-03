@@ -210,10 +210,12 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param _blockNumber        The point in time when all the submitted orders have been fulfilled
     /// @param _destinationChainId The chain on which the order was fulfilled
     /// @param _balancesToWithdraw Summarized amounts of each token to withdraw - token address and amount pair
-    function proveAndWithdrawBatch(Order[] calldata calldataOrders, uint256 _blockNumber, bytes32 _destinationChainId, BalanceToWithdraw[] calldata _balancesToWithdraw)
-        public
-        onlyRelayAddress
-    {
+    function proveAndWithdrawBatch(
+        Order[] calldata calldataOrders,
+        uint256 _blockNumber,
+        bytes32 _destinationChainId,
+        BalanceToWithdraw[] calldata _balancesToWithdraw
+    ) public onlyRelayAddress {
         // For proving in aggregated mode using HDP
         bytes32[] memory taskInputs = new bytes32[](calldataOrders.length + 3);
         taskInputs[0] = bytes32(_destinationChainId);
@@ -221,7 +223,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         taskInputs[2] = bytes32(_blockNumber);
 
         uint256[] memory validOrderIds = new uint256[](calldataOrders.length);
-
 
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             // validate the call data
@@ -252,19 +253,17 @@ contract Escrow is ReentrancyGuard, Pausable {
         // First element of HDP module output array is boolean value - true if all orders in batch are verified
         // Second element of HDP module output arrya is length of the tokens and balances array
         // The next elements are the actual token addresses and summarized token balances repeated n-times where n is number of unique tokmens in batch
-        
+
         HDPTaskOutput memory expectedHdpTaskOutput = HDPTaskOutput({
             isOrdersFulfillmentVerified: bytes32(uint256(1)),
             tokensBalancesArrayLength: _balancesToWithdraw.length,
             tokensBalancesArray: _balancesToWithdraw
-            
         });
 
         bytes32 computedMerkleRoot = computeTaskOutputMerkleRoot(expectedHdpTaskOutput);
 
         require(
-            hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment)
-                == computedMerkleRoot,
+            hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment) == computedMerkleRoot,
             "Unable to prove: merkle root mismatch"
         );
 
@@ -283,7 +282,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                     (bool success,) = payable(allowedWithdrawalAddress).call{value: amount}("");
                     require(success, "ETH transfer failed");
                 } else {
-                    require(IERC20(token).transfer(allowedWithdrawalAddress, amount), "ERC20 transfer failed");
+                    require(IERC20(token).transfer(allowedWithdrawalAddress, amount), "ERC20 transfer failed"); // TODO: change to SAFE TRANSFER
                 }
             }
         }
@@ -362,6 +361,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         );
     }
 
+    // TODO: REMOVE THIS FUNCTION
     // Helper function to find a token in the array or add it if not found
     function findOrAddToken(address[] memory tokens, address token, uint256 currentCount)
         private
@@ -438,11 +438,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     // Helper functions
-    function computeTaskOutputMerkleRoot(HDPTaskOutput memory taskOutput)
-        internal
-        pure
-        returns (bytes32)
-    {
+    // TODO: MOVE THIS TO A LIBRARY AS A HELPER FILE
+    function computeTaskOutputMerkleRoot(HDPTaskOutput memory taskOutput) internal pure returns (bytes32) {
         require(
             taskOutput.tokensBalancesArray.length == taskOutput.tokensBalancesArrayLength,
             "HDPTaskOutput: length mismatch"
@@ -467,11 +464,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         return computeMerkleRoot(leaves);
     }
 
-    function computeMerkleRoot(bytes32[] memory leaves)
-        internal
-        pure
-        returns (bytes32 root)
-    {
+    function computeMerkleRoot(bytes32[] memory leaves) internal pure returns (bytes32 root) {
         require(leaves.length > 0, "StandardMerkleTree: empty leaves");
 
         while (leaves.length > 1) {
@@ -479,7 +472,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             bytes32[] memory level = new bytes32[](next);
 
             for (uint256 i = 0; i < leaves.length; i += 2) {
-                bytes32 left  = leaves[i];
+                bytes32 left = leaves[i];
                 // duplicate last element if the level has odd length
                 bytes32 right = i + 1 < leaves.length ? leaves[i + 1] : left;
                 level[i >> 1] = _hashPair(left, right);
@@ -489,12 +482,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         root = leaves[0];
     }
 
-
     function _hashPair(bytes32 a, bytes32 b) private pure returns (bytes32) {
-        return a <= b
-            ? keccak256(bytes.concat(a, b))
-            : keccak256(bytes.concat(b, a));
+        return a <= b ? keccak256(bytes.concat(a, b)) : keccak256(bytes.concat(b, a));
     }
-
-
 }
