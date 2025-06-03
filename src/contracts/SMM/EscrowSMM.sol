@@ -222,11 +222,6 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         uint256[] memory validOrderIds = new uint256[](calldataOrders.length);
 
-        // Storage of tokens to withdraw
-        address[] memory tokens = new address[](calldataOrders.length);
-        uint256[] memory amounts = new uint256[](calldataOrders.length);
-        uint256 tokenCount = 0;
-        uint256 ethToWithdraw = 0;
 
         for (uint256 i = 0; i < calldataOrders.length; i++) {
             // validate the call data
@@ -237,19 +232,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             require(orderStatus[order.id] == OrderState.PENDING, "Order not in PENDING state");
 
             taskInputs[i + 3] = orderHash; // offset because first 3 arguments are destination chain id, payment registry address and block number
-            bool isNativeToken = order.srcToken == address(0);
 
-            if (isNativeToken) {
-                ethToWithdraw += order.srcAmount;
-            } else {
-                // Check if token already exists in our array
-                uint256 tokenIndex = findOrAddToken(tokens, order.srcToken, tokenCount);
-                if (tokenIndex == tokenCount) {
-                    // New token added
-                    tokenCount++;
-                }
-                amounts[tokenIndex] += order.srcAmount;
-            }
             validOrderIds[i] = order.id;
         }
 
@@ -290,19 +273,18 @@ contract Escrow is ReentrancyGuard, Pausable {
             orderStatus[calldataOrders[i].id] = OrderState.COMPLETED;
         }
 
-        // Withdraw ETH if any
-        if (ethToWithdraw > 0) {
-            require(address(this).balance >= ethToWithdraw, "Insufficient ETH balance");
-            (bool success,) = payable(allowedWithdrawalAddress).call{value: ethToWithdraw}("");
-            require(success, "ETH transfer failed");
-        }
-
-        // Withdraw ERC20 tokens
-        for (uint256 i = 0; i < tokenCount; i++) {
-            address token = tokens[i];
-            uint256 amount = amounts[i];
+        // Withdraw all tokens (including ETH if tokenAddress == address(0))
+        for (uint256 i = 0; i < _balancesToWithdraw.length; i++) {
+            address token = address(uint160(uint256(_balancesToWithdraw[i].tokenAddress)));
+            uint256 amount = _balancesToWithdraw[i].summarizedAmount;
             if (amount > 0) {
-                require(IERC20(token).transfer(allowedWithdrawalAddress, amount), "ERC20 transfer failed");
+                if (token == address(0)) {
+                    require(address(this).balance >= amount, "Insufficient ETH balance");
+                    (bool success,) = payable(allowedWithdrawalAddress).call{value: amount}("");
+                    require(success, "ETH transfer failed");
+                } else {
+                    require(IERC20(token).transfer(allowedWithdrawalAddress, amount), "ERC20 transfer failed");
+                }
             }
         }
 
