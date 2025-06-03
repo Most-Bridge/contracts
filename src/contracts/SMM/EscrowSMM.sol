@@ -101,7 +101,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     struct BalanceToWithdraw {
-        bytes32 tokenAddress;
+        address tokenAddress;
         uint256 summarizedAmount;
     }
 
@@ -275,7 +275,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         // Withdraw all tokens (including ETH if tokenAddress == address(0))
         for (uint256 i = 0; i < _balancesToWithdraw.length; i++) {
-            address token = address(uint160(uint256(_balancesToWithdraw[i].tokenAddress)));
+            address token = _balancesToWithdraw[i].tokenAddress;
             uint256 amount = _balancesToWithdraw[i].summarizedAmount;
             if (amount > 0) {
                 if (token == address(0)) {
