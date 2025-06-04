@@ -7,6 +7,7 @@ import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.so
 
 import {ModuleTask, ModuleCodecs} from "lib/herodotus-evm-v2/src/libraries/internal/data-processor/ModuleCodecs.sol";
 import {IDataProcessorModule} from "lib/herodotus-evm-v2/src/interfaces/modules/IDataProcessorModule.sol";
+import {MerkleHelper} from "src/contracts/libraries/MerkleHelper.sol";
 
 /// @title Escrow SMM (Single Market Maker)
 ///
@@ -260,7 +261,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             tokensBalancesArray: _balancesToWithdraw
         });
 
-        bytes32 computedMerkleRoot = computeTaskOutputMerkleRoot(expectedHdpTaskOutput);
+        bytes32 computedMerkleRoot = MerkleHelper.computeTaskOutputMerkleRoot(expectedHdpTaskOutput);
 
         require(
             hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment) == computedMerkleRoot,
@@ -435,54 +436,5 @@ contract Escrow is ReentrancyGuard, Pausable {
     modifier onlyOwner() {
         require(msg.sender == owner, "Caller is not the owner");
         _;
-    }
-
-    // Helper functions
-    // TODO: MOVE THIS TO A LIBRARY AS A HELPER FILE
-    function computeTaskOutputMerkleRoot(HDPTaskOutput memory taskOutput) internal pure returns (bytes32) {
-        require(
-            taskOutput.tokensBalancesArray.length == taskOutput.tokensBalancesArrayLength,
-            "HDPTaskOutput: length mismatch"
-        );
-
-        /*
-            leaf[0] = keccak256(abi.encode(isOrdersFulfillmentVerified))
-            leaf[1] = keccak256(abi.encode(tokensBalancesArrayLength))
-            leaf[2+i] = keccak256(abi.encode(tokenAddress, summarizedAmount))
-        */
-        uint256 nLeaves = 2 + taskOutput.tokensBalancesArrayLength;
-        bytes32[] memory leaves = new bytes32[](nLeaves);
-
-        leaves[0] = keccak256(abi.encode(taskOutput.isOrdersFulfillmentVerified));
-        leaves[1] = keccak256(abi.encode(taskOutput.tokensBalancesArrayLength));
-
-        for (uint256 i = 0; i < taskOutput.tokensBalancesArray.length; ++i) {
-            BalanceToWithdraw memory b = taskOutput.tokensBalancesArray[i];
-            leaves[2 + i] = keccak256(abi.encode(b.tokenAddress, b.summarizedAmount));
-        }
-
-        return computeMerkleRoot(leaves);
-    }
-
-    function computeMerkleRoot(bytes32[] memory leaves) internal pure returns (bytes32 root) {
-        require(leaves.length > 0, "StandardMerkleTree: empty leaves");
-
-        while (leaves.length > 1) {
-            uint256 next = (leaves.length + 1) >> 1;
-            bytes32[] memory level = new bytes32[](next);
-
-            for (uint256 i = 0; i < leaves.length; i += 2) {
-                bytes32 left = leaves[i];
-                // duplicate last element if the level has odd length
-                bytes32 right = i + 1 < leaves.length ? leaves[i + 1] : left;
-                level[i >> 1] = _hashPair(left, right);
-            }
-            leaves = level;
-        }
-        root = leaves[0];
-    }
-
-    function _hashPair(bytes32 a, bytes32 b) private pure returns (bytes32) {
-        return a <= b ? keccak256(bytes.concat(a, b)) : keccak256(bytes.concat(b, a));
     }
 }
