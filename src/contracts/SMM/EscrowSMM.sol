@@ -61,7 +61,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     );
     event ProveBridgeAggregatedSuccess(uint256[] orderIds);
     event WithdrawSuccessBatch(uint256[] orderIds);
-    event OrdersReclaimed(uint256[] orderIds);
+    event OrdersReclaimed(uint256 orderId);
 
     /// Enums
     enum OrderState {
@@ -295,55 +295,29 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @notice Allows the user to refund their order if it has not been fulfilled by the expiration date
     ///
     /// @custom:security This function should never be pausable
-    function refundOrderBatch(Order[] calldata calldataOrders) external payable nonReentrant {
-        address[] memory tokens = new address[](calldataOrders.length);
-        uint256[] memory amounts = new uint256[](calldataOrders.length);
-        uint256 tokenCount = 0;
-        uint256 ethToRefund = 0;
-        uint256[] memory refundedOrderIds = new uint256[](calldataOrders.length);
+    function refundOrder(Order calldata order) external payable nonReentrant {
+        require(msg.sender == order.usrSrcAddress, "Only the original address can refund an intent");
 
-        for (uint256 i = 0; i < calldataOrders.length; i++) {
-            Order memory order = calldataOrders[i];
-            require(msg.sender == order.usrSrcAddress, "Only the original address can refund an intent");
-            bytes32 orderHash = _createOrderHash(order);
+        bytes32 orderHash = _createOrderHash(order);
+        require(orders[order.id] == orderHash, "Order hash mismatch");
+        require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund a non-pending order");
+        require(block.timestamp > order.expirationTimestamp, "Order has not expired yet");
+        require(order.srcChainId == SRC_CHAIN_ID, "Order is not from the source chain");
 
-            require(orders[order.id] == orderHash, "Order hash mismatch");
-            require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund an order if it is not pending");
-            require(block.timestamp > order.expirationTimestamp, "Cannot refund an order that has not expired");
+        orderStatus[order.id] = OrderState.RECLAIMED;
 
-            bool isNativeToken = order.srcToken == address(0);
-            if (isNativeToken) {
-                ethToRefund += order.srcAmount;
-            } else {
-                uint256 tokenIndex = findOrAddToken(tokens, order.srcToken, tokenCount);
-                if (tokenIndex == tokenCount) {
-                    // New token added
-                    tokenCount++;
-                }
-                amounts[tokenIndex] += order.srcAmount;
-            }
-            orderStatus[order.id] = OrderState.RECLAIMED;
-            refundedOrderIds[i] = order.id;
-        }
-
-        // Refund ETH if any
-        if (ethToRefund > 0) {
-            require(address(this).balance >= ethToRefund, "Insufficient ETH balance");
-            (bool success,) = payable(msg.sender).call{value: ethToRefund}("");
+        if (order.srcToken == address(0)) {
+            // Native ETH refund
+            require(address(this).balance >= order.srcAmount, "Insufficient ETH balance");
+            (bool success,) = payable(msg.sender).call{value: order.srcAmount}("");
             require(success, "ETH refund failed");
+        } else {
+            // ERC20 token refund
+            require(IERC20(order.srcToken).balanceOf(address(this)) >= order.srcAmount, "Insufficient ERC20 balance");
+            IERC20(order.srcToken).safeTransfer(msg.sender, order.srcAmount);
         }
 
-        // Refund ERC20 tokens
-        for (uint256 i = 0; i < tokenCount; i++) {
-            address token = tokens[i];
-            uint256 amount = amounts[i];
-            if (amount > 0) {
-                require(IERC20(token).balanceOf(address(this)) >= amount, "Insufficient ERC20 balance");
-                IERC20(token).safeTransfer(msg.sender, amount);
-            }
-        }
-
-        emit OrdersReclaimed(refundedOrderIds);
+        emit OrdersReclaimed(order.id);
     }
 
     function _createOrderHash(Order memory orderDetails) internal pure returns (bytes32) {
