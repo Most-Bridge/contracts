@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {ModuleTask, ModuleCodecs} from "lib/herodotus-evm-v2/src/libraries/internal/data-processor/ModuleCodecs.sol";
 import {IDataProcessorModule} from "lib/herodotus-evm-v2/src/interfaces/modules/IDataProcessorModule.sol";
@@ -17,6 +18,7 @@ import {MerkleHelper} from "src/contracts/libraries/MerkleHelper.sol";
 ///         facilitator service.
 contract Escrow is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
+    using SafeERC20 for IERC20;
 
     // State variables
     uint256 private orderId = 1;
@@ -160,9 +162,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             require(_fee > 0, "ERC20: The fee must be greater than 0");
             require(_srcAmount > _fee, "ERC20: Total amount sent must be greater than the fee");
 
-            // Transfer ERC20 tokens from user to this contract
-            IERC20 token = IERC20(_srcToken);
-            require(token.transferFrom(msg.sender, address(this), _srcAmount), "ERC20 transfer failed");
+            IERC20(_srcToken).safeTransferFrom(msg.sender, address(this), _srcAmount);
         }
 
         // The order expires 24 hours after placement. If not proven by then, the user can withdraw funds.
@@ -283,7 +283,8 @@ contract Escrow is ReentrancyGuard, Pausable {
                     (bool success,) = payable(allowedWithdrawalAddress).call{value: amount}("");
                     require(success, "ETH transfer failed");
                 } else {
-                    require(IERC20(token).transfer(allowedWithdrawalAddress, amount), "ERC20 transfer failed"); // TODO: change to SAFE TRANSFER
+                    require(IERC20(token).balanceOf(address(this)) >= amount, "Insufficient ERC20 balance");
+                    IERC20(token).safeTransfer(allowedWithdrawalAddress, amount);
                 }
             }
         }
@@ -337,7 +338,8 @@ contract Escrow is ReentrancyGuard, Pausable {
             address token = tokens[i];
             uint256 amount = amounts[i];
             if (amount > 0) {
-                require(IERC20(token).transfer(msg.sender, amount), "ERC20 refund failed");
+                require(IERC20(token).balanceOf(address(this)) >= amount, "Insufficient ERC20 balance");
+                IERC20(token).safeTransfer(msg.sender, amount);
             }
         }
 
