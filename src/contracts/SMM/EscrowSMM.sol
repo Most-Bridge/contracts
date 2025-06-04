@@ -204,7 +204,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         Order[] calldata calldataOrders,
         uint256 _blockNumber,
         bytes32 _destinationChainId,
-        MerkleHelper.BalanceToWithdraw[] calldata _balancesToWithdraw
+        MerkleHelper.BalanceToWithdraw[] memory _balancesToWithdraw
     ) public onlyRelayAddress {
         // For proving in aggregated mode using HDP
         bytes32[] memory taskInputs = new bytes32[](calldataOrders.length + 3);
@@ -237,28 +237,6 @@ contract Escrow is ReentrancyGuard, Pausable {
             hdpExecutionStore.getDataProcessorTaskStatus(taskCommitment) == IDataProcessorModule.TaskStatus.FINALIZED,
             "HDP Task is not finalized"
         );
-
-        // HDP task result is merkelized - we are getting Merkle Root from HDP Execution Store
-        // We need to verify that this merkle root matches with the data provided here
-        // First element of HDP module output array is boolean value - true if all orders in batch are verified
-        // Second element of HDP module output array is length of the tokens and balances array
-        // The next elements are the actual token addresses and summarized token balances repeated n-times where n is number of unique tokens in batch
-
-        // TODO: i was informed that assigning a calldata array directly to a memory struct field
-        // should not be allowed bc of the different memory locations.
-        // i'm not sure how necessary this is, or if it's really future proofing, but wanted
-        // to avoid issues for now.
-        // MerkleHelper.BalanceToWithdraw[] memory memoryBalances =
-        //     new MerkleHelper.BalanceToWithdraw[](_balancesToWithdraw.length);
-
-        // for (uint256 i = 0; i < _balancesToWithdraw.length; i++) {
-        //     memoryBalances[i] = MerkleHelper.BalanceToWithdraw({
-        //         tokenAddress: _balancesToWithdraw[i].tokenAddress,
-        //         summarizedAmount: _balancesToWithdraw[i].summarizedAmount
-        //     });
-        // }
-
-        // end of TODO
 
         MerkleHelper.HDPTaskOutput memory expectedHdpTaskOutput = MerkleHelper.HDPTaskOutput({
             isOrdersFulfillmentVerified: bytes32(uint256(1)),
