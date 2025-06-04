@@ -250,10 +250,10 @@ contract Escrow is ReentrancyGuard, Pausable {
         );
 
         // HDP task result is merkelized - we are getting Merkle Root from HDP Execution Store
-        // We need to veryfy that this merkle root matches with the data provied here
+        // We need to verify that this merkle root matches with the data provided here
         // First element of HDP module output array is boolean value - true if all orders in batch are verified
-        // Second element of HDP module output arrya is length of the tokens and balances array
-        // The next elements are the actual token addresses and summarized token balances repeated n-times where n is number of unique tokmens in batch
+        // Second element of HDP module output array is length of the tokens and balances array
+        // The next elements are the actual token addresses and summarized token balances repeated n-times where n is number of unique tokens in batch
 
         HDPTaskOutput memory expectedHdpTaskOutput = HDPTaskOutput({
             isOrdersFulfillmentVerified: bytes32(uint256(1)),
@@ -336,22 +336,6 @@ contract Escrow is ReentrancyGuard, Pausable {
                 orderDetails.dstChainId // bytes32
             )
         );
-    }
-
-    // TODO: REMOVE THIS FUNCTION
-    // Helper function to find a token in the array or add it if not found
-    function findOrAddToken(address[] memory tokens, address token, uint256 currentCount)
-        private
-        pure
-        returns (uint256)
-    {
-        for (uint256 i = 0; i < currentCount; i++) {
-            if (tokens[i] == token) {
-                return i;
-            }
-        }
-        tokens[currentCount] = token;
-        return currentCount;
     }
 
     /// Restricted functions
