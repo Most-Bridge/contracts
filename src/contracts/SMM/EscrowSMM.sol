@@ -248,22 +248,22 @@ contract Escrow is ReentrancyGuard, Pausable {
         // should not be allowed bc of the different memory locations.
         // i'm not sure how necessary this is, or if it's really future proofing, but wanted
         // to avoid issues for now.
-        MerkleHelper.BalanceToWithdraw[] memory memoryBalances =
-            new MerkleHelper.BalanceToWithdraw[](_balancesToWithdraw.length);
+        // MerkleHelper.BalanceToWithdraw[] memory memoryBalances =
+        //     new MerkleHelper.BalanceToWithdraw[](_balancesToWithdraw.length);
 
-        for (uint256 i = 0; i < _balancesToWithdraw.length; i++) {
-            memoryBalances[i] = MerkleHelper.BalanceToWithdraw({
-                tokenAddress: _balancesToWithdraw[i].tokenAddress,
-                summarizedAmount: _balancesToWithdraw[i].summarizedAmount
-            });
-        }
+        // for (uint256 i = 0; i < _balancesToWithdraw.length; i++) {
+        //     memoryBalances[i] = MerkleHelper.BalanceToWithdraw({
+        //         tokenAddress: _balancesToWithdraw[i].tokenAddress,
+        //         summarizedAmount: _balancesToWithdraw[i].summarizedAmount
+        //     });
+        // }
 
         // end of TODO
 
         MerkleHelper.HDPTaskOutput memory expectedHdpTaskOutput = MerkleHelper.HDPTaskOutput({
             isOrdersFulfillmentVerified: bytes32(uint256(1)),
             tokensBalancesArrayLength: _balancesToWithdraw.length,
-            tokensBalancesArray: memoryBalances
+            tokensBalancesArray: _balancesToWithdraw
         });
 
         bytes32 computedMerkleRoot = MerkleHelper.computeTaskOutputMerkleRoot(expectedHdpTaskOutput);

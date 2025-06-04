@@ -1,290 +1,312 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.0;
 
-// import {Test, console} from "forge-std/Test.sol";
-// import {Escrow} from "../../src/contracts/SMM/EscrowSMM.sol";
+import {Test, console} from "forge-std/Test.sol";
+import {Escrow} from "../../src/contracts/SMM/EscrowSMM.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-// contract EscrowTest is Test {
-//     Escrow escrow;
-//     address owner;
-//     address user = address(1);
-//     bytes32 destinationAddress = bytes32(uint256(2));
-//     address mmAddress = address(3);
-//     address maliciousActor = address(4);
-//     address _srcToken = address(5);
-//     bytes32 _dstToken = bytes32(uint256(69));
+contract MockERC20 is ERC20 {
+    constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
 
-//     bytes32 dstChainId = bytes32(uint256(1));
-//     bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7;
+    function mint(address to, uint256 amount) public {
+        _mint(to, amount);
+    }
+}
 
-//     uint256 firstOrderId = 1;
-//     uint256 public constant ONE_DAY = 1 days;
+contract EscrowTest is Test {
+    Escrow escrow;
+    address owner;
+    address user = address(1);
+    bytes32 destinationAddress = bytes32(uint256(2));
+    address mmAddress = address(3);
+    address maliciousActor = address(4);
+    address _srcTokenETH = address(0);
+    bytes32 _dstToken = bytes32(uint256(69));
 
-//     uint256 sendAmount = 0.00001 ether;
-//     uint256 feeAmount = 0.000001 ether;
-//     uint256 _dstAmount = sendAmount - feeAmount;
+    bytes32 dstChainId = bytes32(uint256(1));
+    bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7;
 
-//     function setUp() public {
-//         Escrow.HDPConnectionInitial[] memory initialHDPChainConnections = new Escrow.HDPConnectionInitial[](1);
+    uint256 firstOrderId = 1;
+    uint256 public constant ONE_DAY = 1 days;
 
-//         // For Ethereum Sepolia
-//         initialHDPChainConnections[0] = Escrow.HDPConnectionInitial({
-//             destinationChainId: bytes32(uint256(111555111)),
-//             paymentRegistryAddress: bytes32(uint256(uint160(0x9eB3feB35884B284Ea1e38Dd175417cE90B43AA1))),
-//             hdpProgramHash: bytes32(uint256(0x3e6ede9c31b71072c18c6d1453285eac4ae0cf7702e3e5b8fe17d470ed0ddf4))
-//         });
+    uint256 sendAmount = 0.00001 ether;
+    uint256 feeAmount = 0.000001 ether;
+    uint256 _dstAmount = sendAmount - feeAmount;
 
-//         escrow = new Escrow(initialHDPChainConnections);
-//         vm.deal(user, 10 ether);
-//         owner = address(this);
-//         escrow.setAllowedAddress(owner);
-//         // escrow.addSupportForNewSrcToken(_srcToken);
-//         // escrow.addSupportForNewDstToken(dstChainId, _dstToken);
-//     }
+    MockERC20 public mockERC;
 
-//     function testCreateOrderSuccess() public {
-//         vm.startPrank(user);
-//         escrow.createOrder{value: sendAmount}(
-//             destinationAddress, _srcToken, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
-//         );
+    function setUp() public {
+        Escrow.HDPConnectionInitial[] memory initialHDPChainConnections = new Escrow.HDPConnectionInitial[](1);
 
-//         bytes32 expectedOrderHash = keccak256(
-//             abi.encode(
-//                 firstOrderId,
-//                 user,
-//                 destinationAddress,
-//                 block.timestamp + ONE_DAY,
-//                 _srcToken,
-//                 sendAmount,
-//                 _dstToken,
-//                 _dstAmount,
-//                 feeAmount,
-//                 SRC_CHAIN_ID,
-//                 dstChainId
-//             )
-//         );
+        // For Ethereum Sepolia
+        initialHDPChainConnections[0] = Escrow.HDPConnectionInitial({
+            destinationChainId: bytes32(uint256(111555111)),
+            paymentRegistryAddress: bytes32(uint256(uint160(0x9eB3feB35884B284Ea1e38Dd175417cE90B43AA1))),
+            hdpProgramHash: bytes32(uint256(0x3e6ede9c31b71072c18c6d1453285eac4ae0cf7702e3e5b8fe17d470ed0ddf4))
+        });
 
-//         assertEq(escrow.orders(1), expectedOrderHash);
-//         assertEq(uint256(escrow.orderStatus(1)), uint256(Escrow.OrderState.PENDING));
-//         vm.stopPrank();
-//     }
+        escrow = new Escrow(initialHDPChainConnections);
+        vm.deal(user, 10 ether);
+        owner = address(this);
+        escrow.setAllowedAddress(owner);
 
-//     function testCreateOrderWithNoValue() public {
-//         vm.startPrank(user);
-//         vm.expectRevert("Funds being sent must be greater than 0.");
-//         escrow.createOrder(destinationAddress, _srcToken, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId);
-//         vm.stopPrank();
-//     }
+        // deploy mock ERC20 token and mint it to MM
+        mockERC = new MockERC20("MockToken", "MOCK");
+        mockERC.mint(mmAddress, 10 ether);
+    }
 
-//     function testCreateOrderWithFeeBiggerThanValueSent() public {
-//         vm.startPrank(user);
-//         vm.expectRevert("Fee must be less than the total value sent");
-//         escrow.createOrder{value: sendAmount}(
-//             destinationAddress, _srcToken, sendAmount, _dstToken, _dstAmount, 5 ether, dstChainId
-//         );
-//         vm.stopPrank();
-//     }
+    function testCreateOrderSuccess() public {
+        vm.startPrank(user);
+        escrow.createOrder{value: sendAmount}(
+            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
+        );
 
-//     function testPauseContract() public {
-//         vm.startPrank(owner);
-//         escrow.pauseContract();
-//         vm.stopPrank();
+        bytes32 expectedOrderHash = keccak256(
+            abi.encode(
+                firstOrderId,
+                user,
+                destinationAddress,
+                block.timestamp + ONE_DAY,
+                _srcTokenETH,
+                sendAmount,
+                _dstToken,
+                _dstAmount,
+                feeAmount,
+                SRC_CHAIN_ID,
+                dstChainId
+            )
+        );
 
-//         vm.startPrank(user);
-//         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
-//         escrow.createOrder{value: sendAmount}(
-//             destinationAddress, _srcToken, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
-//         );
-//         vm.stopPrank();
-//     }
+        assertEq(escrow.orders(1), expectedOrderHash);
+        assertEq(uint256(escrow.orderStatus(1)), uint256(Escrow.OrderState.PENDING));
+        vm.stopPrank();
+    }
 
-//     function testPauseAndUnpauseContract() public {
-//         vm.prank(owner);
-//         escrow.pauseContract();
+    function testCreateOrderWithNoValue() public {
+        vm.startPrank(user);
+        vm.expectRevert("Funds being sent must be greater than 0");
+        escrow.createOrder(destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId);
+        vm.stopPrank();
+    }
 
-//         vm.prank(user);
-//         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
-//         escrow.createOrder{value: sendAmount}(
-//             destinationAddress, _srcToken, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
-//         );
+    function testCreateOrderWithFeeBiggerThanValueSent() public {
+        vm.startPrank(user);
+        vm.expectRevert("Fee must be less than the total value sent");
+        escrow.createOrder{value: sendAmount}(
+            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, 5 ether, dstChainId
+        );
+        vm.stopPrank();
+    }
 
-//         vm.prank(owner);
-//         escrow.unpauseContract();
+    function testCreateOrderWithZeroFee() public {
+        vm.startPrank(user);
+        vm.expectRevert("The fee must be greater than 0");
+        escrow.createOrder{value: sendAmount}(
+            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, 0, dstChainId
+        );
+        vm.stopPrank();
+    }
 
-//         vm.prank(user);
-//         escrow.createOrder{value: sendAmount}(
-//             destinationAddress, _srcToken, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
-//         );
-//         bytes32 expectedOrderHash = keccak256(
-//             abi.encode(
-//                 firstOrderId,
-//                 user,
-//                 destinationAddress,
-//                 block.timestamp + ONE_DAY,
-//                 _srcToken,
-//                 sendAmount,
-//                 _dstToken,
-//                 _dstAmount,
-//                 feeAmount,
-//                 SRC_CHAIN_ID,
-//                 dstChainId
-//             )
-//         );
+    function testPauseContract() public {
+        vm.startPrank(owner);
+        escrow.pauseContract();
+        vm.stopPrank();
 
-//         assertEq(escrow.orders(1), expectedOrderHash);
-//         assertEq(uint256(escrow.orderStatus(1)), uint256(Escrow.OrderState.PENDING));
-//     }
+        vm.startPrank(user);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        escrow.createOrder{value: sendAmount}(
+            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
+        );
+        vm.stopPrank();
+    }
 
-//     function testRefundOrder() public {
-//         vm.startPrank(user);
-//         escrow.createOrder{value: sendAmount}(
-//             destinationAddress, _srcToken, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
-//         );
-//         assertEq(user.balance, 9.99999 ether); // user balance decreased
+    function testPauseAndUnpauseContract() public {
+        vm.prank(owner);
+        escrow.pauseContract();
 
-//         uint256 currentTimestamp = block.timestamp;
-//         uint256 expirationTimestamp = currentTimestamp + ONE_DAY;
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        escrow.createOrder{value: sendAmount}(
+            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
+        );
 
-//         vm.warp(block.timestamp + ONE_DAY + 1 days); // order is now expired
+        vm.prank(owner);
+        escrow.unpauseContract();
 
-//         // Array with one order
-//         Escrow.Order[] memory ordersToRefund = new Escrow.Order[](1);
-//         ordersToRefund[0] = Escrow.Order({
-//             id: firstOrderId,
-//             usrSrcAddress: user,
-//             usrDstAddress: destinationAddress,
-//             expirationTimestamp: expirationTimestamp,
-//             srcToken: _srcToken,
-//             srcAmount: sendAmount,
-//             dstToken: _dstToken,
-//             dstAmount: _dstAmount,
-//             fee: feeAmount,
-//             dstChainId: dstChainId
-//         });
-//         // Call the batch refund function
-//         escrow.refundOrderBatch(ordersToRefund);
+        vm.prank(user);
+        escrow.createOrder{value: sendAmount}(
+            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
+        );
+        bytes32 expectedOrderHash = keccak256(
+            abi.encode(
+                firstOrderId,
+                user,
+                destinationAddress,
+                block.timestamp + ONE_DAY,
+                _srcTokenETH,
+                sendAmount,
+                _dstToken,
+                _dstAmount,
+                feeAmount,
+                SRC_CHAIN_ID,
+                dstChainId
+            )
+        );
 
-//         assertEq(user.balance, 10 ether); // user balance went back up
+        assertEq(escrow.orders(1), expectedOrderHash);
+        assertEq(uint256(escrow.orderStatus(1)), uint256(Escrow.OrderState.PENDING));
+    }
 
-//         vm.stopPrank();
-//     }
+    // function testRefundOrder() public {
+    //     vm.startPrank(user);
+    //     escrow.createOrder{value: sendAmount}(
+    //         destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
+    //     );
+    //     assertEq(user.balance, 9.99999 ether); // user balance decreased
 
-//     function testRefundOrderByWrongUser() public {
-//         vm.prank(user);
-//         escrow.createOrder{value: sendAmount}(
-//             destinationAddress, _srcToken, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
-//         );
-//         uint256 expirationTimestamp = block.timestamp + ONE_DAY;
+    //     uint256 currentTimestamp = block.timestamp;
+    //     uint256 expirationTimestamp = currentTimestamp + ONE_DAY;
 
-//         vm.warp(block.timestamp + ONE_DAY + 2 days); // order expired
+    //     vm.warp(block.timestamp + ONE_DAY + 1 days); // order is now expired
 
-//         //  Array with one order
-//         Escrow.Order[] memory ordersToRefund = new Escrow.Order[](1);
-//         ordersToRefund[0] = Escrow.Order({
-//             id: firstOrderId,
-//             usrSrcAddress: user,
-//             usrDstAddress: destinationAddress,
-//             expirationTimestamp: expirationTimestamp,
-//             srcToken: _srcToken,
-//             srcAmount: sendAmount,
-//             dstToken: _dstToken,
-//             dstAmount: _dstAmount,
-//             fee: feeAmount,
-//             dstChainId: dstChainId
-//         });
+    //     // Array with one order
+    //     Escrow.Order[] memory ordersToRefund = new Escrow.Order[](1);
+    //     ordersToRefund[0] = Escrow.Order({
+    //         id: firstOrderId,
+    //         usrSrcAddress: user,
+    //         usrDstAddress: destinationAddress,
+    //         expirationTimestamp: expirationTimestamp,
+    //         srcToken: _srcTokenETH,
+    //         srcAmount: sendAmount,
+    //         dstToken: _dstToken,
+    //         dstAmount: _dstAmount,
+    //         fee: feeAmount,
+    //         dstChainId: dstChainId
+    //     });
+    //     // Call the batch refund function
+    //     escrow.refundOrderBatch(ordersToRefund);
 
-//         vm.prank(maliciousActor);
-//         vm.expectRevert("Only the original address can refund an intent.");
-//         escrow.refundOrderBatch(ordersToRefund);
-//     }
+    //     assertEq(user.balance, 10 ether); // user balance went back up
 
-//     function testRefundOrderBeforeExpiration() public {
-//         vm.startPrank(user);
-//         escrow.createOrder{value: sendAmount}(
-//             destinationAddress, _srcToken, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
-//         );
-//         uint256 expirationTimestamp = block.timestamp + ONE_DAY;
-//         // Create array with one order
-//         Escrow.Order[] memory ordersToRefund = new Escrow.Order[](1);
-//         ordersToRefund[0] = Escrow.Order({
-//             id: firstOrderId,
-//             usrSrcAddress: user,
-//             usrDstAddress: destinationAddress,
-//             expirationTimestamp: expirationTimestamp,
-//             srcToken: _srcToken,
-//             srcAmount: sendAmount,
-//             dstToken: _dstToken,
-//             dstAmount: _dstAmount,
-//             fee: feeAmount,
-//             dstChainId: dstChainId
-//         });
+    //     vm.stopPrank();
+    // }
 
-//         vm.expectRevert("Cannot refund an order that has not expired.");
-//         escrow.refundOrderBatch(ordersToRefund);
-//         vm.stopPrank();
-//     }
+    // function testRefundOrderByWrongUser() public {
+    //     vm.prank(user);
+    //     escrow.createOrder{value: sendAmount}(
+    //         destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
+    //     );
+    //     uint256 expirationTimestamp = block.timestamp + ONE_DAY;
 
-//     function testRefundOrderWithWrongDetails() public {
-//         vm.startPrank(user);
-//         escrow.createOrder{value: sendAmount}(
-//             destinationAddress, _srcToken, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
-//         );
-//         vm.stopPrank();
+    //     vm.warp(block.timestamp + ONE_DAY + 2 days); // order expired
 
-//         vm.warp(block.timestamp + ONE_DAY + 1 days); // order expired
+    //     //  Array with one order
+    //     Escrow.Order[] memory ordersToRefund = new Escrow.Order[](1);
+    //     ordersToRefund[0] = Escrow.Order({
+    //         id: firstOrderId,
+    //         usrSrcAddress: user,
+    //         usrDstAddress: destinationAddress,
+    //         expirationTimestamp: expirationTimestamp,
+    //         srcToken: _srcTokenETH,
+    //         srcAmount: sendAmount,
+    //         dstToken: _dstToken,
+    //         dstAmount: _dstAmount,
+    //         fee: feeAmount,
+    //         dstChainId: dstChainId
+    //     });
 
-//         vm.startPrank(user);
-//         // Create array with one order with wrong details
-//         Escrow.Order[] memory ordersToRefund = new Escrow.Order[](1);
-//         ordersToRefund[0] = Escrow.Order({
-//             id: firstOrderId,
-//             usrSrcAddress: user,
-//             usrDstAddress: bytes32(uint256(12345)), // Wrong address
-//             expirationTimestamp: block.timestamp - 1 days, // Wrong timestamp
-//             srcToken: _srcToken,
-//             srcAmount: 0.5 ether, // Wrong amount
-//             dstToken: _dstToken,
-//             dstAmount: _dstAmount,
-//             fee: feeAmount,
-//             dstChainId: dstChainId
-//         });
+    //     vm.prank(maliciousActor);
+    //     vm.expectRevert("Only the original address can refund an intent.");
+    //     escrow.refundOrderBatch(ordersToRefund);
+    // }
 
-//         vm.expectRevert("Order hash mismatch");
-//         escrow.refundOrderBatch(ordersToRefund);
-//         vm.stopPrank();
-//     }
+    // function testRefundOrderBeforeExpiration() public {
+    //     vm.startPrank(user);
+    //     escrow.createOrder{value: sendAmount}(
+    //         destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
+    //     );
+    //     uint256 expirationTimestamp = block.timestamp + ONE_DAY;
+    //     // Create array with one order
+    //     Escrow.Order[] memory ordersToRefund = new Escrow.Order[](1);
+    //     ordersToRefund[0] = Escrow.Order({
+    //         id: firstOrderId,
+    //         usrSrcAddress: user,
+    //         usrDstAddress: destinationAddress,
+    //         expirationTimestamp: expirationTimestamp,
+    //         srcToken: _srcTokenETH,
+    //         srcAmount: sendAmount,
+    //         dstToken: _dstToken,
+    //         dstAmount: _dstAmount,
+    //         fee: feeAmount,
+    //         dstChainId: dstChainId
+    //     });
 
-//     function testSetHDPAddressSuccess() public {
-//         address newHDPExecutionStore = address(5);
-//         vm.prank(owner);
-//         escrow.setHDPAddress(newHDPExecutionStore);
-//         assertEq(escrow.HDP_EXECUTION_STORE_ADDRESS(), newHDPExecutionStore, "Execution store address mismatch");
-//     }
+    //     vm.expectRevert("Cannot refund an order that has not expired.");
+    //     escrow.refundOrderBatch(ordersToRefund);
+    //     vm.stopPrank();
+    // }
 
-//     function testSetHDPAddressRevertsIfNotOwner() public {
-//         address newHDPExecutionStore = address(5);
-//         vm.prank(maliciousActor);
-//         vm.expectRevert("Caller is not the owner");
-//         escrow.setHDPAddress(newHDPExecutionStore);
-//     }
+    // function testRefundOrderWithWrongDetails() public {
+    //     vm.startPrank(user);
+    //     escrow.createOrder{value: sendAmount}(
+    //         destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
+    //     );
+    //     vm.stopPrank();
 
-//     function testAddChain() public {
-//         bytes32 newHDPProgramHash = keccak256(abi.encode("new-program-hash"));
-//         bytes32 newPaymentRegistryAddress = keccak256(abi.encode("new-program-hash"));
-//         bytes32 destinationChain = bytes32(uint256(0x1));
-//         vm.prank(owner);
-//         escrow.addDestinationChain(destinationChain, newHDPProgramHash, newPaymentRegistryAddress);
-//         assertEq(
-//             escrow.getHDPDestinationChainConnectionDetails(destinationChain).hdpProgramHash,
-//             newHDPProgramHash,
-//             "Program hash mismatch"
-//         );
-//     }
+    //     vm.warp(block.timestamp + ONE_DAY + 1 days); // order expired
 
-//     function testGas_createOrder() public {
-//         vm.prank(user);
-//         escrow.createOrder{value: sendAmount}(
-//             destinationAddress, _srcToken, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
-//         );
-//     }
-// }
+    //     vm.startPrank(user);
+    //     // Create array with one order with wrong details
+    //     Escrow.Order[] memory ordersToRefund = new Escrow.Order[](1);
+    //     ordersToRefund[0] = Escrow.Order({
+    //         id: firstOrderId,
+    //         usrSrcAddress: user,
+    //         usrDstAddress: bytes32(uint256(12345)), // Wrong address
+    //         expirationTimestamp: block.timestamp - 1 days, // Wrong timestamp
+    //         srcToken: _srcTokenETH,
+    //         srcAmount: 0.5 ether, // Wrong amount
+    //         dstToken: _dstToken,
+    //         dstAmount: _dstAmount,
+    //         fee: feeAmount,
+    //         dstChainId: dstChainId
+    //     });
+
+    //     vm.expectRevert("Order hash mismatch");
+    //     escrow.refundOrderBatch(ordersToRefund);
+    //     vm.stopPrank();
+    // }
+
+    function testSetHDPAddressSuccess() public {
+        address newHDPExecutionStore = address(5);
+        vm.prank(owner);
+        escrow.setHDPAddress(newHDPExecutionStore);
+        assertEq(escrow.HDP_EXECUTION_STORE_ADDRESS(), newHDPExecutionStore, "Execution store address mismatch");
+    }
+
+    function testSetHDPAddressRevertsIfNotOwner() public {
+        address newHDPExecutionStore = address(5);
+        vm.prank(maliciousActor);
+        vm.expectRevert("Caller is not the owner");
+        escrow.setHDPAddress(newHDPExecutionStore);
+    }
+
+    function testAddChain() public {
+        bytes32 newHDPProgramHash = keccak256(abi.encode("new-program-hash"));
+        bytes32 newPaymentRegistryAddress = keccak256(abi.encode("new-program-hash"));
+        bytes32 destinationChain = bytes32(uint256(0x1));
+        vm.prank(owner);
+        escrow.addDestinationChain(destinationChain, newHDPProgramHash, newPaymentRegistryAddress);
+        assertEq(
+            escrow.getHDPDestinationChainConnectionDetails(destinationChain).hdpProgramHash,
+            newHDPProgramHash,
+            "Program hash mismatch"
+        );
+    }
+
+    function testGas_createOrder() public {
+        vm.prank(user);
+        escrow.createOrder{value: sendAmount}(
+            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
+        );
+    }
+}
