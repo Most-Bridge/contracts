@@ -7,7 +7,7 @@ import {PaymentRegistry} from "../../src/contracts/SMM/PaymentRegistrySMM.sol";
 contract DeployPaymentRegistry is Script {
     function run() external {
         vm.startBroadcast();
-        new PaymentRegistry();
+        // new PaymentRegistry(); // TODO: add parameters to deploy
         vm.stopBroadcast();
     }
 }

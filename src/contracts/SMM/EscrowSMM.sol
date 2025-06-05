@@ -3,9 +3,12 @@ pragma solidity ^0.8.26;
 
 import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {ModuleTask, ModuleCodecs} from "lib/herodotus-evm-v2/src/libraries/internal/data-processor/ModuleCodecs.sol";
 import {IDataProcessorModule} from "lib/herodotus-evm-v2/src/interfaces/modules/IDataProcessorModule.sol";
+import {MerkleHelper} from "src/contracts/libraries/MerkleHelper.sol";
 
 /// @title Escrow SMM (Single Market Maker)
 ///
@@ -15,6 +18,7 @@ import {IDataProcessorModule} from "lib/herodotus-evm-v2/src/interfaces/modules/
 ///         facilitator service.
 contract Escrow is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
+    using SafeERC20 for IERC20;
 
     // State variables
     uint256 private orderId = 1;
@@ -22,10 +26,13 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
     uint256 public constant ONE_DAY = 1 days;
-    bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7;
+    bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7; // THIS SHOULD BE ETH MAINNET
+    // bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000000001;
 
     // HDP
     address public HDP_EXECUTION_STORE_ADDRESS = 0x59c0B3D09151aA2C0201808fEC0860f1168A4173;
+    bytes32 private constant HDP_EMPTY_OUTPUT_TREE_HASH =
+        0x6612f7b477d66591ff96a9e064bcc98abc36789e7a1e281436464229828f817d;
 
     // Interfaces
     IDataProcessorModule hdpExecutionStore = IDataProcessorModule(HDP_EXECUTION_STORE_ADDRESS);
@@ -36,8 +43,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     mapping(bytes32 => HDPConnection) public hdpConnections; // mapping chainId -> HdpConnection
 
     /// Events
-    /// @param usrDstAddress Stored as a bytes32 to allow for starknet addresses to be stored
-    /// @param dstChainId    Stored as a hex in bytes32 to allow for longer chain ids
+    /// @param usrDstAddress Stored as a bytes32 to allow for Starknet addresses to be stored
+    /// @param dstToken      Stored as a bytes32 to allow for Starknet addresses to be stored
     /// @param fee           Calculated using the sourceToken
     event OrderPlaced(
         uint256 orderId,
@@ -49,18 +56,20 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 dstToken,
         uint256 dstAmount,
         uint256 fee,
+        bytes32 srcChainId,
         bytes32 dstChainId
     );
     event ProveBridgeAggregatedSuccess(uint256[] orderIds);
     event WithdrawSuccessBatch(uint256[] orderIds);
-    event OrdersReclaimed(uint256[] orderIds);
+    event OrdersReclaimed(uint256 orderId);
 
     /// Enums
     enum OrderState {
         PENDING,
         COMPLETED,
         RECLAIMED,
-        DROPPED
+        DROPPED // TODO: this does not get used
+
     }
 
     enum HDPProvingStatus {
@@ -79,6 +88,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 dstToken;
         uint256 dstAmount;
         uint256 fee;
+        bytes32 srcChainId;
         bytes32 dstChainId;
     }
 
@@ -114,6 +124,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param _usrDstAddress The destination address of the user
     /// @param _fee           The fee for the market maker
     /// @param _dstChainId    Destination Chain Id as a hex
+    /// @notice srcToken and usrSrcAddress are native to this chain (EVM), so stored as `address`
+    /// @notice dstToken and usrDstAddress are for a foreign chain (e.g., Starknet), so stored as `bytes32`
     function createOrder(
         bytes32 _usrDstAddress,
         address _srcToken,
@@ -123,9 +135,26 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 _fee,
         bytes32 _dstChainId
     ) external payable nonReentrant whenNotPaused {
-        require(msg.value > 0, "Funds being sent must be greater than 0.");
-        require(msg.value == _srcAmount, "The amount sent must match the msg.value");
-        require(msg.value > _fee, "Fee must be less than the total value sent");
+        bool isNativeToken = _srcToken == address(0);
+        require(_dstChainId != SRC_CHAIN_ID, "Cannot create order for the source chain");
+        // require(isHDPConnectionAvailable(_dstChainId), "Destination chain is not available");
+        // require(_fee > 0, "Fee must be greater than 0");
+
+        if (isNativeToken) {
+            // Native ETH logic
+            require(msg.value > 0, "Funds being sent must be greater than 0");
+            require(msg.value == _srcAmount, "The amount sent must match the msg.value");
+            require(_fee > 0, "The fee must be greater than 0");
+            require(msg.value > _fee, "Fee must be less than the total value sent");
+        } else {
+            // ERC20 logic
+            require(msg.value == 0, "ERC20: msg.value must be 0");
+            require(_srcAmount > 0, "ERC20: _srcAmount must be greater than 0");
+            require(_fee > 0, "ERC20: The fee must be greater than 0");
+            require(_srcAmount > _fee, "ERC20: Total amount sent must be greater than the fee");
+
+            IERC20(_srcToken).safeTransferFrom(msg.sender, address(this), _srcAmount);
+        }
 
         // The order expires 24 hours after placement. If not proven by then, the user can withdraw funds.
         uint256 _expirationTimestamp = block.timestamp + ONE_DAY;
@@ -141,6 +170,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             dstToken: _dstToken,
             dstAmount: _dstAmount,
             fee: _fee,
+            srcChainId: SRC_CHAIN_ID,
             dstChainId: _dstChainId
         });
 
@@ -159,6 +189,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             orderData.dstToken,
             orderData.dstAmount,
             orderData.fee,
+            orderData.srcChainId,
             orderData.dstChainId
         );
 
@@ -170,17 +201,19 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param calldataOrders      Array containing the data of the orders to be proven
     /// @param _blockNumber        The point in time when all the submitted orders have been fulfilled
     /// @param _destinationChainId The chain on which the order was fulfilled
-    function proveAndWithdrawBatch(Order[] calldata calldataOrders, uint256 _blockNumber, bytes32 _destinationChainId)
-        public
-        onlyRelayAddress
-    {
+    /// @param _balancesToWithdraw Summarized amounts of each token to withdraw - token address and amount pair
+    function proveAndWithdrawBatch(
+        Order[] calldata calldataOrders,
+        uint256 _blockNumber,
+        bytes32 _destinationChainId,
+        MerkleHelper.BalanceToWithdraw[] memory _balancesToWithdraw
+    ) public onlyRelayAddress {
         // For proving in aggregated mode using HDP
         bytes32[] memory taskInputs = new bytes32[](calldataOrders.length + 3);
-        taskInputs[0] = bytes32(_destinationChainId); // The bridging destination chain, where PaymentRegistry is located
-        taskInputs[1] = bytes32(hdpConnections[_destinationChainId].paymentRegistryAddress); // The address which contains the order fulfillment
-        taskInputs[2] = bytes32(_blockNumber); // The point in time at which to prove the orders
+        taskInputs[0] = bytes32(_destinationChainId);
+        taskInputs[1] = bytes32(hdpConnections[_destinationChainId].paymentRegistryAddress);
+        taskInputs[2] = bytes32(_blockNumber);
 
-        uint256 amountToWithdraw = 0;
         uint256[] memory validOrderIds = new uint256[](calldataOrders.length);
 
         for (uint256 i = 0; i < calldataOrders.length; i++) {
@@ -192,11 +225,11 @@ contract Escrow is ReentrancyGuard, Pausable {
             require(orderStatus[order.id] == OrderState.PENDING, "Order not in PENDING state");
 
             taskInputs[i + 3] = orderHash; // offset because first 3 arguments are destination chain id, payment registry address and block number
-            amountToWithdraw += order.srcAmount; // srcAmount includes the fee
+
             validOrderIds[i] = order.id;
         }
 
-        // Prove the HDP task
+        // HDP verification code
         ModuleTask memory hdpModuleTask =
             ModuleTask({programHash: bytes32(hdpConnections[_destinationChainId].hdpProgramHash), inputs: taskInputs});
 
@@ -206,10 +239,18 @@ contract Escrow is ReentrancyGuard, Pausable {
             hdpExecutionStore.getDataProcessorTaskStatus(taskCommitment) == IDataProcessorModule.TaskStatus.FINALIZED,
             "HDP Task is not finalized"
         );
+
+        MerkleHelper.HDPTaskOutput memory expectedHdpTaskOutput = MerkleHelper.HDPTaskOutput({
+            isOrdersFulfillmentVerified: bytes32(uint256(1)),
+            tokensBalancesArrayLength: _balancesToWithdraw.length,
+            tokensBalancesArray: _balancesToWithdraw
+        });
+
+        bytes32 computedMerkleRoot = MerkleHelper.computeTaskOutputMerkleRoot(expectedHdpTaskOutput);
+
         require(
-            hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment)
-                == bytes32(uint256(HDPProvingStatus.PROVEN)),
-            "Unable to prove PaymentRegistry transfer execution"
+            hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment) == computedMerkleRoot,
+            "Unable to prove: merkle root mismatch"
         );
 
         // Once validated, update the status of all the orders
@@ -217,9 +258,21 @@ contract Escrow is ReentrancyGuard, Pausable {
             orderStatus[calldataOrders[i].id] = OrderState.COMPLETED;
         }
 
-        require(address(this).balance >= amountToWithdraw, "Escrow: Insufficient balance to withdraw");
-        (bool success,) = payable(allowedWithdrawalAddress).call{value: amountToWithdraw}("");
-        require(success, "Withdraw transfer failed");
+        // Withdraw all tokens (including ETH if tokenAddress == address(0))
+        for (uint256 i = 0; i < _balancesToWithdraw.length; i++) {
+            address token = _balancesToWithdraw[i].tokenAddress;
+            uint256 amount = _balancesToWithdraw[i].summarizedAmount;
+            if (amount > 0) {
+                if (token == address(0)) {
+                    require(address(this).balance >= amount, "Insufficient ETH balance");
+                    (bool success,) = payable(allowedWithdrawalAddress).call{value: amount}("");
+                    require(success, "ETH transfer failed");
+                } else {
+                    require(IERC20(token).balanceOf(address(this)) >= amount, "Insufficient ERC20 balance");
+                    IERC20(token).safeTransfer(allowedWithdrawalAddress, amount);
+                }
+            }
+        }
 
         emit ProveBridgeAggregatedSuccess(validOrderIds);
     }
@@ -227,43 +280,45 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @notice Allows the user to refund their order if it has not been fulfilled by the expiration date
     ///
     /// @custom:security This function should never be pausable
-    function refundOrderBatch(Order[] calldata calldataOrders) external payable nonReentrant {
-        uint256 amountToRefund = 0;
-        uint256[] memory refundedOrderIds = new uint256[](calldataOrders.length);
+    function refundOrder(Order calldata order) external payable nonReentrant {
+        require(msg.sender == order.usrSrcAddress, "Only the original address can refund an intent");
 
-        for (uint256 i = 0; i < calldataOrders.length; i++) {
-            Order memory order = calldataOrders[i];
-            require(msg.sender == order.usrSrcAddress, "Only the original address can refund an intent.");
-            bytes32 orderHash = _createOrderHash(order);
+        bytes32 orderHash = _createOrderHash(order);
+        require(orders[order.id] == orderHash, "Order hash mismatch");
+        require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund a non-pending order");
+        require(block.timestamp > order.expirationTimestamp, "Order has not expired yet");
+        require(order.srcChainId == SRC_CHAIN_ID, "Order is not from the source chain");
 
-            require(orders[order.id] == orderHash, "Order hash mismatch");
-            require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund an order if it is not pending.");
-            require(block.timestamp > order.expirationTimestamp, "Cannot refund an order that has not expired.");
+        orderStatus[order.id] = OrderState.RECLAIMED;
 
-            amountToRefund += order.srcAmount; // srcAmount includes the fee
-            orderStatus[order.id] = OrderState.RECLAIMED;
-            refundedOrderIds[i] = order.id;
+        if (order.srcToken == address(0)) {
+            // Native ETH refund
+            require(address(this).balance >= order.srcAmount, "Insufficient ETH balance");
+            (bool success,) = payable(msg.sender).call{value: order.srcAmount}("");
+            require(success, "ETH refund failed");
+        } else {
+            // ERC20 token refund
+            require(IERC20(order.srcToken).balanceOf(address(this)) >= order.srcAmount, "Insufficient ERC20 balance");
+            IERC20(order.srcToken).safeTransfer(msg.sender, order.srcAmount);
         }
-        require(address(this).balance >= amountToRefund, "Insufficient contract balance for refund");
-        (bool success,) = payable(msg.sender).call{value: amountToRefund}("");
-        require(success, "Refund Order: Transfer failed");
-        emit OrdersReclaimed(refundedOrderIds);
+
+        emit OrdersReclaimed(order.id);
     }
 
     function _createOrderHash(Order memory orderDetails) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
-                orderDetails.id,
-                orderDetails.usrSrcAddress,
-                orderDetails.usrDstAddress,
-                orderDetails.expirationTimestamp,
-                orderDetails.srcToken,
-                orderDetails.srcAmount,
-                orderDetails.dstToken,
-                orderDetails.dstAmount,
-                orderDetails.fee,
-                SRC_CHAIN_ID,
-                orderDetails.dstChainId
+                orderDetails.id, // uint256
+                orderDetails.usrSrcAddress, // address
+                orderDetails.usrDstAddress, // bytes32
+                orderDetails.expirationTimestamp, // uint256
+                orderDetails.srcToken, // address
+                orderDetails.srcAmount, // uint256
+                orderDetails.dstToken, // bytes32
+                orderDetails.dstAmount, // uint256
+                orderDetails.fee, // uint256
+                orderDetails.srcChainId, // bytes32
+                orderDetails.dstChainId // bytes32
             )
         );
     }
