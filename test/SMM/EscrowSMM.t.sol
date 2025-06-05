@@ -50,9 +50,9 @@ contract EscrowTest is Test {
         owner = address(this);
         escrow.setAllowedAddress(owner);
 
-        // deploy mock ERC20 token and mint it to MM
+        // deploy mock ERC20 token and mint it to user
         mockERC = new MockERC20("MockToken", "MOCK");
-        mockERC.mint(mmAddress, 10 ether);
+        mockERC.mint(user, 10 ether);
     }
 
     function testCreateOrderSuccess() public {
@@ -190,13 +190,7 @@ contract EscrowTest is Test {
     function testRefundOrderByWrongUser() public {
         vm.prank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress,
-            _srcTokenETH,
-            sendAmount,
-            _dstToken,
-            _dstAmount,
-            feeAmount,
-            dstChainId
+            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
         );
         uint256 expirationTimestamp = block.timestamp + ONE_DAY;
 
@@ -224,13 +218,7 @@ contract EscrowTest is Test {
     function testRefundOrderBeforeExpiration() public {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress,
-            _srcTokenETH,
-            sendAmount,
-            _dstToken,
-            _dstAmount,
-            feeAmount,
-            dstChainId
+            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
         );
         uint256 expirationTimestamp = block.timestamp + ONE_DAY;
 
@@ -256,13 +244,7 @@ contract EscrowTest is Test {
     function testRefundOrderWithWrongDetails() public {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress,
-            _srcTokenETH,
-            sendAmount,
-            _dstToken,
-            _dstAmount,
-            feeAmount,
-            dstChainId
+            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
         );
         vm.stopPrank();
 
@@ -319,6 +301,105 @@ contract EscrowTest is Test {
         vm.prank(user);
         escrow.createOrder{value: sendAmount}(
             destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
+        );
+    }
+
+    function testCreateOrderERC20Success() public {
+        vm.prank(user);
+        mockERC.approve(address(escrow), sendAmount);
+
+        vm.prank(user);
+        escrow.createOrder(
+            destinationAddress, address(mockERC), sendAmount, _dstToken, _dstAmount, feeAmount, dstChainId
+        );
+
+        bytes32 expectedOrderHash = keccak256(
+            abi.encode(
+                firstOrderId,
+                user,
+                destinationAddress,
+                block.timestamp + ONE_DAY,
+                address(mockERC),
+                sendAmount,
+                _dstToken,
+                _dstAmount,
+                feeAmount,
+                SRC_CHAIN_ID,
+                dstChainId
+            )
+        );
+
+        assertEq(escrow.orders(1), expectedOrderHash);
+        assertEq(uint256(escrow.orderStatus(1)), uint256(Escrow.OrderState.PENDING));
+        assertEq(mockERC.balanceOf(user), 9.99999 ether, "User balance should decrease by sendAmount");
+        assertEq(mockERC.allowance(user, address(escrow)), 0, "Allowance should be reset to 0 after order creation");
+    }
+
+    function testCreateOrderERC20FailsIfMsgValueNonZero() public {
+        vm.prank(user);
+        mockERC.approve(address(escrow), sendAmount);
+
+        vm.prank(user);
+        vm.expectRevert("ERC20: msg.value must be 0");
+        escrow.createOrder{value: 1 ether}(
+            destinationAddress,
+            address(mockERC),
+            sendAmount,
+            _dstToken,
+            _dstAmount,
+            feeAmount,
+            dstChainId
+        );
+    }
+
+    function testCreateOrderERC20FailsIfAmountZero() public {
+        vm.prank(user);
+        mockERC.approve(address(escrow), 1 ether);
+
+        vm.prank(user);
+        vm.expectRevert("ERC20: _srcAmount must be greater than 0");
+        escrow.createOrder(
+            destinationAddress,
+            address(mockERC),
+            0,
+            _dstToken,
+            0,
+            feeAmount,
+            dstChainId
+        );
+    }
+
+    function testCreateOrderERC20FailsIfFeeZero() public {
+        vm.prank(user);
+        mockERC.approve(address(escrow), sendAmount);
+
+        vm.prank(user);
+        vm.expectRevert("ERC20: The fee must be greater than 0");
+        escrow.createOrder(
+            destinationAddress,
+            address(mockERC),
+            sendAmount,
+            _dstToken,
+            _dstAmount,
+            0,
+            dstChainId
+        );
+    }
+
+    function testCreateOrderERC20FailsIfAmountLessThanFee() public {
+        vm.prank(user);
+        mockERC.approve(address(escrow), 0.0005 ether);
+
+        vm.prank(user);
+        vm.expectRevert("ERC20: Total amount sent must be greater than the fee");
+        escrow.createOrder(
+            destinationAddress,
+            address(mockERC),
+            0.0005 ether,
+            _dstToken,
+            0,
+            0.001 ether,
+            dstChainId
         );
     }
 }

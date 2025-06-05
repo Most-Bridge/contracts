@@ -136,13 +136,15 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 _dstChainId
     ) external payable nonReentrant whenNotPaused {
         bool isNativeToken = _srcToken == address(0);
-        // The fee is always paid in the src token
-        require(_fee > 0, "The fee must be greater than 0");
+        require(_dstChainId != SRC_CHAIN_ID, "Cannot create order for the source chain");
+        // require(isHDPConnectionAvailable(_dstChainId), "Destination chain is not available");
+        // require(_fee > 0, "Fee must be greater than 0");
 
         if (isNativeToken) {
             // Native ETH logic
             require(msg.value > 0, "Funds being sent must be greater than 0");
             require(msg.value == _srcAmount, "The amount sent must match the msg.value");
+            require(_fee > 0, "The fee must be greater than 0");
             require(msg.value > _fee, "Fee must be less than the total value sent");
         } else {
             // ERC20 logic
