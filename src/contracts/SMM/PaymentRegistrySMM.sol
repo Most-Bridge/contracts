@@ -40,7 +40,6 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         uint256 srcAmount,
         address dstToken,
         uint256 dstAmount,
-        uint256 fee,
         bytes32 srcChainId,
         bytes32 dstChainId
     );
@@ -57,7 +56,6 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     /// @param _srcAmount           The amount of tokens sent from the source chain.
     /// @param _dstToken            The token address on the destination (this) chain. For native ETH, use address(0).
     /// @param _dstAmount           The amount of tokens (native ETH or ERC20) to be received by the user on this chain.
-    /// @param _fee                 The fee paid to the Market Maker for this fulfillment.
     /// @param _srcChainId          The chain ID of the source chain (format: bytes32).
     function mostFulfillOrder(
         uint256 _orderId,
@@ -68,7 +66,6 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         uint256 _srcAmount,
         address _dstToken,
         uint256 _dstAmount,
-        uint256 _fee,
         bytes32 _srcChainId
     ) external payable onlyAllowedAddress whenNotPaused nonReentrant {
         uint256 currentTimestamp = block.timestamp;
@@ -84,7 +81,6 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
                 _srcAmount,
                 _dstToken,
                 _dstAmount,
-                _fee,
                 _srcChainId,
                 dstChainId
             )
@@ -116,7 +112,6 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             _srcAmount,
             _dstToken,
             _dstAmount,
-            _fee,
             _srcChainId,
             dstChainId
         );
