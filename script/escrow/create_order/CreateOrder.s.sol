@@ -15,10 +15,9 @@ contract CreateOrder is Script {
         uint256 srcAmount = 1000000000000000;
         bytes32 dstToken = bytes32(uint256(0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7));
         uint256 dstAmount = 900000000000000;
-        uint256 fee = 100000000000000;
         bytes32 dstChainId = bytes32(uint256(0x534e5f5345504f4c4941));
 
         // Call the createOrder function
-        escrow.createOrder{value: srcAmount}(usrDstAddress, srcToken, srcAmount, dstToken, dstAmount, fee, dstChainId);
+        escrow.createOrder{value: srcAmount}(usrDstAddress, srcToken, srcAmount, dstToken, dstAmount, dstChainId);
     }
 }
