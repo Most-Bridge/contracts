@@ -22,8 +22,8 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     // State variables
     address public owner;
-    address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
-    address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
+    address public relayAddress;
+    address public withdrawalAddress;
     uint256 private orderId = 1;
 
     // Constants
@@ -102,8 +102,14 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     /// Constructor
-    constructor(HDPConnectionInitial[] memory initialHDPChainConnections) {
+    constructor(
+        HDPConnectionInitial[] memory initialHDPChainConnections,
+        address _withdrawalAddress,
+        address _relayAddress
+    ) {
         owner = msg.sender;
+        withdrawalAddress = _withdrawalAddress;
+        relayAddress = _relayAddress;
 
         // Initial destination chain connections added at the time of contract deployment
         for (uint256 i = 0; i < initialHDPChainConnections.length; i++) {
@@ -214,6 +220,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
             require(orders[order.id] == orderHash, "Order hash mismatch");
             require(orderStatus[order.id] == OrderState.PENDING, "Order not in PENDING state");
+            require(order.expirationTimestamp >= block.timestamp, "Order has expired");
 
             taskInputs[i + 3] = orderHash; // offset because first 3 arguments are destination chain id, payment registry address and block number
 
@@ -256,11 +263,10 @@ contract Escrow is ReentrancyGuard, Pausable {
             if (amount > 0) {
                 if (token == address(0)) {
                     require(address(this).balance >= amount, "Insufficient ETH balance");
-                    (bool success,) = payable(allowedWithdrawalAddress).call{value: amount}("");
+                    (bool success,) = payable(withdrawalAddress).call{value: amount}("");
                     require(success, "ETH transfer failed");
                 } else {
-                    require(IERC20(token).balanceOf(address(this)) >= amount, "Insufficient ERC20 balance");
-                    IERC20(token).safeTransfer(allowedWithdrawalAddress, amount);
+                    IERC20(token).safeTransfer(withdrawalAddress, amount);
                 }
             }
         }
@@ -290,7 +296,6 @@ contract Escrow is ReentrancyGuard, Pausable {
             require(success, "ETH refund failed");
         } else {
             // ERC20 token refund
-            require(IERC20(order.srcToken).balanceOf(address(this)) >= order.srcAmount, "Insufficient ERC20 balance");
             IERC20(order.srcToken).safeTransfer(msg.sender, order.srcAmount);
         }
 
@@ -326,8 +331,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     /// @notice Change the allowed relay address
-    function setAllowedAddress(address _newAllowedAddress) external onlyOwner {
-        allowedRelayAddress = _newAllowedAddress;
+    function setAllowedAddress(address _newRelayAddress) external onlyOwner {
+        relayAddress = _newRelayAddress;
     }
 
     /// @notice Check if given bridging destination chain exist
@@ -365,7 +370,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     // Modifiers
     modifier onlyRelayAddress() {
-        require(msg.sender == allowedRelayAddress, "Caller is not allowed");
+        require(msg.sender == relayAddress, "Caller is not allowed");
         _;
     }
 
