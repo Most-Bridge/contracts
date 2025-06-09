@@ -1,29 +1,32 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.26;
 
-import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
-import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
-import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ModuleTask, ModuleCodecs} from "lib/herodotus-evm-v2/src/libraries/internal/data-processor/ModuleCodecs.sol";
 import {IDataProcessorModule} from "lib/herodotus-evm-v2/src/interfaces/modules/IDataProcessorModule.sol";
+import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
 import {MerkleHelper} from "src/libraries/MerkleHelper.sol";
 
-/// @title Escrow 
+/// @title Escrow
 ///
 /// @author Most Bridge (https://github.com/Most-Bridge)
 ///
-/// @notice Handles the bridging of assets between a src chain and a dst chain, in conjunction with Payment Registry and a
-///         facilitator service.
+/// @notice Handles the bridging and swapping of assets between a src chain and a dst chain, in conjunction with
+///         Payment Registry and a facilitator service.
+///
 contract Escrow is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
     using SafeERC20 for IERC20;
 
     // State variables
-    uint256 private orderId = 1;
     address public owner;
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
+    uint256 private orderId = 1;
+
+    // Constants
     uint256 public constant ONE_DAY = 1 days;
     bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7; // THIS SHOULD BE SET TO THE SRC CHAIN ID
 
@@ -57,7 +60,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     );
     event ProveBridgeAggregatedSuccess(uint256[] orderIds);
     event WithdrawSuccessBatch(uint256[] orderIds);
-    event OrdersReclaimed(uint256 orderId);
+    event OrderReclaimed(uint256 orderId);
 
     /// Enums
     enum OrderState {
@@ -291,7 +294,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             IERC20(order.srcToken).safeTransfer(msg.sender, order.srcAmount);
         }
 
-        emit OrdersReclaimed(order.id);
+        emit OrderReclaimed(order.id);
     }
 
     function _createOrderHash(Order memory orderDetails) internal pure returns (bytes32) {
