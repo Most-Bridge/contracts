@@ -5,12 +5,11 @@ import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/Reentr
 import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-
 import {ModuleTask, ModuleCodecs} from "lib/herodotus-evm-v2/src/libraries/internal/data-processor/ModuleCodecs.sol";
 import {IDataProcessorModule} from "lib/herodotus-evm-v2/src/interfaces/modules/IDataProcessorModule.sol";
-import {MerkleHelper} from "src/contracts/libraries/MerkleHelper.sol";
+import {MerkleHelper} from "src/libraries/MerkleHelper.sol";
 
-/// @title Escrow SMM (Single Market Maker)
+/// @title Escrow 
 ///
 /// @author Most Bridge (https://github.com/Most-Bridge)
 ///
