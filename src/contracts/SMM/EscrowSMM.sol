@@ -139,7 +139,6 @@ contract Escrow is ReentrancyGuard, Pausable {
             // Native ETH logic
             require(msg.value > 0, "Funds being sent must be greater than 0");
             require(msg.value == _srcAmount, "The amount sent must match the msg.value");
-            // todo: maybe add a dst amount check that it's > 0
         } else {
             // ERC20 logic
             require(msg.value == 0, "ERC20: msg.value must be 0");
