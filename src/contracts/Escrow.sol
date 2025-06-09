@@ -277,10 +277,10 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param order Data of the order to be refunded
     /// @custom:security This function should never be pausable
     function refundOrder(Order calldata order) external payable nonReentrant {
-        require(msg.sender == order.usrSrcAddress, "Only the original address can refund an order");
-
         bytes32 orderHash = _createOrderHash(order);
         require(orders[order.id] == orderHash, "Order hash mismatch");
+
+        require(msg.sender == order.usrSrcAddress, "Only the original address can refund an order");
         require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund a non-pending order");
         require(block.timestamp > order.expirationTimestamp, "Order has not expired yet");
         require(order.srcChainId == SRC_CHAIN_ID, "Order is not from the source chain");
