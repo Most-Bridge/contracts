@@ -23,7 +23,6 @@ contract PaymentRegistryTest is Test {
     uint256 srcAmount = 1 ether;
     address dstTokenETH = address(0);
     uint256 dstAmount = 0.9 ether;
-    uint256 fee = 0.1 ether;
     bytes32 srcChainId = bytes32(uint256(2));
     bytes32 constant DST_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000000001;
 
@@ -54,7 +53,6 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            fee,
             srcChainId
         );
 
@@ -68,7 +66,6 @@ contract PaymentRegistryTest is Test {
                 srcAmount,
                 dstTokenETH,
                 dstAmount,
-                fee,
                 srcChainId,
                 DST_CHAIN_ID
             )
@@ -90,7 +87,6 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            fee,
             srcChainId
         );
 
@@ -104,7 +100,6 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            fee,
             srcChainId
         );
         vm.stopPrank();
@@ -122,7 +117,6 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            fee,
             srcChainId
         );
     }
@@ -139,7 +133,6 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount + 1 ether,
-            fee,
             srcChainId
         );
     }
@@ -158,7 +151,6 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            fee,
             srcChainId
         );
     }
@@ -175,7 +167,6 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            fee,
             srcChainId
         );
     }
@@ -193,7 +184,6 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(mockERC),
             dstAmount,
-            fee,
             srcChainId
         );
         vm.stopPrank();
@@ -215,7 +205,6 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(mockERC),
             dstAmount,
-            fee,
             srcChainId
         );
     }
@@ -233,7 +222,6 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(mockERC),
             0,
-            fee,
             srcChainId
         );
     }
@@ -251,7 +239,6 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(mockERC),
             100 ether,
-            fee,
             srcChainId
         );
         vm.stopPrank();
@@ -270,7 +257,6 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            fee,
             srcChainId
         );
     }
@@ -289,7 +275,6 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            fee,
             srcChainId
         );
     }
@@ -306,7 +291,6 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(mockERC),
             dstAmount,
-            fee,
             srcChainId
         );
     }
@@ -327,7 +311,6 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(broken),
             dstAmount,
-            fee,
             srcChainId
         );
         vm.stopPrank();
@@ -345,7 +328,6 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             0, // dstAmount = 0
-            fee,
             srcChainId
         );
     }
