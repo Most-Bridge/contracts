@@ -188,7 +188,7 @@ contract EscrowTest is Test {
         });
 
         vm.prank(maliciousActor);
-        vm.expectRevert("Only the original address can refund an intent");
+        vm.expectRevert("Only the original address can refund an order");
         escrow.refundOrder(orderToRefund);
     }
 

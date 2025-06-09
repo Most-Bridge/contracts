@@ -26,8 +26,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
     address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
     uint256 public constant ONE_DAY = 1 days;
-    bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7; // THIS SHOULD BE ETH MAINNET
-    // bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000000001;
+    bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7; // THIS SHOULD BE SET TO THE SRC CHAIN ID
 
     // HDP
     address public HDP_EXECUTION_STORE_ADDRESS = 0x59c0B3D09151aA2C0201808fEC0860f1168A4173;
@@ -43,8 +42,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     mapping(bytes32 => HDPConnection) public hdpConnections; // mapping chainId -> HdpConnection
 
     /// Events
-    /// @param usrDstAddress Stored as a bytes32 to allow for Starknet addresses to be stored
-    /// @param dstToken      Stored as a bytes32 to allow for Starknet addresses to be stored
+    /// @param usrDstAddress Stored as a bytes32 to allow for foreign addresses to be stored
+    /// @param dstToken      Stored as a bytes32 to allow for foreign addresses to be stored
     event OrderPlaced(
         uint256 orderId,
         address usrSrcAddress,
@@ -119,6 +118,10 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @notice Allows the user to create an order
     ///
     /// @param _usrDstAddress The destination address of the user
+    /// @param _srcToken      The source token address, address(0) for native eth
+    /// @param _srcAmount     The amount of the source token deposited by the user
+    /// @param _dstToken      The destination token address, bytes32 for foreign chain tokens
+    /// @param _dstAmount     The amount of the destination token to be received by the user
     /// @param _dstChainId    Destination Chain Id as a hex
     /// @notice srcToken and usrSrcAddress are native to this chain (EVM), so stored as `address`
     /// @notice dstToken and usrDstAddress are for a foreign chain (e.g., Starknet), so stored as `bytes32`
@@ -131,8 +134,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 _dstChainId
     ) external payable nonReentrant whenNotPaused {
         bool isNativeToken = _srcToken == address(0);
-        // require(_dstChainId != SRC_CHAIN_ID, "Cannot create order for the source chain"); // this would actually disable pure swaps on the same chain, which is not something that we want to do
-        // require(isHDPConnectionAvailable(_dstChainId), "Destination chain is not available");
 
         if (isNativeToken) {
             // Native ETH logic
@@ -268,9 +269,10 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /// @notice Allows the user to refund their order if it has not been fulfilled by the expiration date
     ///
+    /// @param order Data of the order to be refunded
     /// @custom:security This function should never be pausable
     function refundOrder(Order calldata order) external payable nonReentrant {
-        require(msg.sender == order.usrSrcAddress, "Only the original address can refund an intent");
+        require(msg.sender == order.usrSrcAddress, "Only the original address can refund an order");
 
         bytes32 orderHash = _createOrderHash(order);
         require(orders[order.id] == orderHash, "Order hash mismatch");
