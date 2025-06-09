@@ -7,7 +7,9 @@ source .env && \
 forge script script/paymentRegistry/DeployPaymentRegistry.s.sol:DeployPaymentRegistry \
     --rpc-url $ETH_SEPOLIA_RPC \
     --broadcast \
-    --private-key $DEPLOY_PRIVATE_KEY
+    --private-key $DEPLOY_PRIVATE_KEY \
+    --verify --etherscan-api-key $ETH_ETHERSCAN_API_KEY
+
 
 # and verify it 
 # export ETHERSCAN_API_KEY=$ETH_ETHERSCAN_API_KEY

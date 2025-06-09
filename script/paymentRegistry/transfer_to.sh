@@ -6,7 +6,7 @@ source .env && \
 # call the transfer to function of the payment registry smart contract 
 cast send \
     $PAYMENT_REGISTRY_ADDRESS \
-    "transferTo(uint256,address,address)" \
+    "mostFulfillOrder(uint256,address,address)" \
     2 \ 
     $USR_DST_ADDRESS \
     $MM_SRC_ADDRESS \
