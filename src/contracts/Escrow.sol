@@ -66,9 +66,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     enum OrderState {
         PENDING,
         COMPLETED,
-        RECLAIMED,
-        DROPPED // TODO: this does not get used
-
+        RECLAIMED
     }
 
     enum HDPProvingStatus {
