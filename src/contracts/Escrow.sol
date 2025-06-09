@@ -48,6 +48,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param dstToken      Stored as a bytes32 to allow for foreign addresses to be stored
     event OrderPlaced(
         uint256 orderId,
+        address srcEscrow,
         address usrSrcAddress,
         bytes32 usrDstAddress,
         uint256 expirationTimestamp,
@@ -77,6 +78,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// Structs
     struct Order {
         uint256 id;
+        address srcEscrow;
         address usrSrcAddress;
         bytes32 usrDstAddress;
         uint256 expirationTimestamp;
@@ -159,6 +161,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         // Store order data in a struct to avoid stack too deep issues
         Order memory orderData = Order({
             id: orderId,
+            srcEscrow: address(this),
             usrSrcAddress: msg.sender,
             usrDstAddress: _usrDstAddress,
             expirationTimestamp: _expirationTimestamp,
@@ -177,6 +180,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         emit OrderPlaced(
             orderData.id,
+            orderData.srcEscrow,
             orderData.usrSrcAddress,
             orderData.usrDstAddress,
             orderData.expirationTimestamp,
@@ -219,6 +223,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             require(orders[order.id] == orderHash, "Order hash mismatch");
             require(orderStatus[order.id] == OrderState.PENDING, "Order not in PENDING state");
             require(order.expirationTimestamp >= block.timestamp, "Order has expired");
+            require(order.srcEscrow == address(this), "Order srcEscrow mismatch");
 
             taskInputs[i + 3] = orderHash; // offset because first 3 arguments are destination chain id, payment registry address and block number
 
@@ -283,7 +288,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(msg.sender == order.usrSrcAddress, "Only the original address can refund an order");
         require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund a non-pending order");
         require(block.timestamp > order.expirationTimestamp, "Order has not expired yet");
-        require(order.srcChainId == SRC_CHAIN_ID, "Order is not from the source chain");
+        require(order.srcEscrow == address(this), "Order is not this contract");
 
         orderStatus[order.id] = OrderState.RECLAIMED;
 
@@ -304,6 +309,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         return keccak256(
             abi.encode(
                 orderDetails.id, // uint256
+                orderDetails.srcEscrow, // address
                 orderDetails.usrSrcAddress, // address
                 orderDetails.usrDstAddress, // bytes32
                 orderDetails.expirationTimestamp, // uint256
