@@ -48,7 +48,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param dstToken      Stored as a bytes32 to allow for foreign addresses to be stored
     event OrderPlaced(
         uint256 orderId,
-        address srcEscrow,
         address usrSrcAddress,
         bytes32 usrDstAddress,
         uint256 expirationTimestamp,
@@ -180,7 +179,6 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         emit OrderPlaced(
             orderData.id,
-            orderData.srcEscrow,
             orderData.usrSrcAddress,
             orderData.usrDstAddress,
             orderData.expirationTimestamp,
