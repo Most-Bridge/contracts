@@ -47,7 +47,7 @@ contract EscrowTest is Test {
         escrow = new Escrow(initialHDPChainConnections, mmAddress, mmAddress);
         vm.deal(user, 10 ether);
         owner = address(this);
-        escrow.setAllowedAddress(owner);
+        escrow.setRelayAddress(owner);
 
         // deploy mock ERC20 token and mint it to user
         mockERC = new MockERC20("MockToken", "MOCK");
