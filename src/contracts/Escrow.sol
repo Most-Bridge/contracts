@@ -334,8 +334,8 @@ contract Escrow is ReentrancyGuard, Pausable {
         _unpause();
     }
 
-    /// @notice Change the allowed relay address
-    function setAllowedAddress(address _newRelayAddress) external onlyOwner {
+    /// @notice Change the relay address
+    function setRelayAddress(address _newRelayAddress) external onlyOwner {
         relayAddress = _newRelayAddress;
     }
 
