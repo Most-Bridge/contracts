@@ -33,6 +33,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     /// Events
     event FulfillmentReceipt(
         uint256 indexed orderId,
+        bytes32 srcEscrow,
         bytes32 indexed usrSrcAddress,
         address indexed usrDstAddress,
         uint256 expirationTimestamp,
@@ -49,6 +50,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     ///         The fulfillment record is what is used to prove the transaction occurred.
     ///
     /// @param _orderId             The order ID associated with the order being fulfilled.
+    /// @param _srcEscrow           The escrow address on the source chain (format: bytes32).
     /// @param _usrSrcAddress       The address of the user on the source chain (format: bytes32).
     /// @param _usrDstAddress       The user's destination address (native EVM address) to receive the funds.
     /// @param _expirationTimestamp The order's expiration time. Must be in the future.
@@ -59,6 +61,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     /// @param _srcChainId          The chain ID of the source chain (format: bytes32).
     function mostFulfillOrder(
         uint256 _orderId,
+        bytes32 _srcEscrow,
         bytes32 _usrSrcAddress,
         address _usrDstAddress,
         uint256 _expirationTimestamp,
@@ -74,6 +77,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         bytes32 orderHash = keccak256(
             abi.encode(
                 _orderId,
+                _srcEscrow,
                 _usrSrcAddress,
                 _usrDstAddress,
                 _expirationTimestamp,
@@ -105,6 +109,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
 
         emit FulfillmentReceipt(
             _orderId,
+            _srcEscrow,
             _usrSrcAddress,
             _usrDstAddress,
             _expirationTimestamp,

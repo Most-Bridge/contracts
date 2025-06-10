@@ -1,30 +1,32 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.26;
 
-import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
-import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
-import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-
 import {ModuleTask, ModuleCodecs} from "lib/herodotus-evm-v2/src/libraries/internal/data-processor/ModuleCodecs.sol";
 import {IDataProcessorModule} from "lib/herodotus-evm-v2/src/interfaces/modules/IDataProcessorModule.sol";
-import {MerkleHelper} from "src/contracts/libraries/MerkleHelper.sol";
+import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
+import {MerkleHelper} from "src/libraries/MerkleHelper.sol";
 
-/// @title Escrow SMM (Single Market Maker)
+/// @title Escrow
 ///
 /// @author Most Bridge (https://github.com/Most-Bridge)
 ///
-/// @notice Handles the bridging of assets between a src chain and a dst chain, in conjunction with Payment Registry and a
-///         facilitator service.
+/// @notice Handles the bridging and swapping of assets between a src chain and a dst chain, in conjunction with
+///         Payment Registry and a facilitator service.
+///
 contract Escrow is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
     using SafeERC20 for IERC20;
 
     // State variables
-    uint256 private orderId = 1;
     address public owner;
-    address public allowedRelayAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6; // address relaying fulfilled orders
-    address public allowedWithdrawalAddress = 0xDd2A1C0C632F935Ea2755aeCac6C73166dcBe1A6;
+    address public relayAddress;
+    address public withdrawalAddress;
+    uint256 private orderId = 1;
+
+    // Constants
     uint256 public constant ONE_DAY = 1 days;
     bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7; // THIS SHOULD BE SET TO THE SRC CHAIN ID
 
@@ -46,6 +48,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param dstToken      Stored as a bytes32 to allow for foreign addresses to be stored
     event OrderPlaced(
         uint256 orderId,
+        address srcEscrow,
         address usrSrcAddress,
         bytes32 usrDstAddress,
         uint256 expirationTimestamp,
@@ -58,15 +61,13 @@ contract Escrow is ReentrancyGuard, Pausable {
     );
     event ProveBridgeAggregatedSuccess(uint256[] orderIds);
     event WithdrawSuccessBatch(uint256[] orderIds);
-    event OrdersReclaimed(uint256 orderId);
+    event OrderReclaimed(uint256 orderId);
 
     /// Enums
     enum OrderState {
         PENDING,
         COMPLETED,
-        RECLAIMED,
-        DROPPED // TODO: this does not get used
-
+        RECLAIMED
     }
 
     enum HDPProvingStatus {
@@ -77,6 +78,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// Structs
     struct Order {
         uint256 id;
+        address srcEscrow;
         address usrSrcAddress;
         bytes32 usrDstAddress;
         uint256 expirationTimestamp;
@@ -100,8 +102,14 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     /// Constructor
-    constructor(HDPConnectionInitial[] memory initialHDPChainConnections) {
+    constructor(
+        HDPConnectionInitial[] memory initialHDPChainConnections,
+        address _withdrawalAddress,
+        address _relayAddress
+    ) {
         owner = msg.sender;
+        withdrawalAddress = _withdrawalAddress;
+        relayAddress = _relayAddress;
 
         // Initial destination chain connections added at the time of contract deployment
         for (uint256 i = 0; i < initialHDPChainConnections.length; i++) {
@@ -153,6 +161,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         // Store order data in a struct to avoid stack too deep issues
         Order memory orderData = Order({
             id: orderId,
+            srcEscrow: address(this),
             usrSrcAddress: msg.sender,
             usrDstAddress: _usrDstAddress,
             expirationTimestamp: _expirationTimestamp,
@@ -171,6 +180,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         emit OrderPlaced(
             orderData.id,
+            orderData.srcEscrow,
             orderData.usrSrcAddress,
             orderData.usrDstAddress,
             orderData.expirationTimestamp,
@@ -212,6 +222,8 @@ contract Escrow is ReentrancyGuard, Pausable {
 
             require(orders[order.id] == orderHash, "Order hash mismatch");
             require(orderStatus[order.id] == OrderState.PENDING, "Order not in PENDING state");
+            require(order.expirationTimestamp >= block.timestamp, "Order has expired");
+            require(order.srcEscrow == address(this), "Order srcEscrow mismatch");
 
             taskInputs[i + 3] = orderHash; // offset because first 3 arguments are destination chain id, payment registry address and block number
 
@@ -254,11 +266,10 @@ contract Escrow is ReentrancyGuard, Pausable {
             if (amount > 0) {
                 if (token == address(0)) {
                     require(address(this).balance >= amount, "Insufficient ETH balance");
-                    (bool success,) = payable(allowedWithdrawalAddress).call{value: amount}("");
+                    (bool success,) = payable(withdrawalAddress).call{value: amount}("");
                     require(success, "ETH transfer failed");
                 } else {
-                    require(IERC20(token).balanceOf(address(this)) >= amount, "Insufficient ERC20 balance");
-                    IERC20(token).safeTransfer(allowedWithdrawalAddress, amount);
+                    IERC20(token).safeTransfer(withdrawalAddress, amount);
                 }
             }
         }
@@ -271,13 +282,13 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param order Data of the order to be refunded
     /// @custom:security This function should never be pausable
     function refundOrder(Order calldata order) external payable nonReentrant {
-        require(msg.sender == order.usrSrcAddress, "Only the original address can refund an order");
-
         bytes32 orderHash = _createOrderHash(order);
         require(orders[order.id] == orderHash, "Order hash mismatch");
+
+        require(msg.sender == order.usrSrcAddress, "Only the original address can refund an order");
         require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund a non-pending order");
         require(block.timestamp > order.expirationTimestamp, "Order has not expired yet");
-        require(order.srcChainId == SRC_CHAIN_ID, "Order is not from the source chain");
+        require(order.srcEscrow == address(this), "Order is not this contract");
 
         orderStatus[order.id] = OrderState.RECLAIMED;
 
@@ -288,17 +299,17 @@ contract Escrow is ReentrancyGuard, Pausable {
             require(success, "ETH refund failed");
         } else {
             // ERC20 token refund
-            require(IERC20(order.srcToken).balanceOf(address(this)) >= order.srcAmount, "Insufficient ERC20 balance");
             IERC20(order.srcToken).safeTransfer(msg.sender, order.srcAmount);
         }
 
-        emit OrdersReclaimed(order.id);
+        emit OrderReclaimed(order.id);
     }
 
     function _createOrderHash(Order memory orderDetails) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 orderDetails.id, // uint256
+                orderDetails.srcEscrow, // address
                 orderDetails.usrSrcAddress, // address
                 orderDetails.usrDstAddress, // bytes32
                 orderDetails.expirationTimestamp, // uint256
@@ -324,8 +335,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     /// @notice Change the allowed relay address
-    function setAllowedAddress(address _newAllowedAddress) external onlyOwner {
-        allowedRelayAddress = _newAllowedAddress;
+    function setAllowedAddress(address _newRelayAddress) external onlyOwner {
+        relayAddress = _newRelayAddress;
     }
 
     /// @notice Check if given bridging destination chain exist
@@ -363,7 +374,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     // Modifiers
     modifier onlyRelayAddress() {
-        require(msg.sender == allowedRelayAddress, "Caller is not allowed");
+        require(msg.sender == relayAddress, "Caller is not allowed");
         _;
     }
 

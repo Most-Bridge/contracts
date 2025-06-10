@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {Script} from "forge-std/Script.sol";
-import {Escrow} from "../../src/contracts/SMM/EscrowSMM.sol";
+import {Escrow} from "src/contracts/Escrow.sol";
 
 contract DeployEscrow is Script {
     function run() external {
@@ -24,7 +24,10 @@ contract DeployEscrow is Script {
             hdpProgramHash: bytes32(uint256(0x228737596cc16de4a733aec478701996f6c0f937fe66144781d91537b6df629)) // CairoVM custom module program hash
         });
 
-        new Escrow(initialHDPChainConnections);
+        address withdrawalAddress = 0x9c46f4d7Aaf6fa5507220CB843D873C1f5D2342a; // Replace with the actual withdrawal address
+        address relayAddress = address(1); // Replace with the actual relay address
+
+        new Escrow(initialHDPChainConnections, withdrawalAddress, relayAddress);
         vm.stopBroadcast();
     }
 }

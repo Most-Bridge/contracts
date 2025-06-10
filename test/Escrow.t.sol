@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {Test, console} from "forge-std/Test.sol";
-import {Escrow} from "../../src/contracts/SMM/EscrowSMM.sol";
+import {Escrow} from "src/contracts/Escrow.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockERC20 is ERC20 {
@@ -44,7 +44,7 @@ contract EscrowTest is Test {
             hdpProgramHash: bytes32(uint256(0x3e6ede9c31b71072c18c6d1453285eac4ae0cf7702e3e5b8fe17d470ed0ddf4))
         });
 
-        escrow = new Escrow(initialHDPChainConnections);
+        escrow = new Escrow(initialHDPChainConnections, mmAddress, mmAddress);
         vm.deal(user, 10 ether);
         owner = address(this);
         escrow.setAllowedAddress(owner);
@@ -63,6 +63,7 @@ contract EscrowTest is Test {
         bytes32 expectedOrderHash = keccak256(
             abi.encode(
                 firstOrderId,
+                address(escrow),
                 user,
                 destinationAddress,
                 block.timestamp + ONE_DAY,
@@ -120,6 +121,7 @@ contract EscrowTest is Test {
         bytes32 expectedOrderHash = keccak256(
             abi.encode(
                 firstOrderId,
+                address(escrow),
                 user,
                 destinationAddress,
                 block.timestamp + ONE_DAY,
@@ -148,6 +150,7 @@ contract EscrowTest is Test {
 
         Escrow.Order memory orderToRefund = Escrow.Order({
             id: firstOrderId,
+            srcEscrow: address(escrow),
             usrSrcAddress: user,
             usrDstAddress: destinationAddress,
             expirationTimestamp: expirationTimestamp,
@@ -176,6 +179,7 @@ contract EscrowTest is Test {
 
         Escrow.Order memory orderToRefund = Escrow.Order({
             id: firstOrderId,
+            srcEscrow: address(escrow),
             usrSrcAddress: user,
             usrDstAddress: destinationAddress,
             expirationTimestamp: expirationTimestamp,
@@ -201,6 +205,7 @@ contract EscrowTest is Test {
 
         Escrow.Order memory orderToRefund = Escrow.Order({
             id: firstOrderId,
+            srcEscrow: address(escrow),
             usrSrcAddress: user,
             usrDstAddress: destinationAddress,
             expirationTimestamp: expirationTimestamp,
@@ -229,6 +234,7 @@ contract EscrowTest is Test {
         vm.startPrank(user);
         Escrow.Order memory orderToRefund = Escrow.Order({
             id: firstOrderId,
+            srcEscrow: address(escrow),
             usrSrcAddress: user,
             usrDstAddress: bytes32(uint256(12345)), // Wrong address
             expirationTimestamp: block.timestamp - 1 days, // Wrong timestamp
@@ -289,6 +295,7 @@ contract EscrowTest is Test {
         bytes32 expectedOrderHash = keccak256(
             abi.encode(
                 firstOrderId,
+                address(escrow),
                 user,
                 destinationAddress,
                 block.timestamp + ONE_DAY,

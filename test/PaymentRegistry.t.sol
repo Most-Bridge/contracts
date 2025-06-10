@@ -2,7 +2,7 @@
 pragma solidity >=0.8;
 
 import {Test, console} from "forge-std/Test.sol";
-import {PaymentRegistry} from "../../src/contracts/SMM/PaymentRegistrySMM.sol";
+import {PaymentRegistry} from "src/contracts/PaymentRegistry.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockERC20 is ERC20 {
@@ -24,6 +24,7 @@ contract PaymentRegistryTest is Test {
     address dstTokenETH = address(0);
     uint256 dstAmount = 0.9 ether;
     bytes32 srcChainId = bytes32(uint256(2));
+    bytes32 srcEscrow = bytes32(uint256(3));
     bytes32 constant DST_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000000001;
 
     MockERC20 public mockERC;
@@ -46,6 +47,7 @@ contract PaymentRegistryTest is Test {
         vm.prank(MMAddress); // mm calls
         paymentRegistry.mostFulfillOrder{value: dstAmount}(
             orderId,
+            srcEscrow,
             userSrcAddress,
             userDstAddress,
             expirationTimestamp,
@@ -59,6 +61,7 @@ contract PaymentRegistryTest is Test {
         bytes32 orderHash = keccak256(
             abi.encode(
                 orderId,
+                srcEscrow,
                 userSrcAddress,
                 userDstAddress,
                 expirationTimestamp,
@@ -80,6 +83,7 @@ contract PaymentRegistryTest is Test {
         vm.startPrank(MMAddress);
         paymentRegistry.mostFulfillOrder{value: dstAmount}(
             orderId,
+            srcEscrow,
             userSrcAddress,
             userDstAddress,
             expirationTimestamp,
@@ -93,6 +97,7 @@ contract PaymentRegistryTest is Test {
         vm.expectRevert("Transfer already processed");
         paymentRegistry.mostFulfillOrder{value: dstAmount}(
             orderId,
+            srcEscrow,
             userSrcAddress,
             userDstAddress,
             expirationTimestamp,
@@ -110,6 +115,7 @@ contract PaymentRegistryTest is Test {
         vm.expectRevert("Native ETH: msg.value mismatch with destination amount");
         paymentRegistry.mostFulfillOrder{value: 0}(
             orderId,
+            srcEscrow,
             userSrcAddress,
             userDstAddress,
             expirationTimestamp,
@@ -126,6 +132,7 @@ contract PaymentRegistryTest is Test {
         vm.expectRevert("Native ETH: msg.value mismatch with destination amount");
         paymentRegistry.mostFulfillOrder{value: dstAmount}(
             orderId,
+            srcEscrow,
             userSrcAddress,
             userDstAddress,
             expirationTimestamp,
@@ -144,6 +151,7 @@ contract PaymentRegistryTest is Test {
         vm.warp(block.timestamp + 2 days);
         paymentRegistry.mostFulfillOrder{value: dstAmount}(
             orderId,
+            srcEscrow,
             userSrcAddress,
             userDstAddress,
             expirationTimestamp,
@@ -160,6 +168,7 @@ contract PaymentRegistryTest is Test {
         vm.expectRevert();
         paymentRegistry.mostFulfillOrder{value: 20 ether}(
             orderId,
+            srcEscrow,
             userSrcAddress,
             userDstAddress,
             expirationTimestamp,
@@ -177,6 +186,7 @@ contract PaymentRegistryTest is Test {
         mockERC.approve(address(paymentRegistry), dstAmount);
         paymentRegistry.mostFulfillOrder{value: 0}(
             orderId,
+            srcEscrow,
             userSrcAddress,
             userDstAddress,
             expirationTimestamp,
@@ -198,6 +208,7 @@ contract PaymentRegistryTest is Test {
         vm.expectRevert("ERC20: msg.value must be 0");
         paymentRegistry.mostFulfillOrder{value: dstAmount}(
             orderId,
+            srcEscrow,
             userSrcAddress,
             userDstAddress,
             expirationTimestamp,
@@ -215,6 +226,7 @@ contract PaymentRegistryTest is Test {
         vm.expectRevert("ERC20: Amount must be > 0");
         paymentRegistry.mostFulfillOrder{value: 0}(
             orderId,
+            srcEscrow,
             userSrcAddress,
             userDstAddress,
             expirationTimestamp,
@@ -232,6 +244,7 @@ contract PaymentRegistryTest is Test {
         vm.expectRevert();
         paymentRegistry.mostFulfillOrder{value: 0}(
             orderId,
+            srcEscrow,
             userSrcAddress,
             userDstAddress,
             expirationTimestamp,
@@ -250,6 +263,7 @@ contract PaymentRegistryTest is Test {
         vm.prank(address(99));
         paymentRegistry.mostFulfillOrder{value: dstAmount}(
             orderId,
+            srcEscrow,
             userSrcAddress,
             userDstAddress,
             expirationTimestamp,
@@ -268,6 +282,7 @@ contract PaymentRegistryTest is Test {
         vm.expectRevert("Native ETH: Transfer failed");
         paymentRegistry.mostFulfillOrder{value: dstAmount}(
             orderId,
+            srcEscrow,
             userSrcAddress,
             address(nonPayable),
             expirationTimestamp,
@@ -284,6 +299,7 @@ contract PaymentRegistryTest is Test {
         vm.expectRevert();
         paymentRegistry.mostFulfillOrder{value: 0}(
             orderId,
+            srcEscrow,
             userSrcAddress,
             userDstAddress,
             expirationTimestamp,
@@ -304,6 +320,7 @@ contract PaymentRegistryTest is Test {
         vm.expectRevert();
         paymentRegistry.mostFulfillOrder{value: 0}(
             orderId,
+            srcEscrow,
             userSrcAddress,
             userDstAddress,
             expirationTimestamp,
@@ -321,6 +338,7 @@ contract PaymentRegistryTest is Test {
         vm.expectRevert("Native ETH: Amount must be > 0");
         paymentRegistry.mostFulfillOrder{value: 0}(
             orderId,
+            srcEscrow,
             userSrcAddress,
             userDstAddress,
             expirationTimestamp,
