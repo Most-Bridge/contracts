@@ -24,8 +24,8 @@ contract DeployEscrow is Script {
             hdpProgramHash: bytes32(uint256(0x228737596cc16de4a733aec478701996f6c0f937fe66144781d91537b6df629)) // CairoVM custom module program hash
         });
 
-        address withdrawalAddress = 0x9c46f4d7Aaf6fa5507220CB843D873C1f5D2342a; // Replace with the actual withdrawal address
-        address relayAddress = address(1); // Replace with the actual relay address
+        address withdrawalAddress = 0x3814f9F424874860ffCD9f70f0D4B74b81e791E8; // Replace with the actual withdrawal address
+        address relayAddress = 0x3814f9F424874860ffCD9f70f0D4B74b81e791E8; // Replace with the actual relay address
 
         new Escrow(initialHDPChainConnections, withdrawalAddress, relayAddress);
         vm.stopBroadcast();

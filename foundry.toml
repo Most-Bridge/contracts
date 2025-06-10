@@ -7,6 +7,11 @@ src = "src"
 out = "out"
 libs = ["lib"]
 remappings = [
+    "src/contracts/=./src/contracts/",
+    # herodotus helper sub‑folder
+    "src/libraries/internal/=lib/herodotus-evm-v2/src/libraries/internal/",
+    # rest of the helpers
+    "src/libraries/=./src/libraries/",
     "forge-std/=lib/forge-std/src/",
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "ds-test/=lib/openzeppelin-contracts/lib/forge-std/lib/ds-test/src/",
