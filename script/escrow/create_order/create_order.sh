@@ -11,19 +11,20 @@ SRC_AMOUNT=100000000000000
 DST_TOKEN=0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7
 DST_AMOUNT=90000000000000 
 DST_CHAIN_ID=0x00000000000000000000000000000000000000000000534e5f5345504f4c4941
-
+EXPIRY_WINDOW=86400 # 24 hours
 
 cast send \
   --rpc-url $ETH_SEPOLIA_RPC \
   --private-key $USR_SRC_PRIVATE_KEY \
   $ESCROW_ADDRESS \
-  "createOrder(bytes32,address,uint256,bytes32,uint256,bytes32)" \
+  "createOrder(bytes32,address,uint256,bytes32,uint256,bytes32,uint256)" \
   $STRK_DST_ADDRESS \
   $SRC_TOKEN \
   $SRC_AMOUNT \
   $DST_TOKEN \
   $DST_AMOUNT \
   $DST_CHAIN_ID \
+  $EXPIRY_WINDOW \
   --value $SRC_AMOUNT
 
 # forge script script/escrow/create_order/CreateOrder.s.sol:CreateOrder \

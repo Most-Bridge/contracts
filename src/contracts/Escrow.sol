@@ -27,7 +27,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     uint256 private orderId = 1;
 
     // Constants
-    uint256 public constant ONE_DAY = 1 days;
     bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7; // THIS SHOULD BE SET TO THE SRC CHAIN ID
 
     // HDP
@@ -129,6 +128,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param _dstToken      The destination token address, bytes32 for foreign chain tokens
     /// @param _dstAmount     The amount of the destination token to be received by the user
     /// @param _dstChainId    Destination Chain Id as a hex
+    /// @param _expiryWindow  The time window in seconds after which the order expires
     /// @notice srcToken and usrSrcAddress are native to this chain (EVM), so stored as `address`
     /// @notice dstToken and usrDstAddress are for a foreign chain (e.g., Starknet), so stored as `bytes32`
     function createOrder(
@@ -137,7 +137,8 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 _srcAmount,
         bytes32 _dstToken,
         uint256 _dstAmount,
-        bytes32 _dstChainId
+        bytes32 _dstChainId,
+        uint256 _expiryWindow
     ) external payable nonReentrant whenNotPaused {
         bool isNativeToken = _srcToken == address(0);
 
@@ -153,8 +154,8 @@ contract Escrow is ReentrancyGuard, Pausable {
             IERC20(_srcToken).safeTransferFrom(msg.sender, address(this), _srcAmount);
         }
 
-        // The order expires 24 hours after placement. If not proven by then, the user can withdraw funds.
-        uint256 _expirationTimestamp = block.timestamp + ONE_DAY;
+        // The order expires within the expiry window. If not proven by then, the user can withdraw funds.
+        uint256 _expirationTimestamp = block.timestamp + _expiryWindow;
 
         // Store order data in a struct to avoid stack too deep issues
         Order memory orderData = Order({
