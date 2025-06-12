@@ -53,7 +53,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         address srcToken,
         uint256 srcAmount,
         bytes32 dstToken,
-        uint256 minDstAmount,
+        uint256 dstAmount,
         bytes32 dstChainId
     );
     event ProveBridgeAggregatedSuccess(uint256[] orderIds);
@@ -82,7 +82,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         address srcToken;
         uint256 srcAmount;
         bytes32 dstToken;
-        uint256 minDstAmount;
+        uint256 dstAmount;
         bytes32 srcChainId;
         bytes32 dstChainId;
     }
@@ -126,7 +126,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param _srcToken      The source token address, address(0) for native eth
     /// @param _srcAmount     The amount of the source token deposited by the user
     /// @param _dstToken      The destination token address, bytes32 for foreign chain tokens
-    /// @param _minDstAmount     The amount of the destination token to be received by the user
+    /// @param _dstAmount     The amount of the destination token to be received by the user
     /// @param _dstChainId    Destination Chain Id as a hex
     /// @param _expiryWindow  The time window in seconds after which the order expires
     /// @notice srcToken and usrSrcAddress are native to this chain (EVM), so stored as `address`
@@ -136,7 +136,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         address _srcToken,
         uint256 _srcAmount,
         bytes32 _dstToken,
-        uint256 _minDstAmount,
+        uint256 _dstAmount,
         bytes32 _dstChainId,
         uint256 _expiryWindow
     ) external payable nonReentrant whenNotPaused {
@@ -167,7 +167,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             srcToken: _srcToken,
             srcAmount: _srcAmount,
             dstToken: _dstToken,
-            minDstAmount: _minDstAmount,
+            dstAmount: _dstAmount,
             srcChainId: SRC_CHAIN_ID,
             dstChainId: _dstChainId
         });
@@ -185,7 +185,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             orderData.srcToken,
             orderData.srcAmount,
             orderData.dstToken,
-            orderData.minDstAmount,
+            orderData.dstAmount,
             orderData.dstChainId
         );
 
@@ -315,7 +315,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                 orderDetails.srcToken, // address
                 orderDetails.srcAmount, // uint256
                 orderDetails.dstToken, // bytes32
-                orderDetails.minDstAmount, // uint256
+                orderDetails.dstAmount, // uint256
                 orderDetails.srcChainId, // bytes32
                 orderDetails.dstChainId // bytes32
             )

@@ -40,7 +40,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         bytes32 srcToken,
         uint256 srcAmount,
         address dstToken,
-        uint256 minDstAmount,
+        uint256 dstAmount,
         bytes32 srcChainId,
         bytes32 dstChainId,
         bytes32 marketMakerSourceAddress
@@ -58,7 +58,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     /// @param _srcToken            The token address (identifier) on the source chain (format: bytes32).
     /// @param _srcAmount           The amount of tokens sent from the source chain.
     /// @param _dstToken            The token address on the destination (this) chain. For native ETH, use address(0).
-    /// @param _minDstAmount           The amount of tokens (native ETH or ERC20) to be received by the user on this chain.
+    /// @param _dstAmount           The amount of tokens (native ETH or ERC20) to be received by the user on this chain.
     /// @param _srcChainId          The chain ID of the source chain (format: bytes32).
     function mostFulfillOrder(
         uint256 _orderId,
@@ -69,7 +69,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         bytes32 _srcToken,
         uint256 _srcAmount,
         address _dstToken,
-        uint256 _minDstAmount,
+        uint256 _dstAmount,
         bytes32 _srcChainId,
         bytes32 marketMakerSourceAddress
     ) external payable onlyAllowedAddress whenNotPaused nonReentrant {
@@ -86,7 +86,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
                 _srcToken,
                 _srcAmount,
                 _dstToken,
-                _minDstAmount,
+                _dstAmount,
                 _srcChainId,
                 dstChainId
             )
@@ -105,16 +105,15 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
 
         if (_dstToken == address(0)) {
             // Native ETH transfer
-            require(msg.value == _minDstAmount, "Native ETH: msg.value mismatch with destination amount");
-            require(_minDstAmount > 0, "Native ETH: Amount must be > 0");
-            (bool success,) = payable(_usrDstAddress).call{value: _minDstAmount}("");
+            require(msg.value == _dstAmount, "Native ETH: msg.value mismatch with destination amount");
+            require(_dstAmount > 0, "Native ETH: Amount must be > 0");
+            (bool success,) = payable(_usrDstAddress).call{value: _dstAmount}("");
             require(success, "Native ETH: Transfer failed");
         } else {
             // ERC20 token transfer
             require(msg.value == 0, "ERC20: msg.value must be 0");
-            require(_minDstAmount > 0, "ERC20: Amount must be > 0");
-
-            IERC20(_dstToken).safeTransferFrom(msg.sender, _usrDstAddress, _minDstAmount);
+            require(_dstAmount > 0, "ERC20: Amount must be > 0");
+            IERC20(_dstToken).safeTransferFrom(msg.sender, _usrDstAddress, _dstAmount);
         }
 
         emit FulfillmentReceipt(
@@ -126,7 +125,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             _srcToken,
             _srcAmount,
             _dstToken,
-            _minDstAmount,
+            _dstAmount,
             _srcChainId,
             dstChainId,
             marketMakerSourceAddress

@@ -30,6 +30,7 @@ contract PaymentRegistryTest is Test {
     MockERC20 public mockERC;
 
     address MMAddress = address(3);
+    bytes32 mmSrcAddress = bytes32(uint256(4));
 
     function setUp() public {
         paymentRegistry = new PaymentRegistry(DST_CHAIN_ID, MMAddress);
@@ -55,7 +56,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
 
         bytes32 orderHash = keccak256(
@@ -91,7 +93,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
 
         vm.expectRevert("Transfer already processed");
@@ -105,7 +108,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
         vm.stopPrank();
     }
@@ -123,7 +127,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -140,7 +145,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount + 1 ether,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -159,7 +165,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -176,7 +183,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -194,7 +202,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(mockERC),
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
         vm.stopPrank();
 
@@ -216,7 +225,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(mockERC),
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -234,7 +244,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(mockERC),
             0,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -252,7 +263,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(mockERC),
             100 ether,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
         vm.stopPrank();
     }
@@ -271,7 +283,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -290,7 +303,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -307,7 +321,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(mockERC),
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -328,7 +343,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(broken),
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
         vm.stopPrank();
     }
@@ -346,7 +362,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             0, // dstAmount = 0
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 }
