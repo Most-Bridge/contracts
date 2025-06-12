@@ -42,7 +42,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         address dstToken,
         uint256 dstAmount,
         bytes32 srcChainId,
-        bytes32 dstChainId
+        bytes32 dstChainId,
+        bytes32 marketMakerSourceAddress
     );
 
     /// External functions
@@ -69,7 +70,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         uint256 _srcAmount,
         address _dstToken,
         uint256 _dstAmount,
-        bytes32 _srcChainId
+        bytes32 _srcChainId,
+        bytes32 marketMakerSourceAddress
     ) external payable onlyAllowedAddress whenNotPaused nonReentrant {
         uint256 currentTimestamp = block.timestamp;
         require(_expirationTimestamp > currentTimestamp, "Cannot fulfill an expired order.");
@@ -90,8 +92,15 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             )
         );
 
-        require(!fulfillments[orderHash], "Transfer already processed");
-        fulfillments[orderHash] = true;
+        bytes32 fulfillmentHash = keccak256(
+            abi.encode(
+                orderHash,
+                marketMakerSourceAddress
+            )
+        );
+
+        require(!fulfillments[fulfillmentHash], "Transfer already processed");
+        fulfillments[fulfillmentHash] = true;
 
         if (_dstToken == address(0)) {
             // Native ETH transfer
@@ -118,7 +127,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             _dstToken,
             _dstAmount,
             _srcChainId,
-            dstChainId
+            dstChainId,
+            marketMakerSourceAddress
         );
     }
 

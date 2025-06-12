@@ -197,12 +197,12 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param calldataOrders      Array containing the data of the orders to be proven
     /// @param _blockNumber        The point in time when all the submitted orders have been fulfilled
     /// @param _destinationChainId The chain on which the order was fulfilled
-    /// @param _balancesToWithdraw Summarized amounts of each token to withdraw - token address and amount pair
+    /// @param _ordersWithdrawals Summarized amounts for each market maker of each token to withdraw - token address and amount pair
     function proveAndWithdrawBatch(
         Order[] calldata calldataOrders,
         uint256 _blockNumber,
         bytes32 _destinationChainId,
-        MerkleHelper.BalanceToWithdraw[] memory _balancesToWithdraw
+        MerkleHelper.OrdersWithdrawal[] memory _ordersWithdrawals
     ) public onlyRelayAddress {
         // For proving in aggregated mode using HDP
         bytes32[] memory taskInputs = new bytes32[](calldataOrders.length + 3);
@@ -240,8 +240,8 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         MerkleHelper.HDPTaskOutput memory expectedHdpTaskOutput = MerkleHelper.HDPTaskOutput({
             isOrdersFulfillmentVerified: bytes32(uint256(1)),
-            tokensBalancesArrayLength: _balancesToWithdraw.length,
-            tokensBalancesArray: _balancesToWithdraw
+            ordersWithdrawalsArrayLength: _ordersWithdrawals.length,
+            ordersWithdrawals: _ordersWithdrawals
         });
 
         bytes32 computedMerkleRoot = MerkleHelper.computeTaskOutputMerkleRoot(expectedHdpTaskOutput);
@@ -257,16 +257,18 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
 
         // Withdraw all tokens (including ETH if tokenAddress == address(0))
-        for (uint256 i = 0; i < _balancesToWithdraw.length; i++) {
-            address token = _balancesToWithdraw[i].tokenAddress;
-            uint256 amount = _balancesToWithdraw[i].summarizedAmount;
-            if (amount > 0) {
-                if (token == address(0)) {
-                    require(address(this).balance >= amount, "Insufficient ETH balance");
-                    (bool success,) = payable(withdrawalAddress).call{value: amount}("");
-                    require(success, "ETH transfer failed");
-                } else {
-                    IERC20(token).safeTransfer(withdrawalAddress, amount);
+        for (uint256 i = 0; i < _ordersWithdrawals.length; ++i) {
+            for (uint256 j = 0; j < _ordersWithdrawals[i].balancesToWithdraw.length; j++) {
+                address token = _ordersWithdrawals[i].balancesToWithdraw[j].tokenAddress;
+                uint256 amount = _ordersWithdrawals[i].balancesToWithdraw[j].summarizedAmount;
+                if (amount > 0) {
+                    if (token == address(0)) {
+                        require(address(this).balance >= amount, "Insufficient ETH balance");
+                        (bool success,) = payable(_ordersWithdrawals[i].marketMakerAddress).call{value: amount}("");
+                        require(success, "ETH transfer failed");
+                    } else {
+                        IERC20(token).safeTransfer(withdrawalAddress, amount);
+                    }
                 }
             }
         }
