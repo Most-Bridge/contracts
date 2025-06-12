@@ -2,32 +2,41 @@
 pragma solidity ^0.8.26;
 
 library MerkleHelper {
+
     struct BalanceToWithdraw {
         address tokenAddress;
         uint256 summarizedAmount;
     }
 
+    struct OrdersWithdrawal {
+        address marketMakerAddress;
+        BalanceToWithdraw[] balancesToWithdraw;
+    }
+
     struct HDPTaskOutput {
         bytes32 isOrdersFulfillmentVerified;
-        uint256 tokensBalancesArrayLength;
-        BalanceToWithdraw[] tokensBalancesArray;
+        uint256 ordersWithdrawalsArrayLength;
+        OrdersWithdrawal[] ordersWithdrawals;
     }
 
     function computeTaskOutputMerkleRoot(HDPTaskOutput memory taskOutput) internal pure returns (bytes32) {
         require(
-            taskOutput.tokensBalancesArray.length == taskOutput.tokensBalancesArrayLength,
+            taskOutput.ordersWithdrawals.length == taskOutput.ordersWithdrawalsArrayLength,
             "HDPTaskOutput: length mismatch"
         );
 
-        uint256 nLeaves = 2 + taskOutput.tokensBalancesArrayLength;
+        uint256 nLeaves = 2 + taskOutput.ordersWithdrawalsArrayLength;
         bytes32[] memory leaves = new bytes32[](nLeaves);
 
         leaves[0] = keccak256(abi.encode(taskOutput.isOrdersFulfillmentVerified));
-        leaves[1] = keccak256(abi.encode(taskOutput.tokensBalancesArrayLength));
+        leaves[1] = keccak256(abi.encode(taskOutput.ordersWithdrawalsArrayLength));
 
-        for (uint256 i = 0; i < taskOutput.tokensBalancesArray.length; ++i) {
-            BalanceToWithdraw memory b = taskOutput.tokensBalancesArray[i];
-            leaves[2 + i] = keccak256(abi.encode(b.tokenAddress, b.summarizedAmount));
+        for (uint256 i = 0; i < taskOutput.ordersWithdrawals.length; ++i) {
+            OrdersWithdrawal memory ordersWithdrawal = taskOutput.ordersWithdrawals[i];
+            for (uint256 j = 0; i < ordersWithdrawal.balancesToWithdraw.length; ++j) {
+                BalanceToWithdraw memory balanceToWithdraw = ordersWithdrawal.balancesToWithdraw[i];
+                leaves[2 + i] = keccak256(abi.encode(balanceToWithdraw.tokenAddress, balanceToWithdraw.summarizedAmount));
+            }
         }
 
         return computeMerkleRoot(leaves);
