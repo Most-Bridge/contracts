@@ -92,15 +92,16 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             )
         );
 
-        bytes32 fulfillmentHash = keccak256(
-            abi.encode(
-                orderHash,
-                marketMakerSourceAddress
-            )
-        );
+        // TODO: THIS WILL LEAD TO A COLLISION FOR MULTIPLE MARKET MAKERS FULFILLING THE SAME ORDER
+        // bytes32 fulfillmentHash = keccak256(
+        //     abi.encode(
+        //         orderHash,
+        //         marketMakerSourceAddress
+        //     )
+        // );
 
-        require(!fulfillments[fulfillmentHash], "Transfer already processed");
-        fulfillments[fulfillmentHash] = true;
+        require(!fulfillments[orderHash], "Transfer already processed");
+        fulfillments[orderHash] = true;
 
         if (_dstToken == address(0)) {
             // Native ETH transfer
