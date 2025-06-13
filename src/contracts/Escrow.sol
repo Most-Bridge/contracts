@@ -14,7 +14,7 @@ import {MerkleHelper} from "src/libraries/MerkleHelper.sol";
 /// @author Most Bridge (https://github.com/Most-Bridge)
 ///
 /// @notice Handles the bridging and swapping of assets between a src chain and a dst chain, in conjunction with
-///         Payment Registry and a facilitator service.
+///         Payment Registry and a facilitator service
 ///
 contract Escrow is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
@@ -23,9 +23,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     // State variables
     address public owner;
     uint256 private orderId = 1;
-
-    // Constants
-    bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7; // THIS SHOULD BE SET TO THE SRC CHAIN ID
 
     // HDP
     address public HDP_EXECUTION_STORE_ADDRESS = 0x59c0B3D09151aA2C0201808fEC0860f1168A4173;
@@ -81,7 +78,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 srcAmount;
         bytes32 dstToken;
         uint256 dstAmount;
-        bytes32 srcChainId;
+        uint256 srcChainId;
         bytes32 dstChainId;
     }
 
@@ -146,7 +143,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             IERC20(_srcToken).safeTransferFrom(msg.sender, address(this), _srcAmount);
         }
 
-        // The order expires within the expiry window. If not proven by then, the user can withdraw funds.
+        // The order expires within the expiry window. If not proven by then, the user can withdraw funds
         uint256 _expirationTimestamp = block.timestamp + _expiryWindow;
 
         // Store order data in a struct to avoid stack too deep issues
@@ -160,7 +157,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             srcAmount: _srcAmount,
             dstToken: _dstToken,
             dstAmount: _dstAmount,
-            srcChainId: SRC_CHAIN_ID,
+            srcChainId: block.chainid,
             dstChainId: _dstChainId
         });
 
@@ -258,7 +255,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                     (bool success,) = payable(_ordersWithdrawals[i].marketMakerAddress).call{value: amount}("");
                     require(success, "ETH transfer failed");
                 } else {
-                    IERC20(token).safeTransfer(_ordersWithdrawals[i].marketMakerAddress, amount); // so this is going to be set to the MM address received from HDP
+                    IERC20(token).safeTransfer(_ordersWithdrawals[i].marketMakerAddress, amount);
                 }
             }
         }
@@ -294,6 +291,10 @@ contract Escrow is ReentrancyGuard, Pausable {
         emit OrderReclaimed(order.id);
     }
 
+    /// @notice Creates a hash of the order details
+    ///
+    /// @param orderDetails The details of the order to be hashed
+    /// @return bytes32 The hash of the order details
     function _createOrderHash(Order memory orderDetails) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
@@ -306,7 +307,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                 orderDetails.srcAmount, // uint256
                 orderDetails.dstToken, // bytes32
                 orderDetails.dstAmount, // uint256
-                orderDetails.srcChainId, // bytes32
+                orderDetails.srcChainId, // uint256
                 orderDetails.dstChainId // bytes32
             )
         );

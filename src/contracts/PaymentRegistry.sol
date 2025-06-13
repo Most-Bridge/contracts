@@ -23,13 +23,11 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     /// State variables
     address public immutable owner;
     bytes32 public immutable dstChainId;
-    address public allowedMMAddress;
 
     /// Constructor
-    constructor(bytes32 _dstChainId, address _allowedMMAddress) {
+    constructor(bytes32 _dstChainId) {
         owner = msg.sender;
         dstChainId = _dstChainId;
-        allowedMMAddress = _allowedMMAddress;
     }
 
     /// Events
@@ -74,7 +72,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         uint256 _dstAmount,
         bytes32 _srcChainId,
         bytes32 marketMakerSourceAddress
-    ) external payable onlyAllowedAddress whenNotPaused nonReentrant {
+    ) external payable whenNotPaused nonReentrant {
         uint256 currentTimestamp = block.timestamp;
         require(_expirationTimestamp > currentTimestamp, "Cannot fulfill an expired order.");
         require(marketMakerSourceAddress != bytes32(0), "Invalid MM address: zero address");
@@ -133,24 +131,12 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         _;
     }
 
-    modifier onlyAllowedAddress() {
-        require(msg.sender == allowedMMAddress, "Caller is not the allowed MM");
-        _;
-    }
-
     /// onlyOwner functions
-    /// @notice Allows the owner to change the allowed market maker address, who will be fulfilling the orders
-    /// @param _newAllowedMMAddress The new address that will fulfill the orders
-    function setAllowedMMAddress(address _newAllowedMMAddress) public onlyOwner {
-        allowedMMAddress = _newAllowedMMAddress;
-    }
-
-    /// onlyAllowedAddress functions
-    function pauseContract() external onlyAllowedAddress {
+    function pauseContract() external onlyOwner {
         _pause();
     }
 
-    function unpauseContract() external onlyAllowedAddress {
+    function unpauseContract() external onlyOwner {
         _unpause();
     }
 }
