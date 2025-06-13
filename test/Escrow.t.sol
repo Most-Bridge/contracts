@@ -44,10 +44,9 @@ contract EscrowTest is Test {
             hdpProgramHash: bytes32(uint256(0x3e6ede9c31b71072c18c6d1453285eac4ae0cf7702e3e5b8fe17d470ed0ddf4))
         });
 
-        escrow = new Escrow(initialHDPChainConnections, mmAddress, mmAddress);
+        escrow = new Escrow(initialHDPChainConnections);
         vm.deal(user, 10 ether);
         owner = address(this);
-        escrow.setRelayAddress(owner);
 
         // deploy mock ERC20 token and mint it to user
         mockERC = new MockERC20("MockToken", "MOCK");
@@ -84,9 +83,7 @@ contract EscrowTest is Test {
     function testCreateOrderWithNoValue() public {
         vm.startPrank(user);
         vm.expectRevert("Funds being sent must be greater than 0");
-        escrow.createOrder(
-            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
-        );
+        escrow.createOrder(destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow);
         vm.stopPrank();
     }
 

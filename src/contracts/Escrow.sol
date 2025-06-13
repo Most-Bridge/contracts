@@ -22,8 +22,6 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     // State variables
     address public owner;
-    address public relayAddress;
-    address public withdrawalAddress;
     uint256 private orderId = 1;
 
     // Constants
@@ -99,14 +97,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     /// Constructor
-    constructor(
-        HDPConnectionInitial[] memory initialHDPChainConnections,
-        address _withdrawalAddress,
-        address _relayAddress
-    ) {
+    constructor(HDPConnectionInitial[] memory initialHDPChainConnections) {
         owner = msg.sender;
-        withdrawalAddress = _withdrawalAddress;
-        relayAddress = _relayAddress;
 
         // Initial destination chain connections added at the time of contract deployment
         for (uint256 i = 0; i < initialHDPChainConnections.length; i++) {
@@ -203,7 +195,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 _blockNumber,
         bytes32 _destinationChainId,
         MerkleHelper.OrdersWithdrawal[] memory _ordersWithdrawals
-    ) public onlyRelayAddress {
+    ) public nonReentrant {
         // For proving in aggregated mode using HDP
         bytes32[] memory taskInputs = new bytes32[](calldataOrders.length + 3);
         taskInputs[0] = bytes32(_destinationChainId);
@@ -267,7 +259,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                         (bool success,) = payable(_ordersWithdrawals[i].marketMakerAddress).call{value: amount}("");
                         require(success, "ETH transfer failed");
                     } else {
-                        IERC20(token).safeTransfer(withdrawalAddress, amount);
+                        // IERC20(token).safeTransfer(withdrawalAddress, amount); // so this is going to be set to the MM address received from HDP
                     }
                 }
             }
@@ -324,18 +316,13 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /// Restricted functions
     /// @notice Pause the contract in case of an error, or contract upgrade
-    function pauseContract() external onlyRelayAddress {
+    function pauseContract() external onlyOwner {
         _pause();
     }
 
     /// @notice Unpause the contract
-    function unpauseContract() external onlyRelayAddress {
+    function unpauseContract() external onlyOwner {
         _unpause();
-    }
-
-    /// @notice Change the relay address
-    function setRelayAddress(address _newRelayAddress) external onlyOwner {
-        relayAddress = _newRelayAddress;
     }
 
     /// @notice Check if given bridging destination chain exist
@@ -372,11 +359,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     // Modifiers
-    modifier onlyRelayAddress() {
-        require(msg.sender == relayAddress, "Caller is not allowed");
-        _;
-    }
-
     modifier onlyOwner() {
         require(msg.sender == owner, "Caller is not the owner");
         _;
