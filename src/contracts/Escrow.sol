@@ -14,7 +14,7 @@ import {MerkleHelper} from "src/libraries/MerkleHelper.sol";
 /// @author Most Bridge (https://github.com/Most-Bridge)
 ///
 /// @notice Handles the bridging and swapping of assets between a src chain and a dst chain, in conjunction with
-///         Payment Registry and a facilitator service.
+///         Payment Registry and a facilitator service
 ///
 contract Escrow is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
@@ -22,13 +22,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     // State variables
     address public owner;
-    address public relayAddress;
-    address public withdrawalAddress;
     uint256 private orderId = 1;
-
-    // Constants
-    uint256 public constant ONE_DAY = 1 days;
-    bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7; // THIS SHOULD BE SET TO THE SRC CHAIN ID
 
     // HDP
     address public HDP_EXECUTION_STORE_ADDRESS = 0x59c0B3D09151aA2C0201808fEC0860f1168A4173;
@@ -84,7 +78,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 srcAmount;
         bytes32 dstToken;
         uint256 dstAmount;
-        bytes32 srcChainId;
+        uint256 srcChainId;
         bytes32 dstChainId;
     }
 
@@ -100,14 +94,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     /// Constructor
-    constructor(
-        HDPConnectionInitial[] memory initialHDPChainConnections,
-        address _withdrawalAddress,
-        address _relayAddress
-    ) {
+    constructor(HDPConnectionInitial[] memory initialHDPChainConnections) {
         owner = msg.sender;
-        withdrawalAddress = _withdrawalAddress;
-        relayAddress = _relayAddress;
 
         // Initial destination chain connections added at the time of contract deployment
         for (uint256 i = 0; i < initialHDPChainConnections.length; i++) {
@@ -129,6 +117,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param _dstToken      The destination token address, bytes32 for foreign chain tokens
     /// @param _dstAmount     The amount of the destination token to be received by the user
     /// @param _dstChainId    Destination Chain Id as a hex
+    /// @param _expiryWindow  The time window in seconds after which the order expires
     /// @notice srcToken and usrSrcAddress are native to this chain (EVM), so stored as `address`
     /// @notice dstToken and usrDstAddress are for a foreign chain (e.g., Starknet), so stored as `bytes32`
     function createOrder(
@@ -137,7 +126,8 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 _srcAmount,
         bytes32 _dstToken,
         uint256 _dstAmount,
-        bytes32 _dstChainId
+        bytes32 _dstChainId,
+        uint256 _expiryWindow
     ) external payable nonReentrant whenNotPaused {
         bool isNativeToken = _srcToken == address(0);
 
@@ -153,8 +143,8 @@ contract Escrow is ReentrancyGuard, Pausable {
             IERC20(_srcToken).safeTransferFrom(msg.sender, address(this), _srcAmount);
         }
 
-        // The order expires 24 hours after placement. If not proven by then, the user can withdraw funds.
-        uint256 _expirationTimestamp = block.timestamp + ONE_DAY;
+        // The order expires within the expiry window. If not proven by then, the user can withdraw funds
+        uint256 _expirationTimestamp = block.timestamp + _expiryWindow;
 
         // Store order data in a struct to avoid stack too deep issues
         Order memory orderData = Order({
@@ -167,7 +157,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             srcAmount: _srcAmount,
             dstToken: _dstToken,
             dstAmount: _dstAmount,
-            srcChainId: SRC_CHAIN_ID,
+            srcChainId: block.chainid,
             dstChainId: _dstChainId
         });
 
@@ -196,13 +186,13 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param calldataOrders      Array containing the data of the orders to be proven
     /// @param _blockNumber        The point in time when all the submitted orders have been fulfilled
     /// @param _destinationChainId The chain on which the order was fulfilled
-    /// @param _balancesToWithdraw Summarized amounts of each token to withdraw - token address and amount pair
+    /// @param _ordersWithdrawals Summarized amounts for each market maker of each token to withdraw - token address and amount pair
     function proveAndWithdrawBatch(
         Order[] calldata calldataOrders,
         uint256 _blockNumber,
         bytes32 _destinationChainId,
-        MerkleHelper.BalanceToWithdraw[] memory _balancesToWithdraw
-    ) public onlyRelayAddress {
+        MerkleHelper.OrdersWithdrawal[] memory _ordersWithdrawals
+    ) public nonReentrant {
         // For proving in aggregated mode using HDP
         bytes32[] memory taskInputs = new bytes32[](calldataOrders.length + 3);
         taskInputs[0] = bytes32(_destinationChainId);
@@ -239,8 +229,8 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         MerkleHelper.HDPTaskOutput memory expectedHdpTaskOutput = MerkleHelper.HDPTaskOutput({
             isOrdersFulfillmentVerified: bytes32(uint256(1)),
-            tokensBalancesArrayLength: _balancesToWithdraw.length,
-            tokensBalancesArray: _balancesToWithdraw
+            ordersWithdrawalsArrayLength: _ordersWithdrawals.length,
+            ordersWithdrawals: _ordersWithdrawals
         });
 
         bytes32 computedMerkleRoot = MerkleHelper.computeTaskOutputMerkleRoot(expectedHdpTaskOutput);
@@ -256,16 +246,16 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
 
         // Withdraw all tokens (including ETH if tokenAddress == address(0))
-        for (uint256 i = 0; i < _balancesToWithdraw.length; i++) {
-            address token = _balancesToWithdraw[i].tokenAddress;
-            uint256 amount = _balancesToWithdraw[i].summarizedAmount;
-            if (amount > 0) {
+        for (uint256 i = 0; i < _ordersWithdrawals.length; ++i) {
+            for (uint256 j = 0; j < _ordersWithdrawals[i].balancesToWithdraw.length; j++) {
+                address token = _ordersWithdrawals[i].balancesToWithdraw[j].tokenAddress;
+                uint256 amount = _ordersWithdrawals[i].balancesToWithdraw[j].summarizedAmount;
                 if (token == address(0)) {
                     require(address(this).balance >= amount, "Insufficient ETH balance");
-                    (bool success,) = payable(withdrawalAddress).call{value: amount}("");
+                    (bool success,) = payable(_ordersWithdrawals[i].marketMakerAddress).call{value: amount}("");
                     require(success, "ETH transfer failed");
                 } else {
-                    IERC20(token).safeTransfer(withdrawalAddress, amount);
+                    IERC20(token).safeTransfer(_ordersWithdrawals[i].marketMakerAddress, amount);
                 }
             }
         }
@@ -301,6 +291,10 @@ contract Escrow is ReentrancyGuard, Pausable {
         emit OrderReclaimed(order.id);
     }
 
+    /// @notice Creates a hash of the order details
+    ///
+    /// @param orderDetails The details of the order to be hashed
+    /// @return bytes32 The hash of the order details
     function _createOrderHash(Order memory orderDetails) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
@@ -313,7 +307,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                 orderDetails.srcAmount, // uint256
                 orderDetails.dstToken, // bytes32
                 orderDetails.dstAmount, // uint256
-                orderDetails.srcChainId, // bytes32
+                orderDetails.srcChainId, // uint256
                 orderDetails.dstChainId // bytes32
             )
         );
@@ -321,18 +315,13 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /// Restricted functions
     /// @notice Pause the contract in case of an error, or contract upgrade
-    function pauseContract() external onlyRelayAddress {
+    function pauseContract() external onlyOwner {
         _pause();
     }
 
     /// @notice Unpause the contract
-    function unpauseContract() external onlyRelayAddress {
+    function unpauseContract() external onlyOwner {
         _unpause();
-    }
-
-    /// @notice Change the relay address
-    function setRelayAddress(address _newRelayAddress) external onlyOwner {
-        relayAddress = _newRelayAddress;
     }
 
     /// @notice Check if given bridging destination chain exist
@@ -369,11 +358,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     }
 
     // Modifiers
-    modifier onlyRelayAddress() {
-        require(msg.sender == relayAddress, "Caller is not allowed");
-        _;
-    }
-
     modifier onlyOwner() {
         require(msg.sender == owner, "Caller is not the owner");
         _;

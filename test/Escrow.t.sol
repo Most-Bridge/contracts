@@ -20,17 +20,16 @@ contract EscrowTest is Test {
     bytes32 destinationAddress = bytes32(uint256(2));
     address mmAddress = address(3);
     address maliciousActor = address(4);
-    address _srcTokenETH = address(0);
-    bytes32 _dstToken = bytes32(uint256(69));
+    address srcTokenETH = address(0);
+    bytes32 dstToken = bytes32(uint256(69));
 
     bytes32 dstChainId = bytes32(uint256(1));
-    bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7;
 
     uint256 firstOrderId = 1;
-    uint256 public constant ONE_DAY = 1 days;
+    uint256 public constant expiryWindow = 1 days;
 
     uint256 sendAmount = 0.00001 ether;
-    uint256 _dstAmount = 0.000009 ether;
+    uint256 dstAmount = 0.000009 ether;
 
     MockERC20 public mockERC;
 
@@ -44,10 +43,9 @@ contract EscrowTest is Test {
             hdpProgramHash: bytes32(uint256(0x3e6ede9c31b71072c18c6d1453285eac4ae0cf7702e3e5b8fe17d470ed0ddf4))
         });
 
-        escrow = new Escrow(initialHDPChainConnections, mmAddress, mmAddress);
+        escrow = new Escrow(initialHDPChainConnections);
         vm.deal(user, 10 ether);
         owner = address(this);
-        escrow.setRelayAddress(owner);
 
         // deploy mock ERC20 token and mint it to user
         mockERC = new MockERC20("MockToken", "MOCK");
@@ -57,7 +55,7 @@ contract EscrowTest is Test {
     function testCreateOrderSuccess() public {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, dstChainId
+            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
         );
 
         bytes32 expectedOrderHash = keccak256(
@@ -66,12 +64,12 @@ contract EscrowTest is Test {
                 address(escrow),
                 user,
                 destinationAddress,
-                block.timestamp + ONE_DAY,
-                _srcTokenETH,
+                block.timestamp + expiryWindow,
+                srcTokenETH,
                 sendAmount,
-                _dstToken,
-                _dstAmount,
-                SRC_CHAIN_ID,
+                dstToken,
+                dstAmount,
+                block.chainid,
                 dstChainId
             )
         );
@@ -84,7 +82,7 @@ contract EscrowTest is Test {
     function testCreateOrderWithNoValue() public {
         vm.startPrank(user);
         vm.expectRevert("Funds being sent must be greater than 0");
-        escrow.createOrder(destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, dstChainId);
+        escrow.createOrder(destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow);
         vm.stopPrank();
     }
 
@@ -96,7 +94,7 @@ contract EscrowTest is Test {
         vm.startPrank(user);
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, dstChainId
+            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
         );
         vm.stopPrank();
     }
@@ -108,7 +106,7 @@ contract EscrowTest is Test {
         vm.prank(user);
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, dstChainId
+            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
         );
 
         vm.prank(owner);
@@ -116,7 +114,7 @@ contract EscrowTest is Test {
 
         vm.prank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, dstChainId
+            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
         );
         bytes32 expectedOrderHash = keccak256(
             abi.encode(
@@ -124,12 +122,12 @@ contract EscrowTest is Test {
                 address(escrow),
                 user,
                 destinationAddress,
-                block.timestamp + ONE_DAY,
-                _srcTokenETH,
+                block.timestamp + expiryWindow,
+                srcTokenETH,
                 sendAmount,
-                _dstToken,
-                _dstAmount,
-                SRC_CHAIN_ID,
+                dstToken,
+                dstAmount,
+                block.chainid,
                 dstChainId
             )
         );
@@ -141,12 +139,12 @@ contract EscrowTest is Test {
     function testRefundOrder() public {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, dstChainId
+            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
         );
         assertEq(user.balance, 9.99999 ether); // user balance decreased
 
-        uint256 expirationTimestamp = block.timestamp + ONE_DAY;
-        vm.warp(block.timestamp + ONE_DAY + 1 days); // order is now expired
+        uint256 expirationTimestamp = block.timestamp + expiryWindow;
+        vm.warp(block.timestamp + expiryWindow + 1 days); // order is now expired
 
         Escrow.Order memory orderToRefund = Escrow.Order({
             id: firstOrderId,
@@ -154,11 +152,11 @@ contract EscrowTest is Test {
             usrSrcAddress: user,
             usrDstAddress: destinationAddress,
             expirationTimestamp: expirationTimestamp,
-            srcToken: _srcTokenETH,
+            srcToken: srcTokenETH,
             srcAmount: sendAmount,
-            dstToken: _dstToken,
-            dstAmount: _dstAmount,
-            srcChainId: SRC_CHAIN_ID,
+            dstToken: dstToken,
+            dstAmount: dstAmount,
+            srcChainId: block.chainid,
             dstChainId: dstChainId
         });
 
@@ -171,11 +169,11 @@ contract EscrowTest is Test {
     function testRefundOrderByWrongUser() public {
         vm.prank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, dstChainId
+            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
         );
-        uint256 expirationTimestamp = block.timestamp + ONE_DAY;
+        uint256 expirationTimestamp = block.timestamp + expiryWindow;
 
-        vm.warp(block.timestamp + ONE_DAY + 2 days); // order expired
+        vm.warp(block.timestamp + expiryWindow + 2 days); // order expired
 
         Escrow.Order memory orderToRefund = Escrow.Order({
             id: firstOrderId,
@@ -183,11 +181,11 @@ contract EscrowTest is Test {
             usrSrcAddress: user,
             usrDstAddress: destinationAddress,
             expirationTimestamp: expirationTimestamp,
-            srcToken: _srcTokenETH,
+            srcToken: srcTokenETH,
             srcAmount: sendAmount,
-            dstToken: _dstToken,
-            dstAmount: _dstAmount,
-            srcChainId: SRC_CHAIN_ID,
+            dstToken: dstToken,
+            dstAmount: dstAmount,
+            srcChainId: block.chainid,
             dstChainId: dstChainId
         });
 
@@ -199,9 +197,9 @@ contract EscrowTest is Test {
     function testRefundOrderBeforeExpiration() public {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, dstChainId
+            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
         );
-        uint256 expirationTimestamp = block.timestamp + ONE_DAY;
+        uint256 expirationTimestamp = block.timestamp + expiryWindow;
 
         Escrow.Order memory orderToRefund = Escrow.Order({
             id: firstOrderId,
@@ -209,11 +207,11 @@ contract EscrowTest is Test {
             usrSrcAddress: user,
             usrDstAddress: destinationAddress,
             expirationTimestamp: expirationTimestamp,
-            srcToken: _srcTokenETH,
+            srcToken: srcTokenETH,
             srcAmount: sendAmount,
-            dstToken: _dstToken,
-            dstAmount: _dstAmount,
-            srcChainId: SRC_CHAIN_ID,
+            dstToken: dstToken,
+            dstAmount: dstAmount,
+            srcChainId: block.chainid,
             dstChainId: dstChainId
         });
 
@@ -225,11 +223,11 @@ contract EscrowTest is Test {
     function testRefundOrderWithWrongDetails() public {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, dstChainId
+            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
         );
         vm.stopPrank();
 
-        vm.warp(block.timestamp + ONE_DAY + 1 days); // order expired
+        vm.warp(block.timestamp + expiryWindow + 1 days); // order expired
 
         vm.startPrank(user);
         Escrow.Order memory orderToRefund = Escrow.Order({
@@ -238,11 +236,11 @@ contract EscrowTest is Test {
             usrSrcAddress: user,
             usrDstAddress: bytes32(uint256(12345)), // Wrong address
             expirationTimestamp: block.timestamp - 1 days, // Wrong timestamp
-            srcToken: _srcTokenETH,
+            srcToken: srcTokenETH,
             srcAmount: 0.5 ether, // Wrong amount
-            dstToken: _dstToken,
-            dstAmount: _dstAmount,
-            srcChainId: SRC_CHAIN_ID,
+            dstToken: dstToken,
+            dstAmount: dstAmount,
+            srcChainId: block.chainid,
             dstChainId: dstChainId
         });
 
@@ -281,7 +279,7 @@ contract EscrowTest is Test {
     function testGas_createOrder() public {
         vm.prank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, _srcTokenETH, sendAmount, _dstToken, _dstAmount, dstChainId
+            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
         );
     }
 
@@ -290,7 +288,9 @@ contract EscrowTest is Test {
         mockERC.approve(address(escrow), sendAmount);
 
         vm.prank(user);
-        escrow.createOrder(destinationAddress, address(mockERC), sendAmount, _dstToken, _dstAmount, dstChainId);
+        escrow.createOrder(
+            destinationAddress, address(mockERC), sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+        );
 
         bytes32 expectedOrderHash = keccak256(
             abi.encode(
@@ -298,12 +298,12 @@ contract EscrowTest is Test {
                 address(escrow),
                 user,
                 destinationAddress,
-                block.timestamp + ONE_DAY,
+                block.timestamp + expiryWindow,
                 address(mockERC),
                 sendAmount,
-                _dstToken,
-                _dstAmount,
-                SRC_CHAIN_ID,
+                dstToken,
+                dstAmount,
+                block.chainid,
                 dstChainId
             )
         );
@@ -321,7 +321,7 @@ contract EscrowTest is Test {
         vm.prank(user);
         vm.expectRevert("ERC20: msg.value must be 0");
         escrow.createOrder{value: 1 ether}(
-            destinationAddress, address(mockERC), sendAmount, _dstToken, _dstAmount, dstChainId
+            destinationAddress, address(mockERC), sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
         );
     }
 
@@ -331,6 +331,59 @@ contract EscrowTest is Test {
 
         vm.prank(user);
         vm.expectRevert("ERC20: _srcAmount must be greater than 0");
-        escrow.createOrder(destinationAddress, address(mockERC), 0, _dstToken, 0, dstChainId);
+        escrow.createOrder(destinationAddress, address(mockERC), 0, dstToken, 0, dstChainId, expiryWindow);
+    }
+
+    function testCreateOrderWithERC20NoApproval() public {
+        vm.startPrank(user);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "ERC20InsufficientAllowance(address,uint256,uint256)", address(escrow), 0, sendAmount
+            )
+        );
+        escrow.createOrder(
+            destinationAddress, address(mockERC), sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+        );
+        vm.stopPrank();
+    }
+
+    function testCreateOrderWithERC20WithEth() public {
+        vm.startPrank(user);
+        mockERC.approve(address(escrow), sendAmount);
+        vm.expectRevert("ERC20: msg.value must be 0");
+        escrow.createOrder{value: sendAmount}(
+            destinationAddress, address(mockERC), sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+        );
+        vm.stopPrank();
+    }
+
+    function testRefundOrderERC20() public {
+        vm.startPrank(user);
+        mockERC.approve(address(escrow), sendAmount);
+        escrow.createOrder(
+            destinationAddress, address(mockERC), sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+        );
+        assertEq(mockERC.balanceOf(user), 10 ether - sendAmount); // user balance decreased
+
+        uint256 expirationTimestamp = block.timestamp + expiryWindow;
+        vm.warp(block.timestamp + expiryWindow + 1 days); // order is now expired
+
+        Escrow.Order memory orderToRefund = Escrow.Order({
+            id: firstOrderId,
+            srcEscrow: address(escrow),
+            usrSrcAddress: user,
+            usrDstAddress: destinationAddress,
+            expirationTimestamp: expirationTimestamp,
+            srcToken: address(mockERC),
+            srcAmount: sendAmount,
+            dstToken: dstToken,
+            dstAmount: dstAmount,
+            srcChainId: block.chainid,
+            dstChainId: dstChainId
+        });
+
+        escrow.refundOrder(orderToRefund);
+        assertEq(mockERC.balanceOf(user), 10 ether);
+        vm.stopPrank();
     }
 }

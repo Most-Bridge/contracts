@@ -25,18 +25,17 @@ contract PaymentRegistryTest is Test {
     uint256 dstAmount = 0.9 ether;
     bytes32 srcChainId = bytes32(uint256(2));
     bytes32 srcEscrow = bytes32(uint256(3));
-    bytes32 constant DST_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000000001;
 
     MockERC20 public mockERC;
 
     address MMAddress = address(3);
+    bytes32 mmSrcAddress = bytes32(uint256(4));
 
     function setUp() public {
-        paymentRegistry = new PaymentRegistry(DST_CHAIN_ID, MMAddress);
+        paymentRegistry = new PaymentRegistry();
         vm.deal(MMAddress, 10 ether);
         vm.deal(userDstAddress, 1 ether);
         vm.prank(address(this));
-        paymentRegistry.setAllowedMMAddress(MMAddress);
 
         // deploy mock ERC20 token and mint it to MM
         mockERC = new MockERC20("MockToken", "MOCK");
@@ -55,7 +54,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
 
         bytes32 orderHash = keccak256(
@@ -70,11 +70,11 @@ contract PaymentRegistryTest is Test {
                 dstTokenETH,
                 dstAmount,
                 srcChainId,
-                DST_CHAIN_ID
+                block.chainid
             )
         );
 
-        assertTrue(paymentRegistry.fulfillments(orderHash), "Order was not marked as processed.");
+        assertEq(paymentRegistry.fulfillments(orderHash), mmSrcAddress, "Order was not marked as processed.");
         assertEq(address(userDstAddress).balance, 1.9 ether, "User destination address balance did not increase.");
         assertEq(address(MMAddress).balance, 9.1 ether, "MM balance did not decrease.");
     }
@@ -91,7 +91,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
 
         vm.expectRevert("Transfer already processed");
@@ -105,7 +106,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
         vm.stopPrank();
     }
@@ -123,7 +125,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -140,7 +143,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount + 1 ether,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -159,7 +163,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -176,7 +181,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -194,7 +200,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(mockERC),
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
         vm.stopPrank();
 
@@ -216,7 +223,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(mockERC),
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -234,7 +242,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(mockERC),
             0,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -252,27 +261,10 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(mockERC),
             100 ether,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
         vm.stopPrank();
-    }
-
-    function testRevertIfNotAllowedMM() public {
-        vm.expectRevert("Caller is not the allowed MM");
-        vm.deal(address(99), 99 ether);
-        vm.prank(address(99));
-        paymentRegistry.mostFulfillOrder{value: dstAmount}(
-            orderId,
-            srcEscrow,
-            userSrcAddress,
-            userDstAddress,
-            expirationTimestamp,
-            srcToken,
-            srcAmount,
-            dstTokenETH,
-            dstAmount,
-            srcChainId
-        );
     }
 
     function testRevertTransferToNonPayableContract() public {
@@ -290,7 +282,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -307,7 +300,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(mockERC),
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 
@@ -328,7 +322,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             address(broken),
             dstAmount,
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
         vm.stopPrank();
     }
@@ -346,7 +341,8 @@ contract PaymentRegistryTest is Test {
             srcAmount,
             dstTokenETH,
             0, // dstAmount = 0
-            srcChainId
+            srcChainId,
+            mmSrcAddress
         );
     }
 }

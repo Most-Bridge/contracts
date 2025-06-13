@@ -16,18 +16,16 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /// Storage
-    mapping(bytes32 => bool) public fulfillments;
+    /// @notice Mapping to track if an order has been fulfilled.
+    ///         The key is the order hash, and the value is the address of the market maker (in bytes32) that fulfilled it.
+    mapping(bytes32 => bytes32) public fulfillments;
 
     /// State variables
     address public immutable owner;
-    bytes32 public immutable dstChainId;
-    address public allowedMMAddress;
 
     /// Constructor
-    constructor(bytes32 _dstChainId, address _allowedMMAddress) {
+    constructor() {
         owner = msg.sender;
-        dstChainId = _dstChainId;
-        allowedMMAddress = _allowedMMAddress;
     }
 
     /// Events
@@ -42,7 +40,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         address dstToken,
         uint256 dstAmount,
         bytes32 srcChainId,
-        bytes32 dstChainId
+        uint256 dstChainId,
+        bytes32 marketMakerSourceAddress
     );
 
     /// External functions
@@ -69,10 +68,12 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         uint256 _srcAmount,
         address _dstToken,
         uint256 _dstAmount,
-        bytes32 _srcChainId
-    ) external payable onlyAllowedAddress whenNotPaused nonReentrant {
+        bytes32 _srcChainId,
+        bytes32 marketMakerSourceAddress
+    ) external payable whenNotPaused nonReentrant {
         uint256 currentTimestamp = block.timestamp;
         require(_expirationTimestamp > currentTimestamp, "Cannot fulfill an expired order.");
+        require(marketMakerSourceAddress != bytes32(0), "Invalid MM address: zero address");
 
         bytes32 orderHash = keccak256(
             abi.encode(
@@ -86,12 +87,12 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
                 _dstToken,
                 _dstAmount,
                 _srcChainId,
-                dstChainId
+                block.chainid
             )
         );
 
-        require(!fulfillments[orderHash], "Transfer already processed");
-        fulfillments[orderHash] = true;
+        require(fulfillments[orderHash] == bytes32(0), "Transfer already processed");
+        fulfillments[orderHash] = marketMakerSourceAddress;
 
         if (_dstToken == address(0)) {
             // Native ETH transfer
@@ -103,7 +104,6 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             // ERC20 token transfer
             require(msg.value == 0, "ERC20: msg.value must be 0");
             require(_dstAmount > 0, "ERC20: Amount must be > 0");
-
             IERC20(_dstToken).safeTransferFrom(msg.sender, _usrDstAddress, _dstAmount);
         }
 
@@ -118,7 +118,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             _dstToken,
             _dstAmount,
             _srcChainId,
-            dstChainId
+            block.chainid,
+            marketMakerSourceAddress
         );
     }
 
@@ -128,24 +129,12 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         _;
     }
 
-    modifier onlyAllowedAddress() {
-        require(msg.sender == allowedMMAddress, "Caller is not the allowed MM");
-        _;
-    }
-
     /// onlyOwner functions
-    /// @notice Allows the owner to change the allowed market maker address, who will be fulfilling the orders
-    /// @param _newAllowedMMAddress The new address that will fulfill the orders
-    function setAllowedMMAddress(address _newAllowedMMAddress) public onlyOwner {
-        allowedMMAddress = _newAllowedMMAddress;
-    }
-
-    /// onlyAllowedAddress functions
-    function pauseContract() external onlyAllowedAddress {
+    function pauseContract() external onlyOwner {
         _pause();
     }
 
-    function unpauseContract() external onlyAllowedAddress {
+    function unpauseContract() external onlyOwner {
         _unpause();
     }
 }
