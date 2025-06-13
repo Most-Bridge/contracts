@@ -76,7 +76,7 @@ contract PaymentRegistryTest is Test {
             )
         );
 
-        assertTrue(paymentRegistry.fulfillments(orderHash), "Order was not marked as processed.");
+        assertEq(paymentRegistry.fulfillments(orderHash), mmSrcAddress, "Order was not marked as processed.");
         assertEq(address(userDstAddress).balance, 1.9 ether, "User destination address balance did not increase.");
         assertEq(address(MMAddress).balance, 9.1 ether, "MM balance did not decrease.");
     }

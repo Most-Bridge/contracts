@@ -16,7 +16,9 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /// Storage
-    mapping(bytes32 => bool) public fulfillments;
+    /// @notice Mapping to track if an order has been fulfilled.
+    ///         The key is the order hash, and the value is the address of the market maker (in bytes32) that fulfilled it.
+    mapping(bytes32 => bytes32) public fulfillments;
 
     /// State variables
     address public immutable owner;
@@ -75,6 +77,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     ) external payable onlyAllowedAddress whenNotPaused nonReentrant {
         uint256 currentTimestamp = block.timestamp;
         require(_expirationTimestamp > currentTimestamp, "Cannot fulfill an expired order.");
+        require(marketMakerSourceAddress != bytes32(0), "Invalid MM address: zero address");
 
         bytes32 orderHash = keccak256(
             abi.encode(
@@ -92,16 +95,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             )
         );
 
-        // TODO: THIS WILL LEAD TO A COLLISION FOR MULTIPLE MARKET MAKERS FULFILLING THE SAME ORDER
-        // bytes32 fulfillmentHash = keccak256(
-        //     abi.encode(
-        //         orderHash,
-        //         marketMakerSourceAddress
-        //     )
-        // );
-
-        require(!fulfillments[orderHash], "Transfer already processed");
-        fulfillments[orderHash] = true;
+        require(fulfillments[orderHash] == bytes32(0), "Transfer already processed");
+        fulfillments[orderHash] = marketMakerSourceAddress;
 
         if (_dstToken == address(0)) {
             // Native ETH transfer
