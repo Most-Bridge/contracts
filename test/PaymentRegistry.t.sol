@@ -25,7 +25,6 @@ contract PaymentRegistryTest is Test {
     uint256 dstAmount = 0.9 ether;
     bytes32 srcChainId = bytes32(uint256(2));
     bytes32 srcEscrow = bytes32(uint256(3));
-    bytes32 constant DST_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000000001;
 
     MockERC20 public mockERC;
 
@@ -33,11 +32,10 @@ contract PaymentRegistryTest is Test {
     bytes32 mmSrcAddress = bytes32(uint256(4));
 
     function setUp() public {
-        paymentRegistry = new PaymentRegistry(DST_CHAIN_ID, MMAddress);
+        paymentRegistry = new PaymentRegistry();
         vm.deal(MMAddress, 10 ether);
         vm.deal(userDstAddress, 1 ether);
         vm.prank(address(this));
-        paymentRegistry.setAllowedMMAddress(MMAddress);
 
         // deploy mock ERC20 token and mint it to MM
         mockERC = new MockERC20("MockToken", "MOCK");
@@ -72,7 +70,7 @@ contract PaymentRegistryTest is Test {
                 dstTokenETH,
                 dstAmount,
                 srcChainId,
-                DST_CHAIN_ID
+                block.chainid
             )
         );
 
@@ -267,25 +265,6 @@ contract PaymentRegistryTest is Test {
             mmSrcAddress
         );
         vm.stopPrank();
-    }
-
-    function testRevertIfNotAllowedMM() public {
-        vm.expectRevert("Caller is not the allowed MM");
-        vm.deal(address(99), 99 ether);
-        vm.prank(address(99));
-        paymentRegistry.mostFulfillOrder{value: dstAmount}(
-            orderId,
-            srcEscrow,
-            userSrcAddress,
-            userDstAddress,
-            expirationTimestamp,
-            srcToken,
-            srcAmount,
-            dstTokenETH,
-            dstAmount,
-            srcChainId,
-            mmSrcAddress
-        );
     }
 
     function testRevertTransferToNonPayableContract() public {

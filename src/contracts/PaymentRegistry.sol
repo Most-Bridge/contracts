@@ -22,12 +22,10 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
 
     /// State variables
     address public immutable owner;
-    bytes32 public immutable dstChainId;
 
     /// Constructor
-    constructor(bytes32 _dstChainId) {
+    constructor() {
         owner = msg.sender;
-        dstChainId = _dstChainId;
     }
 
     /// Events
@@ -42,7 +40,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         address dstToken,
         uint256 dstAmount,
         bytes32 srcChainId,
-        bytes32 dstChainId,
+        uint256 dstChainId,
         bytes32 marketMakerSourceAddress
     );
 
@@ -89,7 +87,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
                 _dstToken,
                 _dstAmount,
                 _srcChainId,
-                dstChainId
+                block.chainid
             )
         );
 
@@ -120,7 +118,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             _dstToken,
             _dstAmount,
             _srcChainId,
-            dstChainId,
+            block.chainid,
             marketMakerSourceAddress
         );
     }

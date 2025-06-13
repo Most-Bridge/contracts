@@ -24,7 +24,6 @@ contract EscrowTest is Test {
     bytes32 dstToken = bytes32(uint256(69));
 
     bytes32 dstChainId = bytes32(uint256(1));
-    bytes32 public constant SRC_CHAIN_ID = 0x0000000000000000000000000000000000000000000000000000000000AA36A7;
 
     uint256 firstOrderId = 1;
     uint256 public constant expiryWindow = 1 days;
@@ -70,7 +69,7 @@ contract EscrowTest is Test {
                 sendAmount,
                 dstToken,
                 dstAmount,
-                SRC_CHAIN_ID,
+                block.chainid,
                 dstChainId
             )
         );
@@ -128,7 +127,7 @@ contract EscrowTest is Test {
                 sendAmount,
                 dstToken,
                 dstAmount,
-                SRC_CHAIN_ID,
+                block.chainid,
                 dstChainId
             )
         );
@@ -157,7 +156,7 @@ contract EscrowTest is Test {
             srcAmount: sendAmount,
             dstToken: dstToken,
             dstAmount: dstAmount,
-            srcChainId: SRC_CHAIN_ID,
+            srcChainId: block.chainid,
             dstChainId: dstChainId
         });
 
@@ -186,7 +185,7 @@ contract EscrowTest is Test {
             srcAmount: sendAmount,
             dstToken: dstToken,
             dstAmount: dstAmount,
-            srcChainId: SRC_CHAIN_ID,
+            srcChainId: block.chainid,
             dstChainId: dstChainId
         });
 
@@ -212,7 +211,7 @@ contract EscrowTest is Test {
             srcAmount: sendAmount,
             dstToken: dstToken,
             dstAmount: dstAmount,
-            srcChainId: SRC_CHAIN_ID,
+            srcChainId: block.chainid,
             dstChainId: dstChainId
         });
 
@@ -241,7 +240,7 @@ contract EscrowTest is Test {
             srcAmount: 0.5 ether, // Wrong amount
             dstToken: dstToken,
             dstAmount: dstAmount,
-            srcChainId: SRC_CHAIN_ID,
+            srcChainId: block.chainid,
             dstChainId: dstChainId
         });
 
@@ -304,7 +303,7 @@ contract EscrowTest is Test {
                 sendAmount,
                 dstToken,
                 dstAmount,
-                SRC_CHAIN_ID,
+                block.chainid,
                 dstChainId
             )
         );
@@ -379,7 +378,7 @@ contract EscrowTest is Test {
             srcAmount: sendAmount,
             dstToken: dstToken,
             dstAmount: dstAmount,
-            srcChainId: SRC_CHAIN_ID,
+            srcChainId: block.chainid,
             dstChainId: dstChainId
         });
 
