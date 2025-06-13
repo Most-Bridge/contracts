@@ -258,7 +258,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                     (bool success,) = payable(_ordersWithdrawals[i].marketMakerAddress).call{value: amount}("");
                     require(success, "ETH transfer failed");
                 } else {
-                    // IERC20(token).safeTransfer(withdrawalAddress, amount); // so this is going to be set to the MM address received from HDP
+                    IERC20(token).safeTransfer(_ordersWithdrawals[i].marketMakerAddress, amount); // so this is going to be set to the MM address received from HDP
                 }
             }
         }
