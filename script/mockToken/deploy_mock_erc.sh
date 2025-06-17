@@ -2,8 +2,12 @@
 
 # load env vars 
 source .env && \
+
 export ETHERSCAN_API_KEY=$ETH_ETHERSCAN_API_KEY
 
-forge create --rpc-url https://sepolia.infura.io/v3/YOUR_KEY \
-  --private-key YOUR_PRIVATE_KEY \
-  src/MockToken.sol:MockToken
+forge script script/mockToken/DeployMock.s.sol:DeployMock \
+    --rpc-url $ETH_SEPOLIA_RPC \
+    --broadcast \
+    --verify \
+    --etherscan-api-key $ETH_ETHERSCAN_API_KEY \
+    --private-key $DEPLOY_PRIVATE_KEY
