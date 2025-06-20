@@ -44,6 +44,22 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         bytes32 marketMakerSourceAddress
     );
 
+    /// Structs
+    struct OrderFulfillmentData {
+        uint256 orderId;
+        bytes32 srcEscrow;
+        bytes32 usrSrcAddress;
+        address usrDstAddress;
+        uint256 expirationTimestamp;
+        bytes32 srcToken;
+        uint256 srcAmount;
+        address dstToken;
+        uint256 dstAmount;
+        bytes32 srcChainId;
+        bytes32 marketMakerSourceAddress;
+    }
+
+
     /// External functions
     /// @notice Called by the allowed market maker to transfer funds (native ETH or ERC20) to the user on the destination chain.
     ///         The fulfillment record is what is used to prove the transaction occurred.
@@ -122,6 +138,70 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             marketMakerSourceAddress
         );
     }
+
+    // Batch fulfillment
+    function mostFulfillOrders(
+        OrderFulfillmentData[] memory orders
+    ) external payable whenNotPaused nonReentrant {
+
+        //uint256 nativeTokenTotalAmount = 0;
+
+        for (uint256 i = 0; i < orders.length; i++) {
+            uint256 currentTimestamp = block.timestamp;
+            require(orders[i].expirationTimestamp > currentTimestamp, "Cannot fulfill an expired order.");
+            require(orders[i].marketMakerSourceAddress != bytes32(0), "Invalid MM address: zero address");
+
+            bytes32 orderHash = keccak256(
+                abi.encode(
+                    orders[i].orderId,
+                    orders[i].srcEscrow,
+                    orders[i].usrSrcAddress,
+                    orders[i].usrDstAddress,
+                    orders[i].expirationTimestamp,
+                    orders[i].srcToken,
+                    orders[i].srcAmount,
+                    orders[i].dstToken,
+                    orders[i].dstAmount,
+                    orders[i].srcChainId,
+                    block.chainid
+                )
+            );
+
+            require(fulfillments[orderHash] == bytes32(0), "Transfer already processed");
+            fulfillments[orderHash] = orders[i].marketMakerSourceAddress;
+
+            if (orders[i].dstToken == address(0)) {
+                // Native ETH transfer
+                //nativeTokenTotalAmount += orders[i].dstAmount;
+                require(orders[i].dstAmount > 0, "Native ETH: Amount must be > 0");
+                (bool success,) = payable(orders[i].usrDstAddress).call{value: orders[i].dstAmount}("");
+                require(success, "Native ETH: Transfer failed");
+            } else {
+                // ERC20 token transfer
+                require(orders[i].dstAmount > 0, "ERC20: Amount must be > 0");
+                IERC20(orders[i].dstToken).safeTransferFrom(msg.sender, orders[i].usrDstAddress, orders[i].dstAmount);
+            }
+
+            emit FulfillmentReceipt(
+                orders[i].orderId,
+                orders[i].srcEscrow,
+                orders[i].usrSrcAddress,
+                orders[i].usrDstAddress,
+                orders[i].expirationTimestamp,
+                orders[i].srcToken,
+                orders[i].srcAmount,
+                orders[i].dstToken,
+                orders[i].dstAmount,
+                orders[i].srcChainId,
+                block.chainid,
+                orders[i].marketMakerSourceAddress
+            );
+        }
+
+        //require(msg.value == nativeTokenTotalAmount, "Native ETH: msg.value mismatch with total destination amount");
+
+    }
+
 
     /// Modifiers
     modifier onlyOwner() {
