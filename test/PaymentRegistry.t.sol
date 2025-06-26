@@ -227,6 +227,90 @@ contract PaymentRegistryTest is Test {
         vm.expectRevert("Native ETH: Amount must be > 0");
         paymentRegistry.mostFulfillOrders{value: 0}(orders);
     }
+
+    function testFulfillmentOnTwoOrders() public {
+        PaymentRegistry.OrderFulfillmentData[] memory orders = new PaymentRegistry.OrderFulfillmentData[](2);
+
+        // First order - standard ETH transfer
+        orders[0] = PaymentRegistry.OrderFulfillmentData({
+            orderId: orderId,
+            srcEscrow: srcEscrow,
+            usrSrcAddress: userSrcAddress,
+            usrDstAddress: userDstAddress,
+            expirationTimestamp: expirationTimestamp,
+            srcToken: srcToken,
+            srcAmount: srcAmount,
+            dstToken: dstTokenETH,
+            dstAmount: dstAmount,
+            srcChainId: srcChainId,
+            marketMakerSourceAddress: mmSrcAddress
+        });
+
+        // Second order - different orderId and amount
+        uint256 secondOrderAmount = dstAmount / 2;
+        orders[1] = PaymentRegistry.OrderFulfillmentData({
+            orderId: orderId + 1,
+            srcEscrow: srcEscrow,
+            usrSrcAddress: userSrcAddress,
+            usrDstAddress: userDstAddress,
+            expirationTimestamp: expirationTimestamp,
+            srcToken: srcToken,
+            srcAmount: srcAmount / 2,
+            dstToken: dstTokenETH,
+            dstAmount: secondOrderAmount,
+            srcChainId: srcChainId,
+            marketMakerSourceAddress: mmSrcAddress
+        });
+
+        uint256 totalEthRequired = dstAmount + secondOrderAmount;
+        vm.prank(MMAddress);
+        paymentRegistry.mostFulfillOrders{value: totalEthRequired}(orders);
+
+        // Verify first order hash
+        bytes32 orderHash1 = keccak256(
+            abi.encode(
+                orderId,
+                srcEscrow,
+                userSrcAddress,
+                userDstAddress,
+                expirationTimestamp,
+                srcToken,
+                srcAmount,
+                dstTokenETH,
+                dstAmount,
+                srcChainId,
+                block.chainid
+            )
+        );
+
+        // Verify second order hash
+        bytes32 orderHash2 = keccak256(
+            abi.encode(
+                orderId + 1,
+                srcEscrow,
+                userSrcAddress,
+                userDstAddress,
+                expirationTimestamp,
+                srcToken,
+                srcAmount / 2,
+                dstTokenETH,
+                secondOrderAmount,
+                srcChainId,
+                block.chainid
+            )
+        );
+
+        assertEq(paymentRegistry.fulfillments(orderHash1), mmSrcAddress, "First order was not marked as processed.");
+        assertEq(paymentRegistry.fulfillments(orderHash2), mmSrcAddress, "Second order was not marked as processed.");
+
+        // Verify user received the total amount
+        uint256 expectedUserBalance = 1 ether + totalEthRequired; // initial 1 ether + both transfers
+        assertEq(address(userDstAddress).balance, expectedUserBalance, "User did not receive correct total amount.");
+
+        // Verify MM balance decreased correctly
+        uint256 expectedMMBalance = 10 ether - totalEthRequired;
+        assertEq(address(MMAddress).balance, expectedMMBalance, "MM balance did not decrease correctly.");
+    }
 }
 
 contract NonPayableReceiver {
