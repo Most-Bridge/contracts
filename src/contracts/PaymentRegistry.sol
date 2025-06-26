@@ -59,9 +59,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         bytes32 marketMakerSourceAddress;
     }
 
-
     /// External functions
-    /// @notice Called by the allowed market maker to transfer funds (native ETH or ERC20) to the user on the destination chain.
+    /// @notice Called by the market maker to transfer funds (native ETH or ERC20) to the user on the destination chain.
     ///         The fulfillment record is what is used to prove the transaction occurred.
     ///
     /// @param _orderId             The order ID associated with the order being fulfilled.
@@ -139,10 +138,12 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         );
     }
 
-    // Batch fulfillment
-    function mostFulfillOrders(
-        OrderFulfillmentData[] memory orders
-    ) external payable whenNotPaused nonReentrant {
+    /// @notice Batch version - Called by the allowed market maker to transfer funds (native ETH or ERC20) to the user on the destination chain.
+    ///         The fulfillment record is what is used to prove the transaction occurred.
+    /// 
+    /// @param orders An array of OrderFulfillmentData structs containing the details of each order to be fulfilled.
+    function mostFulfillOrders(OrderFulfillmentData[] memory orders) external payable whenNotPaused nonReentrant {
+        //uint256 nativeTokenTotalAmount = 0;
 
         for (uint256 i = 0; i < orders.length; i++) {
             uint256 currentTimestamp = block.timestamp;
@@ -197,7 +198,6 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         }
 
     }
-
 
     /// Modifiers
     modifier onlyOwner() {
