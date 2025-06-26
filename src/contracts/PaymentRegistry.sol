@@ -59,51 +59,6 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         bytes32 marketMakerSourceAddress;
     }
 
-    /// External functions
-    /// @notice Called by the market maker to transfer funds (native ETH or ERC20) to the user on the destination chain.
-    ///         The fulfillment record is what is used to prove the transaction occurred.
-    ///
-    /// @param order The OrderFulfillmentData struct containing the details of the order to be fulfilled.
-    ///
-    function mostFulfillOrder(OrderFulfillmentData calldata order) external payable whenNotPaused nonReentrant {
-        uint256 currentTimestamp = block.timestamp;
-        require(order.expirationTimestamp > currentTimestamp, "Cannot fulfill an expired order.");
-        require(order.marketMakerSourceAddress != bytes32(0), "Invalid MM address: zero address");
-
-        bytes32 orderHash = _createFulfillmentOrderHash(order);
-
-        require(fulfillments[orderHash] == bytes32(0), "Transfer already processed");
-        fulfillments[orderHash] = order.marketMakerSourceAddress;
-
-        if (order.dstToken == address(0)) {
-            // Native ETH transfer
-            require(msg.value == order.dstAmount, "Native ETH: msg.value mismatch with destination amount");
-            require(order.dstAmount > 0, "Native ETH: Amount must be > 0");
-            (bool success,) = payable(order.usrDstAddress).call{value: order.dstAmount}("");
-            require(success, "Native ETH: Transfer failed");
-        } else {
-            // ERC20 token transfer
-            require(msg.value == 0, "ERC20: msg.value must be 0");
-            require(order.dstAmount > 0, "ERC20: Amount must be > 0");
-            IERC20(order.dstToken).safeTransferFrom(msg.sender, order.usrDstAddress, order.dstAmount);
-        }
-
-        emit FulfillmentReceipt(
-            order.orderId,
-            order.srcEscrow,
-            order.usrSrcAddress,
-            order.usrDstAddress,
-            order.expirationTimestamp,
-            order.srcToken,
-            order.srcAmount,
-            order.dstToken,
-            order.dstAmount,
-            order.srcChainId,
-            block.chainid,
-            order.marketMakerSourceAddress
-        );
-    }
-
     /// @notice Batch version - Called by the market maker to transfer funds (native ETH or ERC20) to the user on the destination chain.
     ///         The fulfillment record is what is used to prove the transaction occurred.
     ///
@@ -121,7 +76,6 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
 
             if (orders[i].dstToken == address(0)) {
                 // Native ETH transfer
-                //nativeTokenTotalAmount += orders[i].dstAmount;
                 require(orders[i].dstAmount > 0, "Native ETH: Amount must be > 0");
                 (bool success,) = payable(orders[i].usrDstAddress).call{value: orders[i].dstAmount}("");
                 require(success, "Native ETH: Transfer failed");
