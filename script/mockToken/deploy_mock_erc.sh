@@ -11,4 +11,3 @@ forge script script/mockToken/DeployMock.s.sol:DeployMock \
     --verify \
     --etherscan-api-key $ETH_ETHERSCAN_API_KEY \
     --private-key $DEPLOY_PRIVATE_KEY
-    
