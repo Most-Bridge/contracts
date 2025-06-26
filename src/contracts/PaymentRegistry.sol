@@ -144,8 +144,6 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         OrderFulfillmentData[] memory orders
     ) external payable whenNotPaused nonReentrant {
 
-        //uint256 nativeTokenTotalAmount = 0;
-
         for (uint256 i = 0; i < orders.length; i++) {
             uint256 currentTimestamp = block.timestamp;
             require(orders[i].expirationTimestamp > currentTimestamp, "Cannot fulfill an expired order.");
@@ -197,8 +195,6 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
                 orders[i].marketMakerSourceAddress
             );
         }
-
-        //require(msg.value == nativeTokenTotalAmount, "Native ETH: msg.value mismatch with total destination amount");
 
     }
 
