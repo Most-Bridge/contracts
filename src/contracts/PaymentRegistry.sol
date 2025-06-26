@@ -63,108 +63,58 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     /// @notice Called by the market maker to transfer funds (native ETH or ERC20) to the user on the destination chain.
     ///         The fulfillment record is what is used to prove the transaction occurred.
     ///
-    /// @param _orderId             The order ID associated with the order being fulfilled.
-    /// @param _srcEscrow           The escrow address on the source chain (format: bytes32).
-    /// @param _usrSrcAddress       The address of the user on the source chain (format: bytes32).
-    /// @param _usrDstAddress       The user's destination address (native EVM address) to receive the funds.
-    /// @param _expirationTimestamp The order's expiration time. Must be in the future.
-    /// @param _srcToken            The token address (identifier) on the source chain (format: bytes32).
-    /// @param _srcAmount           The amount of tokens sent from the source chain.
-    /// @param _dstToken            The token address on the destination (this) chain. For native ETH, use address(0).
-    /// @param _dstAmount           The amount of tokens (native ETH or ERC20) to be received by the user on this chain.
-    /// @param _srcChainId          The chain ID of the source chain (format: bytes32).
-    function mostFulfillOrder(
-        uint256 _orderId,
-        bytes32 _srcEscrow,
-        bytes32 _usrSrcAddress,
-        address _usrDstAddress,
-        uint256 _expirationTimestamp,
-        bytes32 _srcToken,
-        uint256 _srcAmount,
-        address _dstToken,
-        uint256 _dstAmount,
-        bytes32 _srcChainId,
-        bytes32 marketMakerSourceAddress
-    ) external payable whenNotPaused nonReentrant {
+    /// @param order The OrderFulfillmentData struct containing the details of the order to be fulfilled.
+    ///
+    function mostFulfillOrder(OrderFulfillmentData calldata order) external payable whenNotPaused nonReentrant {
         uint256 currentTimestamp = block.timestamp;
-        require(_expirationTimestamp > currentTimestamp, "Cannot fulfill an expired order.");
-        require(marketMakerSourceAddress != bytes32(0), "Invalid MM address: zero address");
+        require(order.expirationTimestamp > currentTimestamp, "Cannot fulfill an expired order.");
+        require(order.marketMakerSourceAddress != bytes32(0), "Invalid MM address: zero address");
 
-        bytes32 orderHash = keccak256(
-            abi.encode(
-                _orderId,
-                _srcEscrow,
-                _usrSrcAddress,
-                _usrDstAddress,
-                _expirationTimestamp,
-                _srcToken,
-                _srcAmount,
-                _dstToken,
-                _dstAmount,
-                _srcChainId,
-                block.chainid
-            )
-        );
+        bytes32 orderHash = _createFulfillmentOrderHash(order);
 
         require(fulfillments[orderHash] == bytes32(0), "Transfer already processed");
-        fulfillments[orderHash] = marketMakerSourceAddress;
+        fulfillments[orderHash] = order.marketMakerSourceAddress;
 
-        if (_dstToken == address(0)) {
+        if (order.dstToken == address(0)) {
             // Native ETH transfer
-            require(msg.value == _dstAmount, "Native ETH: msg.value mismatch with destination amount");
-            require(_dstAmount > 0, "Native ETH: Amount must be > 0");
-            (bool success,) = payable(_usrDstAddress).call{value: _dstAmount}("");
+            require(msg.value == order.dstAmount, "Native ETH: msg.value mismatch with destination amount");
+            require(order.dstAmount > 0, "Native ETH: Amount must be > 0");
+            (bool success,) = payable(order.usrDstAddress).call{value: order.dstAmount}("");
             require(success, "Native ETH: Transfer failed");
         } else {
             // ERC20 token transfer
             require(msg.value == 0, "ERC20: msg.value must be 0");
-            require(_dstAmount > 0, "ERC20: Amount must be > 0");
-            IERC20(_dstToken).safeTransferFrom(msg.sender, _usrDstAddress, _dstAmount);
+            require(order.dstAmount > 0, "ERC20: Amount must be > 0");
+            IERC20(order.dstToken).safeTransferFrom(msg.sender, order.usrDstAddress, order.dstAmount);
         }
 
         emit FulfillmentReceipt(
-            _orderId,
-            _srcEscrow,
-            _usrSrcAddress,
-            _usrDstAddress,
-            _expirationTimestamp,
-            _srcToken,
-            _srcAmount,
-            _dstToken,
-            _dstAmount,
-            _srcChainId,
+            order.orderId,
+            order.srcEscrow,
+            order.usrSrcAddress,
+            order.usrDstAddress,
+            order.expirationTimestamp,
+            order.srcToken,
+            order.srcAmount,
+            order.dstToken,
+            order.dstAmount,
+            order.srcChainId,
             block.chainid,
-            marketMakerSourceAddress
+            order.marketMakerSourceAddress
         );
     }
 
     /// @notice Batch version - Called by the market maker to transfer funds (native ETH or ERC20) to the user on the destination chain.
     ///         The fulfillment record is what is used to prove the transaction occurred.
-    /// 
+    ///
     /// @param orders An array of OrderFulfillmentData structs containing the details of each order to be fulfilled.
     function mostFulfillOrders(OrderFulfillmentData[] memory orders) external payable whenNotPaused nonReentrant {
-        //uint256 nativeTokenTotalAmount = 0;
-
         for (uint256 i = 0; i < orders.length; i++) {
             uint256 currentTimestamp = block.timestamp;
             require(orders[i].expirationTimestamp > currentTimestamp, "Cannot fulfill an expired order.");
             require(orders[i].marketMakerSourceAddress != bytes32(0), "Invalid MM address: zero address");
 
-            bytes32 orderHash = keccak256(
-                abi.encode(
-                    orders[i].orderId,
-                    orders[i].srcEscrow,
-                    orders[i].usrSrcAddress,
-                    orders[i].usrDstAddress,
-                    orders[i].expirationTimestamp,
-                    orders[i].srcToken,
-                    orders[i].srcAmount,
-                    orders[i].dstToken,
-                    orders[i].dstAmount,
-                    orders[i].srcChainId,
-                    block.chainid
-                )
-            );
+            bytes32 orderHash = _createFulfillmentOrderHash(orders[i]);
 
             require(fulfillments[orderHash] == bytes32(0), "Transfer already processed");
             fulfillments[orderHash] = orders[i].marketMakerSourceAddress;
@@ -196,7 +146,28 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
                 orders[i].marketMakerSourceAddress
             );
         }
+    }
 
+    /// @notice Creates a hash of the fulfillment order details (used as the key in fulfillments mapping)
+    ///
+    /// @param order The details of the order to be hashed
+    /// @return bytes32 The hash of the order details
+    function _createFulfillmentOrderHash(OrderFulfillmentData memory order) internal view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                order.orderId,
+                order.srcEscrow,
+                order.usrSrcAddress,
+                order.usrDstAddress,
+                order.expirationTimestamp,
+                order.srcToken,
+                order.srcAmount,
+                order.dstToken,
+                order.dstAmount,
+                order.srcChainId,
+                block.chainid
+            )
+        );
     }
 
     /// Modifiers
