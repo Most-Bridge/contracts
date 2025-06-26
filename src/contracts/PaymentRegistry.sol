@@ -138,7 +138,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         );
     }
 
-    /// @notice Batch version - Called by the allowed market maker to transfer funds (native ETH or ERC20) to the user on the destination chain.
+    /// @notice Batch version - Called by the market maker to transfer funds (native ETH or ERC20) to the user on the destination chain.
     ///         The fulfillment record is what is used to prove the transaction occurred.
     /// 
     /// @param orders An array of OrderFulfillmentData structs containing the details of each order to be fulfilled.
