@@ -209,7 +209,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             require(orders[order.id] == orderHash, "Order hash mismatch");
             require(orderStatus[order.id] == OrderState.PENDING, "Order not in PENDING state");
             require(order.expirationTimestamp >= block.timestamp, "Order has expired");
-            require(order.srcEscrow == address(this), "Order srcEscrow mismatch");
+            //require(order.srcEscrow == address(this), "Order srcEscrow mismatch");
 
             taskInputs[i + 3] = orderHash; // offset because first 3 arguments are destination chain id, payment registry address and block number
 
@@ -228,12 +228,12 @@ contract Escrow is ReentrancyGuard, Pausable {
         );
 
         MerkleHelper.HDPTaskOutput memory expectedHdpTaskOutput = MerkleHelper.HDPTaskOutput({
-            isOrdersFulfillmentVerified: bytes32(uint256(1)),
-            ordersWithdrawalsArrayLength: _ordersWithdrawals.length,
+            isOrdersFulfillmentVerified: true,
+            //ordersWithdrawalsArrayLength: _ordersWithdrawals.length,
             ordersWithdrawals: _ordersWithdrawals
         });
 
-        bytes32 computedMerkleRoot = MerkleHelper.computeTaskOutputMerkleRoot(expectedHdpTaskOutput);
+        bytes32 computedMerkleRoot = MerkleHelper.computeHDPTaskOutputMerkleRoot(expectedHdpTaskOutput);
 
         require(
             hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment) == computedMerkleRoot,
