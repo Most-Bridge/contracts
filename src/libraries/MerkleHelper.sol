@@ -14,17 +14,16 @@ library MerkleHelper {
 
         struct HDPTaskOutput {
             bool isOrdersFulfillmentVerified;
-            //uint256 ordersWithdrawalsArrayLength;
+            uint256 lowestExpirationTimestamp;
             OrdersWithdrawal[] ordersWithdrawals;
         }
 
         bytes32 constant EMPTY_ROOT = 0x1d818f822942463614281e7a9e7836bc8a96ff9165d677b4f7126666112202b1;
 
         function computeHDPTaskOutputMerkleRoot(HDPTaskOutput memory taskOutput) public pure returns (bytes32) {
-            // Count total leaves: 2 base leaves + 2 per withdrawal + 4 per balance.
-            //uint256 totalLeaves = 2;
+            // Total leaves count: 3 base leaves + 2 per withdrawal + 4 per balance.
 
-            uint256 totalLeaves = 2;
+            uint256 totalLeaves = 3;
             // Because of this depends how many times balancesToWithdraw array size will be defined
             // Because each MarketMaker have own balancesToWithdraw array
             totalLeaves += taskOutput.ordersWithdrawals.length;
@@ -41,30 +40,33 @@ library MerkleHelper {
 
             leaves[index++] = taskOutput.isOrdersFulfillmentVerified ? 1 : 0;
 
+            // Lowest registered timestamp accross all orders in given batch
+            leaves[index++] = taskOutput.lowestExpirationTimestamp;
+
             // Size of orders withdrawals for whole batch
             // the size of it depends of number of unique MMs in proving/withdrawal batch
             leaves[index++] = taskOutput.ordersWithdrawals.length;
 
             for (uint256 i = 0; i < taskOutput.ordersWithdrawals.length; ++i) {
-                OrdersWithdrawal memory ow = taskOutput.ordersWithdrawals[i];
+                OrdersWithdrawal memory ordersWithdrawal = taskOutput.ordersWithdrawals[i];
 
-                (uint256 mmaLow, uint256 mmaHigh) = splitAddress(ow.marketMakerAddress);
+                (uint256 mmaLow, uint256 mmaHigh) = splitAddress(ordersWithdrawal.marketMakerAddress);
                 leaves[index++] = mmaLow;
                 leaves[index++] = mmaHigh;
 
                 // Size of balances to withdraw array for this market maker
                 // the size of it depends of how many tokens are to withdraw for this MM
-                leaves[index++] = ow.balancesToWithdraw.length;
+                leaves[index++] = ordersWithdrawal.balancesToWithdraw.length;
 
-                for (uint256 j = 0; j < ow.balancesToWithdraw.length; ++j) {
-                    BalanceToWithdraw memory b = ow.balancesToWithdraw[j];
+                for (uint256 j = 0; j < ordersWithdrawal.balancesToWithdraw.length; ++j) {
+                    BalanceToWithdraw memory balanceToWithdraw = ordersWithdrawal.balancesToWithdraw[j];
 
-                    (uint256 tokenLow, uint256 tokenHigh) = splitAddress(b.tokenAddress);
+                    (uint256 tokenLow, uint256 tokenHigh) = splitAddress(balanceToWithdraw.tokenAddress);
                     leaves[index++] = tokenLow;
                     leaves[index++] = tokenHigh;
 
-                    uint256 low = uint128(b.summarizedAmount);
-                    uint256 high = b.summarizedAmount >> 128;
+                    uint256 low = uint128(balanceToWithdraw.summarizedAmount);
+                    uint256 high = balanceToWithdraw.summarizedAmount >> 128;
                     leaves[index++] = low;
                     leaves[index++] = high;
                 }
