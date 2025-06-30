@@ -148,7 +148,6 @@ contract EscrowTest is Test {
 
         Escrow.Order memory orderToRefund = Escrow.Order({
             id: firstOrderId,
-            srcEscrow: address(escrow),
             usrSrcAddress: user,
             usrDstAddress: destinationAddress,
             expirationTimestamp: expirationTimestamp,
@@ -156,7 +155,6 @@ contract EscrowTest is Test {
             srcAmount: sendAmount,
             dstToken: dstToken,
             dstAmount: dstAmount,
-            srcChainId: block.chainid,
             dstChainId: dstChainId
         });
 
@@ -177,7 +175,6 @@ contract EscrowTest is Test {
 
         Escrow.Order memory orderToRefund = Escrow.Order({
             id: firstOrderId,
-            srcEscrow: address(escrow),
             usrSrcAddress: user,
             usrDstAddress: destinationAddress,
             expirationTimestamp: expirationTimestamp,
@@ -185,7 +182,6 @@ contract EscrowTest is Test {
             srcAmount: sendAmount,
             dstToken: dstToken,
             dstAmount: dstAmount,
-            srcChainId: block.chainid,
             dstChainId: dstChainId
         });
 
@@ -203,7 +199,6 @@ contract EscrowTest is Test {
 
         Escrow.Order memory orderToRefund = Escrow.Order({
             id: firstOrderId,
-            srcEscrow: address(escrow),
             usrSrcAddress: user,
             usrDstAddress: destinationAddress,
             expirationTimestamp: expirationTimestamp,
@@ -211,7 +206,6 @@ contract EscrowTest is Test {
             srcAmount: sendAmount,
             dstToken: dstToken,
             dstAmount: dstAmount,
-            srcChainId: block.chainid,
             dstChainId: dstChainId
         });
 
@@ -232,7 +226,6 @@ contract EscrowTest is Test {
         vm.startPrank(user);
         Escrow.Order memory orderToRefund = Escrow.Order({
             id: firstOrderId,
-            srcEscrow: address(escrow),
             usrSrcAddress: user,
             usrDstAddress: bytes32(uint256(12345)), // Wrong address
             expirationTimestamp: block.timestamp - 1 days, // Wrong timestamp
@@ -240,7 +233,6 @@ contract EscrowTest is Test {
             srcAmount: 0.5 ether, // Wrong amount
             dstToken: dstToken,
             dstAmount: dstAmount,
-            srcChainId: block.chainid,
             dstChainId: dstChainId
         });
 
@@ -295,7 +287,6 @@ contract EscrowTest is Test {
         bytes32 expectedOrderHash = keccak256(
             abi.encode(
                 firstOrderId,
-                address(escrow),
                 user,
                 destinationAddress,
                 block.timestamp + expiryWindow,
@@ -303,7 +294,6 @@ contract EscrowTest is Test {
                 sendAmount,
                 dstToken,
                 dstAmount,
-                block.chainid,
                 dstChainId
             )
         );
@@ -370,7 +360,6 @@ contract EscrowTest is Test {
 
         Escrow.Order memory orderToRefund = Escrow.Order({
             id: firstOrderId,
-            srcEscrow: address(escrow),
             usrSrcAddress: user,
             usrDstAddress: destinationAddress,
             expirationTimestamp: expirationTimestamp,
@@ -378,7 +367,6 @@ contract EscrowTest is Test {
             srcAmount: sendAmount,
             dstToken: dstToken,
             dstAmount: dstAmount,
-            srcChainId: block.chainid,
             dstChainId: dstChainId
         });
 

@@ -70,7 +70,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// Structs
     struct Order {
         uint256 id;
-        address srcEscrow;
         address usrSrcAddress;
         bytes32 usrDstAddress;
         uint256 expirationTimestamp;
@@ -78,7 +77,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 srcAmount;
         bytes32 dstToken;
         uint256 dstAmount;
-        uint256 srcChainId;
         bytes32 dstChainId;
     }
 
@@ -149,7 +147,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         // Store order data in a struct to avoid stack too deep issues
         Order memory orderData = Order({
             id: orderId,
-            srcEscrow: address(this),
             usrSrcAddress: msg.sender,
             usrDstAddress: _usrDstAddress,
             expirationTimestamp: _expirationTimestamp,
@@ -157,7 +154,6 @@ contract Escrow is ReentrancyGuard, Pausable {
             srcAmount: _srcAmount,
             dstToken: _dstToken,
             dstAmount: _dstAmount,
-            srcChainId: block.chainid,
             dstChainId: _dstChainId
         });
 
@@ -274,7 +270,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(msg.sender == order.usrSrcAddress, "Only the original address can refund an order");
         require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund a non-pending order");
         require(block.timestamp > order.expirationTimestamp, "Order has not expired yet");
-        require(order.srcEscrow == address(this), "Order is not this contract");
+        //require(order.srcEscrow == address(this), "Order is not this contract");
 
         orderStatus[order.id] = OrderState.RECLAIMED;
 
@@ -295,11 +291,11 @@ contract Escrow is ReentrancyGuard, Pausable {
     ///
     /// @param orderDetails The details of the order to be hashed
     /// @return bytes32 The hash of the order details
-    function _createOrderHash(Order memory orderDetails) internal pure returns (bytes32) {
+    function _createOrderHash(Order memory orderDetails) public view returns (bytes32) {
         return keccak256(
             abi.encode(
                 orderDetails.id, // uint256
-                orderDetails.srcEscrow, // address
+                address(this), // address
                 orderDetails.usrSrcAddress, // address
                 orderDetails.usrDstAddress, // bytes32
                 orderDetails.expirationTimestamp, // uint256
@@ -307,7 +303,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                 orderDetails.srcAmount, // uint256
                 orderDetails.dstToken, // bytes32
                 orderDetails.dstAmount, // uint256
-                orderDetails.srcChainId, // uint256
+                block.chainid, // uint256
                 orderDetails.dstChainId // bytes32
             )
         );
