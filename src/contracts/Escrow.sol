@@ -33,7 +33,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     IDataProcessorModule hdpExecutionStore = IDataProcessorModule(HDP_EXECUTION_STORE_ADDRESS);
 
     // Storage
-    //mapping(uint256 => bytes32) public orders;
     mapping(bytes32 => OrderState) public orderStatus;
     mapping(bytes32 => HDPConnection) public hdpConnections; // mapping chainId -> HdpConnection
 
@@ -159,7 +158,6 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         // Calculate and store order hash
         bytes32 orderHash = _createOrderHash(orderData);
-        //orders[orderId] = orderHash;
         orderStatus[orderHash] = OrderState.PENDING;
 
         emit OrderPlaced(
@@ -199,21 +197,12 @@ contract Escrow is ReentrancyGuard, Pausable {
         taskInputs[1] = bytes32(hdpConnections[_destinationChainId].paymentRegistryAddress);
         taskInputs[2] = bytes32(_blockNumber);
 
-        //uint256[] memory validOrderHashes = new bytes32[](ordersHashes.length);
-
         for (uint256 i = 0; i < ordersHashes.length; i++) {
-            // validate the call data
-            //Order memory order = calldataOrders[i];
-            //bytes32 orderHash = _createOrderHash(order);
 
-            //require(orders[order.id] == orderHash, "Order hash mismatch");
             require(orderStatus[ordersHashes[i]] == OrderState.PENDING, "Order not in PENDING state");
-
-            //require(order.srcEscrow == address(this), "Order srcEscrow mismatch");
 
             taskInputs[i + 3] = ordersHashes[i]; // offset because first 3 arguments are destination chain id, payment registry address and block number
 
-            //validOrderHashes[i] = order.id;
         }
 
         // HDP verification code
@@ -235,8 +224,14 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         bytes32 computedMerkleRoot = MerkleHelper.computeHDPTaskOutputMerkleRoot(expectedHdpTaskOutput);
 
+        // Validate that the computed Merkle root matches the finalized HDP task result
+        // This ensures that the output form HDP module is authentic
+        // The merkle tree leaves are the data returned from HDP module - orders withdrawals amounts including the minimum expiration timestamp among orders
+        // Then we check if the merkle root calculated here matches with the HDP task output
+        //
+        bytes32 hdpModuleOutputMerkleRoot = hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment);
         require(
-            hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment) == computedMerkleRoot,
+            hdpModuleOutputMerkleRoot == computedMerkleRoot,
             "Unable to prove: merkle root mismatch"
         );
 
@@ -269,12 +264,10 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @custom:security This function should never be pausable
     function refundOrder(Order calldata order) external payable nonReentrant {
         bytes32 orderHash = _createOrderHash(order);
-        //require(orders[order.id] == orderHash, "Order hash mismatch");
 
         require(msg.sender == order.usrSrcAddress, "Only the original address can refund an order");
         require(orderStatus[orderHash] == OrderState.PENDING, "Cannot refund a non-pending order");
         require(block.timestamp > order.expirationTimestamp, "Order has not expired yet");
-        //require(order.srcEscrow == address(this), "Order is not this contract");
 
         orderStatus[orderHash] = OrderState.RECLAIMED;
 
