@@ -74,7 +74,6 @@ contract EscrowTest is Test {
             )
         );
 
-        //assertEq(escrow.orders(1), expectedOrderHash);
         assertEq(uint256(escrow.orderStatus(expectedOrderHash)), uint256(Escrow.OrderState.PENDING));
         vm.stopPrank();
     }
@@ -132,7 +131,6 @@ contract EscrowTest is Test {
             )
         );
 
-        //assertEq(escrow.orders(1), expectedOrderHash);
         assertEq(uint256(escrow.orderStatus(expectedOrderHash)), uint256(Escrow.OrderState.PENDING));
     }
 
@@ -220,23 +218,26 @@ contract EscrowTest is Test {
             destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
         );
         vm.stopPrank();
+        uint256 expirationTimestamp = block.timestamp + expiryWindow;
 
         vm.warp(block.timestamp + expiryWindow + 1 days); // order expired
+
+        vm.deal(address(this), 10 ether); // ensure the contract has enough ETH to refund the order
 
         vm.startPrank(user);
         Escrow.Order memory orderToRefund = Escrow.Order({
             id: firstOrderId,
             usrSrcAddress: user,
             usrDstAddress: bytes32(uint256(12345)), // Wrong address
-            expirationTimestamp: block.timestamp - 1 days, // Wrong timestamp
+            expirationTimestamp: expirationTimestamp,
             srcToken: srcTokenETH,
-            srcAmount: 0.5 ether, // Wrong amount
+            srcAmount: sendAmount,
             dstToken: dstToken,
             dstAmount: dstAmount,
             dstChainId: dstChainId
         });
 
-        vm.expectRevert("Order hash mismatch");
+        vm.expectRevert("Cannot refund a non-pending order");
         escrow.refundOrder(orderToRefund);
         vm.stopPrank();
     }
@@ -287,6 +288,7 @@ contract EscrowTest is Test {
         bytes32 expectedOrderHash = keccak256(
             abi.encode(
                 firstOrderId,
+                address(escrow),
                 user,
                 destinationAddress,
                 block.timestamp + expiryWindow,
@@ -294,11 +296,11 @@ contract EscrowTest is Test {
                 sendAmount,
                 dstToken,
                 dstAmount,
+                block.chainid,
                 dstChainId
             )
         );
 
-        //assertEq(escrow.orders(1), expectedOrderHash);
         assertEq(uint256(escrow.orderStatus(expectedOrderHash)), uint256(Escrow.OrderState.PENDING));
         assertEq(mockERC.balanceOf(user), 9.99999 ether, "User balance should decrease by sendAmount");
         assertEq(mockERC.allowance(user, address(escrow)), 0, "Allowance should be reset to 0 after order creation");

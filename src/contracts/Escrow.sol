@@ -56,6 +56,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /// Enums
     enum OrderState {
+        DOES_NOT_EXIST,
         PENDING,
         COMPLETED,
         RECLAIMED
@@ -198,11 +199,9 @@ contract Escrow is ReentrancyGuard, Pausable {
         taskInputs[2] = bytes32(_blockNumber);
 
         for (uint256 i = 0; i < ordersHashes.length; i++) {
-
             require(orderStatus[ordersHashes[i]] == OrderState.PENDING, "Order not in PENDING state");
 
             taskInputs[i + 3] = ordersHashes[i]; // offset because first 3 arguments are destination chain id, payment registry address and block number
-
         }
 
         // HDP verification code
@@ -230,10 +229,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         // Then we check if the merkle root calculated here matches with the HDP task output
         //
         bytes32 hdpModuleOutputMerkleRoot = hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment);
-        require(
-            hdpModuleOutputMerkleRoot == computedMerkleRoot,
-            "Unable to prove: merkle root mismatch"
-        );
+        require(hdpModuleOutputMerkleRoot == computedMerkleRoot, "Unable to prove: merkle root mismatch");
 
         // Once validated, update the status of all the orders
         for (uint256 i = 0; i < ordersHashes.length; i++) {
