@@ -33,8 +33,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     IDataProcessorModule hdpExecutionStore = IDataProcessorModule(HDP_EXECUTION_STORE_ADDRESS);
 
     // Storage
-    mapping(uint256 => bytes32) public orders;
-    mapping(uint256 => OrderState) public orderStatus;
+    mapping(bytes32 => OrderState) public orderStatus;
     mapping(bytes32 => HDPConnection) public hdpConnections; // mapping chainId -> HdpConnection
 
     /// Events
@@ -51,7 +50,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 dstAmount,
         bytes32 dstChainId
     );
-    event ProveBridgeAggregatedSuccess(uint256[] orderIds);
+    event ProveBridgeAggregatedSuccess(bytes32[] orderHashes);
     event WithdrawSuccessBatch(uint256[] orderIds);
     event OrderReclaimed(uint256 orderId);
 
@@ -70,7 +69,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// Structs
     struct Order {
         uint256 id;
-        address srcEscrow;
         address usrSrcAddress;
         bytes32 usrDstAddress;
         uint256 expirationTimestamp;
@@ -78,7 +76,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 srcAmount;
         bytes32 dstToken;
         uint256 dstAmount;
-        uint256 srcChainId;
         bytes32 dstChainId;
     }
 
@@ -149,7 +146,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         // Store order data in a struct to avoid stack too deep issues
         Order memory orderData = Order({
             id: orderId,
-            srcEscrow: address(this),
             usrSrcAddress: msg.sender,
             usrDstAddress: _usrDstAddress,
             expirationTimestamp: _expirationTimestamp,
@@ -157,14 +153,12 @@ contract Escrow is ReentrancyGuard, Pausable {
             srcAmount: _srcAmount,
             dstToken: _dstToken,
             dstAmount: _dstAmount,
-            srcChainId: block.chainid,
             dstChainId: _dstChainId
         });
 
         // Calculate and store order hash
         bytes32 orderHash = _createOrderHash(orderData);
-        orders[orderId] = orderHash;
-        orderStatus[orderId] = OrderState.PENDING;
+        orderStatus[orderHash] = OrderState.PENDING;
 
         emit OrderPlaced(
             orderData.id,
@@ -181,39 +175,34 @@ contract Escrow is ReentrancyGuard, Pausable {
         orderId += 1;
     }
 
-    /// @notice Allows a MM to prove order fulfillment by submitting the order details
+    /// @notice Allows a MM to prove order fulfillment by submitting the orders details and necessary proving info
     ///
-    /// @param calldataOrders      Array containing the data of the orders to be proven
+    /// @param ordersHashes      Array containing the data of the orders to be proven
     /// @param _blockNumber        The point in time when all the submitted orders have been fulfilled
     /// @param _destinationChainId The chain on which the order was fulfilled
+    /// @param _lowestExpirationTimestamp The lowest order expiration timestamp across this proving batch
     /// @param _ordersWithdrawals Summarized amounts for each market maker of each token to withdraw - token address and amount pair
     function proveAndWithdrawBatch(
-        Order[] calldata calldataOrders,
+        bytes32[] calldata ordersHashes,
         uint256 _blockNumber,
         bytes32 _destinationChainId,
+        uint256 _lowestExpirationTimestamp,
         MerkleHelper.OrdersWithdrawal[] memory _ordersWithdrawals
     ) public nonReentrant {
+        require(_lowestExpirationTimestamp >= block.timestamp, "At least one order has expired");
+
         // For proving in aggregated mode using HDP
-        bytes32[] memory taskInputs = new bytes32[](calldataOrders.length + 3);
+        bytes32[] memory taskInputs = new bytes32[](ordersHashes.length + 3);
         taskInputs[0] = bytes32(_destinationChainId);
         taskInputs[1] = bytes32(hdpConnections[_destinationChainId].paymentRegistryAddress);
         taskInputs[2] = bytes32(_blockNumber);
 
-        uint256[] memory validOrderIds = new uint256[](calldataOrders.length);
+        for (uint256 i = 0; i < ordersHashes.length; i++) {
 
-        for (uint256 i = 0; i < calldataOrders.length; i++) {
-            // validate the call data
-            Order memory order = calldataOrders[i];
-            bytes32 orderHash = _createOrderHash(order);
+            require(orderStatus[ordersHashes[i]] == OrderState.PENDING, "Order not in PENDING state");
 
-            require(orders[order.id] == orderHash, "Order hash mismatch");
-            require(orderStatus[order.id] == OrderState.PENDING, "Order not in PENDING state");
-            require(order.expirationTimestamp >= block.timestamp, "Order has expired");
-            require(order.srcEscrow == address(this), "Order srcEscrow mismatch");
+            taskInputs[i + 3] = ordersHashes[i]; // offset because first 3 arguments are destination chain id, payment registry address and block number
 
-            taskInputs[i + 3] = orderHash; // offset because first 3 arguments are destination chain id, payment registry address and block number
-
-            validOrderIds[i] = order.id;
         }
 
         // HDP verification code
@@ -228,21 +217,27 @@ contract Escrow is ReentrancyGuard, Pausable {
         );
 
         MerkleHelper.HDPTaskOutput memory expectedHdpTaskOutput = MerkleHelper.HDPTaskOutput({
-            isOrdersFulfillmentVerified: bytes32(uint256(1)),
-            ordersWithdrawalsArrayLength: _ordersWithdrawals.length,
+            isOrdersFulfillmentVerified: true,
+            lowestExpirationTimestamp: _lowestExpirationTimestamp,
             ordersWithdrawals: _ordersWithdrawals
         });
 
-        bytes32 computedMerkleRoot = MerkleHelper.computeTaskOutputMerkleRoot(expectedHdpTaskOutput);
+        bytes32 computedMerkleRoot = MerkleHelper.computeHDPTaskOutputMerkleRoot(expectedHdpTaskOutput);
 
+        // Validate that the computed Merkle root matches the finalized HDP task result
+        // This ensures that the output form HDP module is authentic
+        // The merkle tree leaves are the data returned from HDP module - orders withdrawals amounts including the minimum expiration timestamp among orders
+        // Then we check if the merkle root calculated here matches with the HDP task output
+        //
+        bytes32 hdpModuleOutputMerkleRoot = hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment);
         require(
-            hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment) == computedMerkleRoot,
+            hdpModuleOutputMerkleRoot == computedMerkleRoot,
             "Unable to prove: merkle root mismatch"
         );
 
         // Once validated, update the status of all the orders
-        for (uint256 i = 0; i < calldataOrders.length; i++) {
-            orderStatus[calldataOrders[i].id] = OrderState.COMPLETED;
+        for (uint256 i = 0; i < ordersHashes.length; i++) {
+            orderStatus[ordersHashes[i]] = OrderState.COMPLETED;
         }
 
         // Withdraw all tokens (including ETH if tokenAddress == address(0))
@@ -260,7 +255,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             }
         }
 
-        emit ProveBridgeAggregatedSuccess(validOrderIds);
+        emit ProveBridgeAggregatedSuccess(ordersHashes);
     }
 
     /// @notice Allows the user to refund their order if it has not been fulfilled by the expiration date
@@ -269,14 +264,12 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @custom:security This function should never be pausable
     function refundOrder(Order calldata order) external payable nonReentrant {
         bytes32 orderHash = _createOrderHash(order);
-        require(orders[order.id] == orderHash, "Order hash mismatch");
 
         require(msg.sender == order.usrSrcAddress, "Only the original address can refund an order");
-        require(orderStatus[order.id] == OrderState.PENDING, "Cannot refund a non-pending order");
+        require(orderStatus[orderHash] == OrderState.PENDING, "Cannot refund a non-pending order");
         require(block.timestamp > order.expirationTimestamp, "Order has not expired yet");
-        require(order.srcEscrow == address(this), "Order is not this contract");
 
-        orderStatus[order.id] = OrderState.RECLAIMED;
+        orderStatus[orderHash] = OrderState.RECLAIMED;
 
         if (order.srcToken == address(0)) {
             // Native ETH refund
@@ -295,11 +288,11 @@ contract Escrow is ReentrancyGuard, Pausable {
     ///
     /// @param orderDetails The details of the order to be hashed
     /// @return bytes32 The hash of the order details
-    function _createOrderHash(Order memory orderDetails) internal pure returns (bytes32) {
+    function _createOrderHash(Order memory orderDetails) public view returns (bytes32) {
         return keccak256(
             abi.encode(
                 orderDetails.id, // uint256
-                orderDetails.srcEscrow, // address
+                address(this), // address
                 orderDetails.usrSrcAddress, // address
                 orderDetails.usrDstAddress, // bytes32
                 orderDetails.expirationTimestamp, // uint256
@@ -307,7 +300,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                 orderDetails.srcAmount, // uint256
                 orderDetails.dstToken, // bytes32
                 orderDetails.dstAmount, // uint256
-                orderDetails.srcChainId, // uint256
+                block.chainid, // uint256
                 orderDetails.dstChainId // bytes32
             )
         );
