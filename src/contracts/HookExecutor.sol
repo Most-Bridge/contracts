@@ -21,8 +21,6 @@ contract HookExecutor {
 
     error ZeroOutputTokens();
 
-    // executor.execute(swapId, hooks, _srcToken, _srcAmount, address(this));
-
     function execute(bytes32 swapId, Hook[] calldata hooks, address tokenIn, address tokenOut, address escrow)
         external
     {

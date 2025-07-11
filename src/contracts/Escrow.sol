@@ -91,11 +91,12 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     struct Swap {
         address user;
-        address originalToken;
-        uint256 originalAmount;
-        address swappedToken;
-        uint256 swappedAmount;
+        address tokenIn;
+        uint256 amountIn;
+        address tokenOut;
+        uint256 amountOut;
         bool executorReturned;
+        address executorAddress;
     }
 
     struct HDPConnection {
@@ -163,11 +164,12 @@ contract Escrow is ReentrancyGuard, Pausable {
 
             swaps[swapId] = Swap({
                 user: msg.sender,
-                originalToken: _srcToken,
-                originalAmount: _srcAmount,
-                swappedToken: address(0),
-                swappedAmount: 0,
-                executorReturned: false
+                tokenIn: _srcToken,
+                amountIn: _srcAmount,
+                tokenOut: address(0),
+                amountOut: 0,
+                executorReturned: false,
+                executorAddress: address(executor)
             });
 
             IERC20(_srcToken).safeTransferFrom(msg.sender, address(this), _srcAmount);
@@ -182,10 +184,10 @@ contract Escrow is ReentrancyGuard, Pausable {
             // verify that the executor was successful
             Swap storage swap = swaps[swapId];
             require(swap.executorReturned, "Executor failed to return");
-            require(swap.swappedToken != address(0), "Executor did not swap token");
+            require(swap.tokenOut != address(0), "Executor did not swap token");
 
-            finalSrcToken = swap.swappedToken;
-            finalSrcAmount = swap.swappedAmount;
+            finalSrcToken = swap.tokenOut;
+            finalSrcAmount = swap.amountOut;
         } else {
             bool isNativeToken = _srcToken == address(0);
             if (isNativeToken) {
@@ -234,17 +236,18 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         orderId += 1;
     }
-
+    
     function onExecutorReturn(bytes32 swapId, address swappedToken, uint256 swappedAmount) external {
         Swap storage swap = swaps[swapId];
         require(swap.user != address(0), "Swap does not exist");
+        require(msg.sender == swap.executorAddress, "Caller is not the authorized executor");
         require(swap.executorReturned == false, "Executor already returned");
 
-        swap.swappedToken = swappedToken;
-        swap.swappedAmount = swappedAmount;
+        swap.tokenOut = swappedToken;
+        swap.amountOut = swappedAmount;
         swap.executorReturned = true;
 
-        emit SwapCompleted(swapId, swap.user, swap.srcToken, swap.srcAmount, swap.swappedToken, swap.swappedAmount);
+        emit SwapCompleted(swapId, swap.user, swap.tokenIn, swap.amountIn, swap.tokenOut, swap.amountOut);
     }
 
     /// @notice Allows a MM to prove order fulfillment by submitting the orders details and necessary proving info
