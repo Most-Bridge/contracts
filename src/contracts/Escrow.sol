@@ -35,6 +35,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     // Storage
     mapping(bytes32 => OrderState) public orderStatus;
     mapping(bytes32 => HDPConnection) public hdpConnections; // mapping chainId -> HdpConnection
+    mapping(bytes32 => Swap) public swaps; // mapping swapId -> Swap
 
     /// Events
     /// @param usrDstAddress Stored as a bytes32 to allow for foreign addresses to be stored
@@ -53,6 +54,9 @@ contract Escrow is ReentrancyGuard, Pausable {
     event ProveBridgeAggregatedSuccess(bytes32[] orderHashes);
     event WithdrawSuccessBatch(uint256[] orderIds);
     event OrderReclaimed(uint256 orderId);
+    event SwapCompleted(
+        bytes32 indexed swapId, address user, address tokenIn, uint256 amountIn, address tokenOut, uint256 amountOut
+    );
 
     /// Enums
     enum OrderState {
@@ -80,6 +84,20 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 dstChainId;
     }
 
+    struct Hook {
+        address target;
+        bytes callData;
+    }
+
+    struct Swap {
+        address user;
+        address originalToken;
+        uint256 originalAmount;
+        address swappedToken;
+        uint256 swappedAmount;
+        bool executorReturned;
+    }
+
     struct HDPConnection {
         bytes32 hdpProgramHash;
         bytes32 paymentRegistryAddress;
@@ -105,6 +123,9 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
     }
 
+    ///  Allow the contract to receive ETH from the self-destruct function
+    receive() external payable {}
+
     /// Functions
     ///
     /// @notice Allows the user to create an order
@@ -125,22 +146,60 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 _dstToken,
         uint256 _dstAmount,
         bytes32 _dstChainId,
-        uint256 _expiryWindow
+        uint256 _expiryWindow,
+        bool useSwap,
+        Hook[] calldata hooks
     ) external payable nonReentrant whenNotPaused {
-        bool isNativeToken = _srcToken == address(0);
+        uint256 finalSrcAmount = _srcAmount;
+        address finalSrcToken = _srcToken;
 
-        if (isNativeToken) {
-            // Native ETH logic
-            require(msg.value > 0, "Funds being sent must be greater than 0");
-            require(msg.value == _srcAmount, "The amount sent must match the msg.value");
-        } else {
-            // ERC20 logic
-            require(msg.value == 0, "ERC20: msg.value must be 0");
-            require(_srcAmount > 0, "ERC20: _srcAmount must be greater than 0");
+        if (useSwap) {
+            require(_srcToken != address(0), "Swaps require ERC20 tokens");
+            require(msg.value == 0, "Swaps require msg.value to be 0");
+            require(hooks.length > 0, "Swaps require at least one hook");
+
+            bytes32 swapId = keccak256(abi.encodePacked(orderId, msg.sender, _srcToken, _srcAmount, block.timestamp));
+            require(swaps[swapId].user == address(0), "Swap already exists for this ID"); //safety check
+
+            swaps[swapId] = Swap({
+                user: msg.sender,
+                originalToken: _srcToken,
+                originalAmount: _srcAmount,
+                swappedToken: address(0),
+                swappedAmount: 0,
+                executorReturned: false
+            });
 
             IERC20(_srcToken).safeTransferFrom(msg.sender, address(this), _srcAmount);
-        }
 
+            // Deploy executor
+            HookExecutor executor = new HookExecutor();
+            IERC20(_srcToken).safeTransfer(address(executor), _srcAmount);
+
+            // TODO: need to let the executor know what the swap out token is supposed to be
+            executor.execute(swapId, hooks, _srcToken, SWAP_OUT_TOKEN_HERE, address(this));
+
+            // verify that the executor was successful
+            Swap storage swap = swaps[swapId];
+            require(swap.executorReturned, "Executor failed to return");
+            require(swap.swappedToken != address(0), "Executor did not swap token");
+
+            finalSrcToken = swap.swappedToken;
+            finalSrcAmount = swap.swappedAmount;
+        } else {
+            bool isNativeToken = _srcToken == address(0);
+            if (isNativeToken) {
+                // Native ETH logic
+                require(msg.value > 0, "Funds being sent must be greater than 0");
+                require(msg.value == _srcAmount, "The amount sent must match the msg.value");
+            } else {
+                // ERC20 logic
+                require(msg.value == 0, "ERC20: msg.value must be 0");
+                require(_srcAmount > 0, "ERC20: _srcAmount must be greater than 0");
+
+                IERC20(_srcToken).safeTransferFrom(msg.sender, address(this), _srcAmount);
+            }
+        }
         // The order expires within the expiry window. If not proven by then, the user can withdraw funds
         uint256 _expirationTimestamp = block.timestamp + _expiryWindow;
 
@@ -150,8 +209,8 @@ contract Escrow is ReentrancyGuard, Pausable {
             usrSrcAddress: msg.sender,
             usrDstAddress: _usrDstAddress,
             expirationTimestamp: _expirationTimestamp,
-            srcToken: _srcToken,
-            srcAmount: _srcAmount,
+            srcToken: finalSrcToken,
+            srcAmount: finalSrcAmount,
             dstToken: _dstToken,
             dstAmount: _dstAmount,
             dstChainId: _dstChainId
@@ -174,6 +233,18 @@ contract Escrow is ReentrancyGuard, Pausable {
         );
 
         orderId += 1;
+    }
+
+    function onExecutorReturn(bytes32 swapId, address swappedToken, uint256 swappedAmount) external {
+        Swap storage swap = swaps[swapId];
+        require(swap.user != address(0), "Swap does not exist");
+        require(swap.executorReturned == false, "Executor already returned");
+
+        swap.swappedToken = swappedToken;
+        swap.swappedAmount = swappedAmount;
+        swap.executorReturned = true;
+
+        emit SwapCompleted(swapId, swap.user, swap.srcToken, swap.srcAmount, swap.swappedToken, swap.swappedAmount);
     }
 
     /// @notice Allows a MM to prove order fulfillment by submitting the orders details and necessary proving info
