@@ -8,6 +8,7 @@ import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/
 import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
 import {MerkleHelper} from "src/libraries/MerkleHelper.sol";
+import {HookExecutor} from "./HookExecutor.sol";
 
 /// @title Escrow
 ///
@@ -149,6 +150,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 _dstChainId,
         uint256 _expiryWindow,
         bool useSwap,
+        address _expectedOutToken,
         Hook[] calldata hooks
     ) external payable nonReentrant whenNotPaused {
         uint256 finalSrcAmount = _srcAmount;
@@ -162,6 +164,9 @@ contract Escrow is ReentrancyGuard, Pausable {
             bytes32 swapId = keccak256(abi.encodePacked(orderId, msg.sender, _srcToken, _srcAmount, block.timestamp));
             require(swaps[swapId].user == address(0), "Swap already exists for this ID"); //safety check
 
+            // Deploy executor
+            HookExecutor executor = new HookExecutor();
+
             swaps[swapId] = Swap({
                 user: msg.sender,
                 tokenIn: _srcToken,
@@ -173,13 +178,9 @@ contract Escrow is ReentrancyGuard, Pausable {
             });
 
             IERC20(_srcToken).safeTransferFrom(msg.sender, address(this), _srcAmount);
-
-            // Deploy executor
-            HookExecutor executor = new HookExecutor();
             IERC20(_srcToken).safeTransfer(address(executor), _srcAmount);
 
-            // TODO: need to let the executor know what the swap out token is supposed to be
-            executor.execute(swapId, hooks, _srcToken, SWAP_OUT_TOKEN_HERE, address(this));
+            executor.execute(swapId, hooks, _srcToken, _expectedOutToken, address(this));
 
             // verify that the executor was successful
             Swap storage swap = swaps[swapId];
@@ -236,7 +237,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         orderId += 1;
     }
-    
+
     function onExecutorReturn(bytes32 swapId, address swappedToken, uint256 swappedAmount) external {
         Swap storage swap = swaps[swapId];
         require(swap.user != address(0), "Swap does not exist");
