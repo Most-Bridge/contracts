@@ -7,7 +7,7 @@ import {Escrow} from "src/contracts/Escrow.sol";
 contract CreateOrder is Script {
     function run() external {
         address escrowAddress = 0x9c46f4d7Aaf6fa5507220CB843D873C1f5D2342a;
-        Escrow escrow = Escrow(escrowAddress);
+        Escrow escrow = Escrow(payable(escrowAddress));
 
         // Parameters for the createOrder function
         bytes32 usrDstAddress = bytes32(uint256(0x034501931e05c7934A0c6246fC7409CF9e650538F330A6B7a36f134c3B0577Ee));

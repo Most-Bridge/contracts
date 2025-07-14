@@ -151,7 +151,8 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 _expiryWindow,
         bool useSwap,
         address _expectedOutToken,
-        Hook[] calldata hooks
+        bytes32 hookExecutorSalt,
+        HookExecutor.Hook[] calldata hooks
     ) external payable nonReentrant whenNotPaused {
         uint256 finalSrcAmount = _srcAmount;
         address finalSrcToken = _srcToken;
@@ -165,7 +166,14 @@ contract Escrow is ReentrancyGuard, Pausable {
             require(swaps[swapId].user == address(0), "Swap already exists for this ID"); //safety check
 
             // Deploy executor
-            HookExecutor executor = new HookExecutor();
+            bytes memory bytecode = type(HookExecutor).creationCode;
+            address executor;
+            assembly {
+                executor := create2(0, add(bytecode, 32), mload(bytecode), hookExecutorSalt)
+                if iszero(extcodesize(executor)) {
+                    revert(0, 0)
+                }
+            }
 
             swaps[swapId] = Swap({
                 user: msg.sender,
@@ -180,7 +188,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             IERC20(_srcToken).safeTransferFrom(msg.sender, address(this), _srcAmount);
             IERC20(_srcToken).safeTransfer(address(executor), _srcAmount);
 
-            executor.execute(swapId, hooks, _srcToken, _expectedOutToken, address(this));
+            HookExecutor(executor).execute(swapId, hooks, _srcToken, _expectedOutToken, address(this));
 
             // verify that the executor was successful
             Swap storage swap = swaps[swapId];

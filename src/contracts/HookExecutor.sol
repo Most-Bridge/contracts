@@ -50,6 +50,7 @@ contract HookExecutor {
         // notify escrow
         IEscrow(escrow).onExecutorReturn(swapId, tokenOut, balanceOut);
 
+        // Still safe under EIP-6780 since creation and destruction occur in same tx
         selfdestruct(payable(escrow));
     }
 }
