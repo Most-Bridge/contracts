@@ -85,6 +85,7 @@ contract EscrowTest is Test {
             expiryWindow,
             false,
             address(0),
+            bytes32(0),
             createEmptyHooks()
         );
 
@@ -121,6 +122,7 @@ contract EscrowTest is Test {
             expiryWindow,
             false,
             address(0),
+            bytes32(0),
             createEmptyHooks()
         );
         vm.stopPrank();
@@ -143,6 +145,7 @@ contract EscrowTest is Test {
             expiryWindow,
             false,
             address(0),
+            bytes32(0),
             createEmptyHooks()
         );
         vm.stopPrank();
@@ -164,6 +167,7 @@ contract EscrowTest is Test {
             expiryWindow,
             false,
             address(0),
+            bytes32(0),
             createEmptyHooks()
         );
 
@@ -181,6 +185,7 @@ contract EscrowTest is Test {
             expiryWindow,
             false,
             address(0),
+            bytes32(0),
             createEmptyHooks()
         );
         bytes32 expectedOrderHash = keccak256(
@@ -214,6 +219,7 @@ contract EscrowTest is Test {
             expiryWindow,
             false,
             address(0),
+            bytes32(0),
             createEmptyHooks()
         );
         assertEq(user.balance, 9.99999 ether); // user balance decreased
@@ -251,6 +257,7 @@ contract EscrowTest is Test {
             expiryWindow,
             false,
             address(0),
+            bytes32(0),
             createEmptyHooks()
         );
         uint256 expirationTimestamp = block.timestamp + expiryWindow;
@@ -286,6 +293,7 @@ contract EscrowTest is Test {
             expiryWindow,
             false,
             address(0),
+            bytes32(0),
             createEmptyHooks()
         );
         uint256 expirationTimestamp = block.timestamp + expiryWindow;
@@ -319,6 +327,7 @@ contract EscrowTest is Test {
             expiryWindow,
             false,
             address(0),
+            bytes32(0),
             createEmptyHooks()
         );
         vm.stopPrank();
@@ -385,6 +394,7 @@ contract EscrowTest is Test {
             expiryWindow,
             false,
             address(0),
+            bytes32(0),
             createEmptyHooks()
         );
     }
@@ -404,6 +414,7 @@ contract EscrowTest is Test {
             expiryWindow,
             false,
             address(0),
+            bytes32(0),
             createEmptyHooks()
         );
 
@@ -444,6 +455,7 @@ contract EscrowTest is Test {
             expiryWindow,
             false,
             address(0),
+            bytes32(0),
             createEmptyHooks()
         );
     }
@@ -464,6 +476,7 @@ contract EscrowTest is Test {
             expiryWindow,
             false,
             address(0),
+            bytes32(0),
             createEmptyHooks()
         );
     }
@@ -485,6 +498,7 @@ contract EscrowTest is Test {
             expiryWindow,
             false,
             address(0),
+            bytes32(0),
             createEmptyHooks()
         );
         vm.stopPrank();
@@ -504,6 +518,7 @@ contract EscrowTest is Test {
             expiryWindow,
             false,
             address(0),
+            bytes32(0),
             createEmptyHooks()
         );
         vm.stopPrank();
@@ -521,7 +536,8 @@ contract EscrowTest is Test {
             dstChainId,
             expiryWindow,
             false,
-            address(0),
+            address(0), 
+            bytes32(0),
             createEmptyHooks()
         );
         assertEq(mockERC.balanceOf(user), 10 ether - sendAmount); // user balance decreased
@@ -560,6 +576,7 @@ contract EscrowTest is Test {
             expiryWindow,
             true,
             address(mockERC2),
+            bytes32(0),
             createEmptyHooks()
         );
     }
@@ -579,6 +596,7 @@ contract EscrowTest is Test {
             expiryWindow,
             true,
             address(mockERC2),
+            bytes32(0),
             createEmptyHooks()
         );
     }
@@ -598,6 +616,7 @@ contract EscrowTest is Test {
             expiryWindow,
             true,
             address(mockERC2),
+            bytes32(0),
             createEmptyHooks()
         );
     }
@@ -630,6 +649,7 @@ contract EscrowTest is Test {
             expiryWindow,
             true,
             address(mockERC2),
+            bytes32(0),
             hooks
         );
 
@@ -690,6 +710,7 @@ contract EscrowTest is Test {
             expiryWindow,
             true,
             address(mockERC2),
+            bytes32(0),
             hooks
         );
     }
@@ -717,6 +738,7 @@ contract EscrowTest is Test {
             expiryWindow,
             true,
             address(mockERC2),
+            bytes32(0),
             hooks
         );
 
