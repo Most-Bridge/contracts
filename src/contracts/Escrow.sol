@@ -85,11 +85,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 dstChainId;
     }
 
-    struct Hook {
-        address target;
-        bytes callData;
-    }
-
     struct Swap {
         address user;
         address tokenIn;
