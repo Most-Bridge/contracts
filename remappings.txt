@@ -1,0 +1,10 @@
+'@openzeppelin/=lib/herodotus-evm-v2/lib/openzeppelin-contracts/',
+'@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/',
+'@solidity-mmr/=lib/herodotus-evm-v2/lib/solidity-mmr/src/',
+'ds-test/=lib/openzeppelin-contracts/lib/forge-std/lib/ds-test/src/',
+'erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/',
+'forge-std/=lib/forge-std/src/',
+'halmos-cheatcodes/=lib/herodotus-evm-v2/lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/',
+'herodotus-evm-v2/=lib/herodotus-evm-v2/src/',
+'openzeppelin-contracts/=lib/openzeppelin-contracts/',
+'solidity-mmr/=lib/herodotus-evm-v2/lib/solidity-mmr/src/'
