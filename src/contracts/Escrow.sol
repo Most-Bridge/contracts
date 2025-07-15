@@ -165,9 +165,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             address executor;
             assembly {
                 executor := create2(0, add(bytecode, 32), mload(bytecode), hookExecutorSalt)
-                if iszero(extcodesize(executor)) {
-                    revert(0, 0)
-                }
+                if iszero(extcodesize(executor)) { revert(0, 0) }
             }
 
             swaps[swapId] = Swap({
