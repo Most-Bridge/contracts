@@ -17,3 +17,4 @@ docs/
 # local folder
 /local 
 
+node_modules
