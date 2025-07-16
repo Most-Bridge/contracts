@@ -25,7 +25,7 @@ async function main() {
 
   const initialHDPChainConnections = [
     {
-      destinationChainId: toPaddedBytes32(111555111),
+      destinationChainId: toPaddedBytes32(11155420),
       paymentRegistryAddress: toPaddedBytes32("0x9eB3feB35884B284Ea1e38Dd175417cE90B43AA1"),
       hdpProgramHash: "0x07ae890076e0f39de9dd1761f8261b20fca3169b404b75284f9ceae0864736d5",
     },
