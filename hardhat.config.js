@@ -28,11 +28,16 @@ module.exports = {
       url: process.env.ETH_SEPOLIA_RPC || "",
       accounts: [process.env.DEPLOY_PRIVATE_KEY],
     },
+    worldchainTestnet: {
+      url: process.env.WLD_SEPOLIA_RPC || "",
+      accounts: [process.env.DEPLOY_PRIVATE_KEY],
+    },
   },
   etherscan: {
     apiKey: {
       optimisticSepolia: process.env.OP_ETHERSCAN_API_KEY,
       sepolia: process.env.ETH_TEST_ETHERSCAN_API_KEY,
+      worldchainTestnet: process.env.ETH_TEST_ETHERSCAN_API_KEY,
     },
   },
 };
