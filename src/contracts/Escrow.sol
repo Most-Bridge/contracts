@@ -279,7 +279,8 @@ contract Escrow is ReentrancyGuard, Pausable {
         for (uint256 i = 0; i < ordersHashes.length; i++) {
             require(orderStatus[ordersHashes[i]] == OrderState.PENDING, "Order not in PENDING state");
 
-            taskInputs[i + 4] = ordersHashes[i]; // offset because first 3 arguments are destination chain id, payment registry address and block number
+            // offset because first 4 arguments are destination chain id, payment registry address, block number and order hashes array length
+            taskInputs[i + 4] = ordersHashes[i];
         }
 
         // HDP verification code
