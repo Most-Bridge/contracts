@@ -3,7 +3,6 @@ require("dotenv").config();
 
 /** @type import('hardhat/config').HardhatUserConfig */
 
-console.log(process.env.ETH_TEST_ETHERSCAN_API_KEY, "ETH_TEST_ETHERSCAN_API_KEY");
 module.exports = {
   paths: {
     sources: "./src",
@@ -32,12 +31,22 @@ module.exports = {
       url: process.env.WLD_SEPOLIA_RPC || "",
       accounts: [process.env.DEPLOY_PRIVATE_KEY],
     },
+    worldchain: {
+      url: process.env.WLD_MAINNET_RPC || "",
+      accounts: [process.env.DEPLOY_PRIVATE_KEY],
+    },
   },
   etherscan: {
-    apiKey: {
-      optimisticSepolia: process.env.OP_ETHERSCAN_API_KEY,
-      sepolia: process.env.ETH_TEST_ETHERSCAN_API_KEY,
-      worldchainTestnet: process.env.ETH_TEST_ETHERSCAN_API_KEY,
-    },
+    apiKey: process.env.ETH_TEST_ETHERSCAN_API_KEY,
+    customChains: [
+      {
+        network: "worldchain",
+        chainId: 480,
+        urls: {
+          apiURL: "https://api.worldscan.org",
+          browserURL: "https://worldscan.org",
+        },
+      },
+    ],
   },
 };

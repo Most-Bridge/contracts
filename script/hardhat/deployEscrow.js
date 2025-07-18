@@ -69,3 +69,6 @@ main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
+
+// To run this script, use the following command:
+// npx hardhat run script/hardhat/deployEscrow.js --network ethSepolia
