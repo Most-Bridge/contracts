@@ -140,12 +140,18 @@ contract PaymentRegistryTest is Test {
         paymentRegistry.mostFulfillOrders{value: dstAmount}(orders);
     }
 
-    function testMMSendsMoreThanBalance() public {
+    function testMMFulfillsWithLowerBalance() public {
+        // 10 ether order
         PaymentRegistry.OrderFulfillmentData[] memory orders =
-            _createOrdersArray(dstTokenETH, 20 ether, userDstAddress, expirationTimestamp);
+            _createOrdersArray(dstTokenETH, 10 ether, userDstAddress, expirationTimestamp);
+
         vm.prank(MMAddress);
-        vm.expectRevert();
-        paymentRegistry.mostFulfillOrders{value: 20 ether}(orders);
+        assertEq(address(MMAddress).balance, 10 ether, "MM should have 10 ether");
+
+        
+        // try to fulfill with 5 ether, then contract will try to send 10 to the user, and thus fail
+        vm.expectRevert("Native ETH: Transfer failed");
+        paymentRegistry.mostFulfillOrders{value: 5 ether}(orders);
     }
 
     function testFulfillmentPassesOnERC20() public {
