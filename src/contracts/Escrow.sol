@@ -26,7 +26,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     uint256 private orderId = 1;
 
     // HDP
-    address public HDP_EXECUTION_STORE_ADDRESS = 0x59c0B3D09151aA2C0201808fEC0860f1168A4173;
+    address public HDP_EXECUTION_STORE_ADDRESS = 0x396bF739f7b37D81f6CdD4571fDEF298150db88f;
     bytes32 private constant HDP_EMPTY_OUTPUT_TREE_HASH =
         0x6612f7b477d66591ff96a9e064bcc98abc36789e7a1e281436464229828f817d;
 
@@ -118,6 +118,9 @@ contract Escrow is ReentrancyGuard, Pausable {
                 hdpProgramHash: hdpConnectionInitial.hdpProgramHash
             });
         }
+
+        // Mock for order from past escrow
+        orderStatus[0x72c42dbbc85bd0969aeac8080206c955e58fc8fab1b0180bd64d49de8ca112a3] = OrderState.PENDING;
     }
 
     ///  Allow the contract to receive ETH from the self-destruct function
@@ -371,7 +374,8 @@ contract Escrow is ReentrancyGuard, Pausable {
         return keccak256(
             abi.encode(
                 orderDetails.id, // uint256
-                address(this), // address
+                //address(this), // address
+                0xaC6582037C2be28d0b20f7cAfD34816149203201,
                 orderDetails.usrSrcAddress, // address
                 orderDetails.usrDstAddress, // bytes32
                 orderDetails.expirationTimestamp, // uint256

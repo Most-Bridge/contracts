@@ -10,7 +10,7 @@ contract CreateOrder is Script {
         vm.startBroadcast();
 
         // Escrow contract address
-        address escrowAddress = 0xbAF6625e54035Ed93B3FEa38fa5F0aba1fBC5027;
+        address escrowAddress = 0x392A4B03AD7048557469f4DF7dB5706Ed2B33704;
         Escrow escrow = Escrow(payable(escrowAddress));
 
         // === Order Parameters ===

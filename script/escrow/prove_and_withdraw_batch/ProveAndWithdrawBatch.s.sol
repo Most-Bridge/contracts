@@ -10,7 +10,7 @@ contract ProveAndWithdrawBatch is Script {
     function run() external {
         vm.startBroadcast();
 
-        address escrowAddress = 0x07816320077807180A8E8c8590890e804E8b8Cdc;
+        address escrowAddress = 0x392A4B03AD7048557469f4DF7dB5706Ed2B33704;
         Escrow escrow = Escrow(payable(escrowAddress));
 
         // Parameters for the proveAndWithdrawBatch function
