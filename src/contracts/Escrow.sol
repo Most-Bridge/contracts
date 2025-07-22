@@ -119,8 +119,6 @@ contract Escrow is ReentrancyGuard, Pausable {
             });
         }
 
-        // Mock for order from past escrow
-        orderStatus[0x72c42dbbc85bd0969aeac8080206c955e58fc8fab1b0180bd64d49de8ca112a3] = OrderState.PENDING;
     }
 
     ///  Allow the contract to receive ETH from the self-destruct function
@@ -374,8 +372,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         return keccak256(
             abi.encode(
                 orderDetails.id, // uint256
-                //address(this), // address
-                0xaC6582037C2be28d0b20f7cAfD34816149203201,
+                address(this), // address
                 orderDetails.usrSrcAddress, // address
                 orderDetails.usrDstAddress, // bytes32
                 orderDetails.expirationTimestamp, // uint256
