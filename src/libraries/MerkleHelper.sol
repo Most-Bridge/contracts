@@ -21,9 +21,10 @@ library MerkleHelper {
     bytes32 constant EMPTY_ROOT = 0x1d818f822942463614281e7a9e7836bc8a96ff9165d677b4f7126666112202b1;
 
     function computeHDPTaskOutputMerkleRoot(HDPTaskOutput memory taskOutput) internal pure returns (bytes32) {
-        // Total leaves count: 3 base leaves + 2 per withdrawal + 4 per balance.
+        // Total leaves count: 4 base leaves + 2 per withdrawal + 4 per balance.
+        // Base leaves: isOrdersFulfillmentVerified, lowestExpirationTimestampL, lowestExpirationTimestampH, ordersWithdrawals.length
+        uint256 totalLeaves = 4;
 
-        uint256 totalLeaves = 3;
         // Because of this depends how many times balancesToWithdraw array size will be defined
         // Because each MarketMaker have own balancesToWithdraw array
         totalLeaves += taskOutput.ordersWithdrawals.length;
@@ -31,7 +32,7 @@ library MerkleHelper {
         for (uint256 i = 0; i < taskOutput.ordersWithdrawals.length; ++i) {
             totalLeaves += 2; // marketMakerAddress (low & high)
 
-            // Why 4 - contract address low and high, amount low and high
+            // Why 4 - token contract address low and high, amount low and high
             totalLeaves += 4 * taskOutput.ordersWithdrawals[i].balancesToWithdraw.length;
         }
 
@@ -41,7 +42,9 @@ library MerkleHelper {
         leaves[index++] = taskOutput.isOrdersFulfillmentVerified ? 1 : 0;
 
         // Lowest registered timestamp accross all orders in given batch
-        leaves[index++] = taskOutput.lowestExpirationTimestamp;
+        (uint256 lowestExpirationTimestampL, uint256 lowestExpirationTimestampH) = splitUint256(taskOutput.lowestExpirationTimestamp);
+        leaves[index++] = lowestExpirationTimestampL;
+        leaves[index++] = lowestExpirationTimestampH;
 
         // Size of orders withdrawals for whole batch
         // the size of it depends of number of unique MMs in proving/withdrawal batch
@@ -143,5 +146,16 @@ library MerkleHelper {
         uint256 val = uint256(uint160(addr));
         low = uint128(val);
         high = val >> 128;
+    }
+
+    function splitBytes32(bytes32 input) internal pure returns (uint128 low, uint128 high) {
+        uint256 value = uint256(input);
+        low = uint128(value);
+        high = uint128(value >> 128);
+    }
+
+    function splitUint256(uint256 input) internal pure returns (uint128 low, uint128 high) {
+        low = uint128(input);
+        high = uint128(input >> 128);
     }
 }
