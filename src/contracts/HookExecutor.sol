@@ -51,6 +51,12 @@ contract HookExecutor {
         IEscrow(escrow).onExecutorReturn(swapId, tokenOut, balanceOut);
 
         // Still safe under EIP-6780 since creation and destruction occur in same tx
+        // safe check that all the remaining tokens in the contract are sent to the escrow
+        uint256 remainingBalanceIn = IERC20(tokenIn).balanceOf(address(this));
+        uint256 remainingBalanceOut = IERC20(tokenOut).balanceOf(address(this));
+        if (remainingBalanceIn > 0 || remainingBalanceOut > 0) {
+            revert("Remaining tokens not sent to escrow");
+        }
         selfdestruct(payable(escrow));
     }
 }
