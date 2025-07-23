@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-pragma solidity >=0.8;
+// SPDX-License-Identifier: GPL-3.0
+pragma solidity ^0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 import {PaymentRegistry} from "src/contracts/PaymentRegistry.sol";
@@ -28,18 +28,18 @@ contract PaymentRegistryTest is Test {
 
     MockERC20 public mockERC;
 
-    address MMAddress = address(3);
+    address mmAddress = address(3);
     bytes32 mmSrcAddress = bytes32(uint256(4));
 
     function setUp() public {
         paymentRegistry = new PaymentRegistry();
-        vm.deal(MMAddress, 10 ether);
+        vm.deal(mmAddress, 10 ether);
         vm.deal(userDstAddress, 1 ether);
         vm.prank(address(this));
 
         // deploy mock ERC20 token and mint it to MM
         mockERC = new MockERC20("MockToken", "MOCK");
-        mockERC.mint(MMAddress, 10 ether);
+        mockERC.mint(mmAddress, 10 ether);
     }
 
     /// @dev Creates a customizable array of orders for testing.
@@ -82,7 +82,7 @@ contract PaymentRegistryTest is Test {
 
     function testFulfillmentSuccess() public {
         PaymentRegistry.OrderFulfillmentData[] memory orders = _createDefaultEthOrdersArray();
-        vm.prank(MMAddress); // mm calls
+        vm.prank(mmAddress); // mm calls
         paymentRegistry.mostFulfillOrders{value: dstAmount}(orders);
 
         bytes32 orderHash = keccak256(
@@ -103,12 +103,12 @@ contract PaymentRegistryTest is Test {
 
         assertEq(paymentRegistry.fulfillments(orderHash), mmSrcAddress, "Order was not marked as processed.");
         assertEq(address(userDstAddress).balance, 1.9 ether, "User destination address balance did not increase.");
-        assertEq(address(MMAddress).balance, 9.1 ether, "MM balance did not decrease.");
+        assertEq(address(mmAddress).balance, 9.1 ether, "MM balance did not decrease.");
     }
 
     function testFulfillmentFailsIfAlreadyProcessed() public {
         PaymentRegistry.OrderFulfillmentData[] memory orders = _createDefaultEthOrdersArray();
-        vm.startPrank(MMAddress);
+        vm.startPrank(mmAddress);
         paymentRegistry.mostFulfillOrders{value: dstAmount}(orders);
 
         vm.expectRevert("Transfer already processed");
@@ -118,7 +118,7 @@ contract PaymentRegistryTest is Test {
 
     function testFulfillmentFailsIfNoValue() public {
         PaymentRegistry.OrderFulfillmentData[] memory orders = _createDefaultEthOrdersArray();
-        vm.prank(MMAddress);
+        vm.prank(mmAddress);
         vm.expectRevert("Native ETH: Transfer failed");
         paymentRegistry.mostFulfillOrders{value: 0}(orders);
     }
@@ -126,14 +126,14 @@ contract PaymentRegistryTest is Test {
     function testFulfillmentFailsIfWrongValue() public {
         PaymentRegistry.OrderFulfillmentData[] memory orders =
             _createOrdersArray(dstTokenETH, dstAmount + 1 ether, userDstAddress, expirationTimestamp);
-        vm.prank(MMAddress);
+        vm.prank(mmAddress);
         vm.expectRevert("Native ETH: Transfer failed");
         paymentRegistry.mostFulfillOrders{value: dstAmount}(orders);
     }
 
     function testFulfillmentFailsOnExpiredOrder() public {
         PaymentRegistry.OrderFulfillmentData[] memory orders = _createDefaultEthOrdersArray();
-        vm.prank(MMAddress);
+        vm.prank(mmAddress);
         vm.expectRevert("Cannot fulfill an expired order.");
         // warping time to expire order
         vm.warp(block.timestamp + 2 days);
@@ -145,10 +145,9 @@ contract PaymentRegistryTest is Test {
         PaymentRegistry.OrderFulfillmentData[] memory orders =
             _createOrdersArray(dstTokenETH, 10 ether, userDstAddress, expirationTimestamp);
 
-        vm.prank(MMAddress);
-        assertEq(address(MMAddress).balance, 10 ether, "MM should have 10 ether");
+        vm.prank(mmAddress);
+        assertEq(address(mmAddress).balance, 10 ether, "MM should have 10 ether");
 
-        
         // try to fulfill with 5 ether, then contract will try to send 10 to the user, and thus fail
         vm.expectRevert("Native ETH: Transfer failed");
         paymentRegistry.mostFulfillOrders{value: 5 ether}(orders);
@@ -157,39 +156,39 @@ contract PaymentRegistryTest is Test {
     function testFulfillmentPassesOnERC20() public {
         PaymentRegistry.OrderFulfillmentData[] memory orders = _createDefaultErc20OrdersArray(dstAmount);
         // send a good erc20 transfer
-        vm.startPrank(MMAddress);
+        vm.startPrank(mmAddress);
         mockERC.approve(address(paymentRegistry), dstAmount);
         paymentRegistry.mostFulfillOrders{value: 0}(orders);
         vm.stopPrank();
 
         assertEq(mockERC.balanceOf(userDstAddress), dstAmount, "User destination did not receive ERC20 tokens");
-        assertEq(mockERC.balanceOf(MMAddress), 10 ether - dstAmount, "MM ERC20 balance did not decrease correctly");
+        assertEq(mockERC.balanceOf(mmAddress), 10 ether - dstAmount, "MM ERC20 balance did not decrease correctly");
     }
 
-    function testFulfillmentFailsOnEthSentOnERC20() public {
+    function testFulfillmentPassesWithEthSentOnERC20() public {
         PaymentRegistry.OrderFulfillmentData[] memory orders = _createDefaultErc20OrdersArray(dstAmount);
         // attach eth while doing an erc20 transfer
-        vm.startPrank(MMAddress);
+        vm.startPrank(mmAddress);
         mockERC.approve(address(paymentRegistry), dstAmount);
         paymentRegistry.mostFulfillOrders{value: dstAmount}(orders);
         vm.stopPrank();
 
         assertEq(mockERC.balanceOf(userDstAddress), dstAmount, "User destination did not receive ERC20 tokens");
-        assertEq(mockERC.balanceOf(MMAddress), 10 ether - dstAmount, "MM ERC20 balance did not decrease correctly");
+        assertEq(mockERC.balanceOf(mmAddress), 10 ether - dstAmount, "MM ERC20 balance did not decrease correctly");
         assertEq(address(paymentRegistry).balance, dstAmount, "PaymentRegistry should have received the ETH");
     }
 
     function testFulfillmentFailsOnERCAmountZero() public {
         PaymentRegistry.OrderFulfillmentData[] memory orders = _createDefaultErc20OrdersArray(0);
         // the dst amount is zero
-        vm.prank(MMAddress);
+        vm.prank(mmAddress);
         vm.expectRevert("ERC20: Amount must be > 0");
         paymentRegistry.mostFulfillOrders{value: 0}(orders);
     }
 
     function testSendingMoreERCThanInBalance() public {
         PaymentRegistry.OrderFulfillmentData[] memory orders = _createDefaultErc20OrdersArray(100 ether);
-        vm.startPrank(MMAddress);
+        vm.startPrank(mmAddress);
         mockERC.approve(address(paymentRegistry), 100 ether);
         vm.expectRevert();
         paymentRegistry.mostFulfillOrders{value: 0}(orders);
@@ -201,25 +200,25 @@ contract PaymentRegistryTest is Test {
         NonPayableReceiver nonPayable = new NonPayableReceiver();
         PaymentRegistry.OrderFulfillmentData[] memory orders =
             _createOrdersArray(dstTokenETH, dstAmount, address(nonPayable), expirationTimestamp);
-        vm.prank(MMAddress);
+        vm.prank(mmAddress);
         vm.expectRevert("Native ETH: Transfer failed");
         paymentRegistry.mostFulfillOrders{value: dstAmount}(orders);
     }
 
     function testERC20FailsWithoutApproval() public {
         PaymentRegistry.OrderFulfillmentData[] memory orders = _createDefaultErc20OrdersArray(dstAmount);
-        vm.prank(MMAddress);
+        vm.prank(mmAddress);
         vm.expectRevert();
         paymentRegistry.mostFulfillOrders{value: 0}(orders);
     }
 
     function testRevertTransferWithBrokenERC20() public {
         BrokenERC20 broken = new BrokenERC20("FailToken", "FAIL");
-        broken.mint(MMAddress, 10 ether);
+        broken.mint(mmAddress, 10 ether);
 
         PaymentRegistry.OrderFulfillmentData[] memory orders =
             _createOrdersArray(address(broken), dstAmount, userDstAddress, expirationTimestamp);
-        vm.startPrank(MMAddress);
+        vm.startPrank(mmAddress);
         broken.approve(address(paymentRegistry), dstAmount);
         vm.expectRevert();
         paymentRegistry.mostFulfillOrders{value: 0}(orders);
@@ -229,7 +228,7 @@ contract PaymentRegistryTest is Test {
     function testFulfillmentFailsOnEthAmountZero() public {
         PaymentRegistry.OrderFulfillmentData[] memory orders =
             _createOrdersArray(dstTokenETH, 0, userDstAddress, expirationTimestamp);
-        vm.prank(MMAddress);
+        vm.prank(mmAddress);
         vm.expectRevert("Native ETH: Amount must be > 0");
         paymentRegistry.mostFulfillOrders{value: 0}(orders);
     }
@@ -269,7 +268,7 @@ contract PaymentRegistryTest is Test {
         });
 
         uint256 totalEthRequired = dstAmount + secondOrderAmount;
-        vm.prank(MMAddress);
+        vm.prank(mmAddress);
         paymentRegistry.mostFulfillOrders{value: totalEthRequired}(orders);
 
         // Verify first order hash
@@ -315,7 +314,7 @@ contract PaymentRegistryTest is Test {
 
         // Verify MM balance decreased correctly
         uint256 expectedMMBalance = 10 ether - totalEthRequired;
-        assertEq(address(MMAddress).balance, expectedMMBalance, "MM balance did not decrease correctly.");
+        assertEq(address(mmAddress).balance, expectedMMBalance, "MM balance did not decrease correctly.");
     }
 }
 
