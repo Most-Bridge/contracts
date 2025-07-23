@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -12,6 +12,15 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 ///
 /// @notice Handles the throughput of transactions from the Market Maker to a user, and saves the data
 ///         to be used to prove the transaction.
+
+//     /$$      /$$  /$$$$$$   /$$$$$$  /$$$$$$$$
+//    | $$$    /$$$ /$$__  $$ /$$__  $$|__  $$__/
+//    | $$$$  /$$$$| $$  \ $$| $$  \__/   | $$
+//    | $$ $$/$$ $$| $$  | $$|  $$$$$$    | $$
+//    | $$  $$$| $$| $$  | $$ \____  $$   | $$
+//    | $$\  $ | $$| $$  | $$ /$$  \ $$   | $$
+//    | $$ \/  | $$|  $$$$$$/|  $$$$$$/   | $$
+//    |__/     |__/ \______/  \______/    |__/
 contract PaymentRegistry is Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 

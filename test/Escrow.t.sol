@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 import {Escrow} from "src/contracts/Escrow.sol";
+import {HookExecutor} from "src/contracts/HookExecutor.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockERC20 is ERC20 {
@@ -10,6 +11,14 @@ contract MockERC20 is ERC20 {
 
     function mint(address to, uint256 amount) public {
         _mint(to, amount);
+    }
+}
+
+contract MockSwapTarget {
+    function swap(address tokenIn, uint256 amountIn, address tokenOut, uint256 amountOut) external {
+        // mock swap: transfer tokenIn from caller and mint tokenOut to caller
+        MockERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        MockERC20(tokenOut).mint(msg.sender, amountOut);
     }
 }
 
@@ -32,6 +41,13 @@ contract EscrowTest is Test {
     uint256 dstAmount = 0.000009 ether;
 
     MockERC20 public mockERC;
+    MockERC20 public mockERC2;
+    MockSwapTarget public mockSwapTarget;
+
+    // helper to create empty hooks array
+    function createEmptyHooks() internal pure returns (HookExecutor.Hook[] memory) {
+        return new HookExecutor.Hook[](0);
+    }
 
     function setUp() public {
         Escrow.HDPConnectionInitial[] memory initialHDPChainConnections = new Escrow.HDPConnectionInitial[](1);
@@ -47,15 +63,30 @@ contract EscrowTest is Test {
         vm.deal(user, 10 ether);
         owner = address(this);
 
-        // deploy mock ERC20 token and mint it to user
+        // deploy mock ERC20 tokens and mint them to user
         mockERC = new MockERC20("MockToken", "MOCK");
         mockERC.mint(user, 10 ether);
+
+        mockERC2 = new MockERC20("MockToken2", "MOCK2");
+        mockERC2.mint(address(this), 10 ether); // mint to test contract for swap target
+
+        mockSwapTarget = new MockSwapTarget();
     }
 
     function testCreateOrderSuccess() public {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+            destinationAddress,
+            srcTokenETH,
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            false,
+            address(0),
+            bytes32(0),
+            createEmptyHooks()
         );
 
         bytes32 expectedOrderHash = keccak256(
@@ -74,7 +105,6 @@ contract EscrowTest is Test {
             )
         );
 
-        //assertEq(escrow.orders(1), expectedOrderHash);
         assertEq(uint256(escrow.orderStatus(expectedOrderHash)), uint256(Escrow.OrderState.PENDING));
         vm.stopPrank();
     }
@@ -82,7 +112,19 @@ contract EscrowTest is Test {
     function testCreateOrderWithNoValue() public {
         vm.startPrank(user);
         vm.expectRevert("Funds being sent must be greater than 0");
-        escrow.createOrder(destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow);
+        escrow.createOrder(
+            destinationAddress,
+            srcTokenETH,
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            false,
+            address(0),
+            bytes32(0),
+            createEmptyHooks()
+        );
         vm.stopPrank();
     }
 
@@ -94,7 +136,17 @@ contract EscrowTest is Test {
         vm.startPrank(user);
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+            destinationAddress,
+            srcTokenETH,
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            false,
+            address(0),
+            bytes32(0),
+            createEmptyHooks()
         );
         vm.stopPrank();
     }
@@ -106,7 +158,17 @@ contract EscrowTest is Test {
         vm.prank(user);
         vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+            destinationAddress,
+            srcTokenETH,
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            false,
+            address(0),
+            bytes32(0),
+            createEmptyHooks()
         );
 
         vm.prank(owner);
@@ -114,7 +176,17 @@ contract EscrowTest is Test {
 
         vm.prank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+            destinationAddress,
+            srcTokenETH,
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            false,
+            address(0),
+            bytes32(0),
+            createEmptyHooks()
         );
         bytes32 expectedOrderHash = keccak256(
             abi.encode(
@@ -132,14 +204,23 @@ contract EscrowTest is Test {
             )
         );
 
-        //assertEq(escrow.orders(1), expectedOrderHash);
         assertEq(uint256(escrow.orderStatus(expectedOrderHash)), uint256(Escrow.OrderState.PENDING));
     }
 
     function testRefundOrder() public {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+            destinationAddress,
+            srcTokenETH,
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            false,
+            address(0),
+            bytes32(0),
+            createEmptyHooks()
         );
         assertEq(user.balance, 9.99999 ether); // user balance decreased
 
@@ -167,7 +248,17 @@ contract EscrowTest is Test {
     function testRefundOrderByWrongUser() public {
         vm.prank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+            destinationAddress,
+            srcTokenETH,
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            false,
+            address(0),
+            bytes32(0),
+            createEmptyHooks()
         );
         uint256 expirationTimestamp = block.timestamp + expiryWindow;
 
@@ -193,7 +284,17 @@ contract EscrowTest is Test {
     function testRefundOrderBeforeExpiration() public {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+            destinationAddress,
+            srcTokenETH,
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            false,
+            address(0),
+            bytes32(0),
+            createEmptyHooks()
         );
         uint256 expirationTimestamp = block.timestamp + expiryWindow;
 
@@ -217,26 +318,39 @@ contract EscrowTest is Test {
     function testRefundOrderWithWrongDetails() public {
         vm.startPrank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+            destinationAddress,
+            srcTokenETH,
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            false,
+            address(0),
+            bytes32(0),
+            createEmptyHooks()
         );
         vm.stopPrank();
+        uint256 expirationTimestamp = block.timestamp + expiryWindow;
 
         vm.warp(block.timestamp + expiryWindow + 1 days); // order expired
+
+        vm.deal(address(this), 10 ether); // ensure the contract has enough ETH to refund the order
 
         vm.startPrank(user);
         Escrow.Order memory orderToRefund = Escrow.Order({
             id: firstOrderId,
             usrSrcAddress: user,
             usrDstAddress: bytes32(uint256(12345)), // Wrong address
-            expirationTimestamp: block.timestamp - 1 days, // Wrong timestamp
+            expirationTimestamp: expirationTimestamp,
             srcToken: srcTokenETH,
-            srcAmount: 0.5 ether, // Wrong amount
+            srcAmount: sendAmount,
             dstToken: dstToken,
             dstAmount: dstAmount,
             dstChainId: dstChainId
         });
 
-        vm.expectRevert("Order hash mismatch");
+        vm.expectRevert("Cannot refund a non-pending order");
         escrow.refundOrder(orderToRefund);
         vm.stopPrank();
     }
@@ -271,7 +385,17 @@ contract EscrowTest is Test {
     function testGas_createOrder() public {
         vm.prank(user);
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, srcTokenETH, sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+            destinationAddress,
+            srcTokenETH,
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            false,
+            address(0),
+            bytes32(0),
+            createEmptyHooks()
         );
     }
 
@@ -281,12 +405,23 @@ contract EscrowTest is Test {
 
         vm.prank(user);
         escrow.createOrder(
-            destinationAddress, address(mockERC), sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+            destinationAddress,
+            address(mockERC),
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            false,
+            address(0),
+            bytes32(0),
+            createEmptyHooks()
         );
 
         bytes32 expectedOrderHash = keccak256(
             abi.encode(
                 firstOrderId,
+                address(escrow),
                 user,
                 destinationAddress,
                 block.timestamp + expiryWindow,
@@ -294,11 +429,11 @@ contract EscrowTest is Test {
                 sendAmount,
                 dstToken,
                 dstAmount,
+                block.chainid,
                 dstChainId
             )
         );
 
-        //assertEq(escrow.orders(1), expectedOrderHash);
         assertEq(uint256(escrow.orderStatus(expectedOrderHash)), uint256(Escrow.OrderState.PENDING));
         assertEq(mockERC.balanceOf(user), 9.99999 ether, "User balance should decrease by sendAmount");
         assertEq(mockERC.allowance(user, address(escrow)), 0, "Allowance should be reset to 0 after order creation");
@@ -311,7 +446,17 @@ contract EscrowTest is Test {
         vm.prank(user);
         vm.expectRevert("ERC20: msg.value must be 0");
         escrow.createOrder{value: 1 ether}(
-            destinationAddress, address(mockERC), sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+            destinationAddress,
+            address(mockERC),
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            false,
+            address(0),
+            bytes32(0),
+            createEmptyHooks()
         );
     }
 
@@ -321,7 +466,19 @@ contract EscrowTest is Test {
 
         vm.prank(user);
         vm.expectRevert("ERC20: _srcAmount must be greater than 0");
-        escrow.createOrder(destinationAddress, address(mockERC), 0, dstToken, 0, dstChainId, expiryWindow);
+        escrow.createOrder(
+            destinationAddress,
+            address(mockERC),
+            0,
+            dstToken,
+            0,
+            dstChainId,
+            expiryWindow,
+            false,
+            address(0),
+            bytes32(0),
+            createEmptyHooks()
+        );
     }
 
     function testCreateOrderWithERC20NoApproval() public {
@@ -332,7 +489,17 @@ contract EscrowTest is Test {
             )
         );
         escrow.createOrder(
-            destinationAddress, address(mockERC), sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+            destinationAddress,
+            address(mockERC),
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            false,
+            address(0),
+            bytes32(0),
+            createEmptyHooks()
         );
         vm.stopPrank();
     }
@@ -342,7 +509,17 @@ contract EscrowTest is Test {
         mockERC.approve(address(escrow), sendAmount);
         vm.expectRevert("ERC20: msg.value must be 0");
         escrow.createOrder{value: sendAmount}(
-            destinationAddress, address(mockERC), sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+            destinationAddress,
+            address(mockERC),
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            false,
+            address(0),
+            bytes32(0),
+            createEmptyHooks()
         );
         vm.stopPrank();
     }
@@ -351,7 +528,17 @@ contract EscrowTest is Test {
         vm.startPrank(user);
         mockERC.approve(address(escrow), sendAmount);
         escrow.createOrder(
-            destinationAddress, address(mockERC), sendAmount, dstToken, dstAmount, dstChainId, expiryWindow
+            destinationAddress,
+            address(mockERC),
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            false,
+            address(0), 
+            bytes32(0),
+            createEmptyHooks()
         );
         assertEq(mockERC.balanceOf(user), 10 ether - sendAmount); // user balance decreased
 
@@ -372,6 +559,210 @@ contract EscrowTest is Test {
 
         escrow.refundOrder(orderToRefund);
         assertEq(mockERC.balanceOf(user), 10 ether);
+        vm.stopPrank();
+    }
+
+    // New tests for swap functionality
+    function testCreateOrderWithSwapRequiresERC20() public {
+        vm.prank(user);
+        vm.expectRevert("Swaps require ERC20 tokens");
+        escrow.createOrder{value: sendAmount}(
+            destinationAddress,
+            srcTokenETH,
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            true,
+            address(mockERC2),
+            bytes32(0),
+            createEmptyHooks()
+        );
+    }
+
+    function testCreateOrderWithSwapRequiresMsgValueZero() public {
+        vm.prank(user);
+        mockERC.approve(address(escrow), sendAmount);
+
+        vm.expectRevert("Swaps require msg.value to be 0");
+        escrow.createOrder{value: 1 ether}(
+            destinationAddress,
+            address(mockERC),
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            true,
+            address(mockERC2),
+            bytes32(0),
+            createEmptyHooks()
+        );
+    }
+
+    function testCreateOrderWithSwapRequiresHooks() public {
+        vm.prank(user);
+        mockERC.approve(address(escrow), sendAmount);
+
+        vm.expectRevert("Swaps require at least one hook");
+        escrow.createOrder(
+            destinationAddress,
+            address(mockERC),
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            true,
+            address(mockERC2),
+            bytes32(0),
+            createEmptyHooks()
+        );
+    }
+
+    function testCreateOrderWithSwapSuccess() public {
+        // Create a hook that calls the mock swap target
+        HookExecutor.Hook[] memory hooks = new HookExecutor.Hook[](1);
+        hooks[0] = HookExecutor.Hook({
+            target: address(mockSwapTarget),
+            callData: abi.encodeWithSignature(
+                "swap(address,uint256,address,uint256)",
+                address(mockERC),
+                sendAmount,
+                address(mockERC2),
+                sendAmount * 2 // 2x output for testing
+            )
+        });
+
+        vm.prank(user);
+        mockERC.approve(address(escrow), sendAmount);
+
+        vm.prank(user);
+        escrow.createOrder(
+            destinationAddress,
+            address(mockERC),
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            true,
+            address(mockERC2),
+            bytes32(0),
+            hooks
+        );
+
+        // Check that the order was created with the swapped token
+        bytes32 expectedOrderHash = keccak256(
+            abi.encode(
+                firstOrderId,
+                address(escrow),
+                user,
+                destinationAddress,
+                block.timestamp + expiryWindow,
+                address(mockERC2), // finalSrcToken should be the output token
+                sendAmount * 2, // finalSrcAmount should be the output amount
+                dstToken,
+                dstAmount,
+                block.chainid,
+                dstChainId
+            )
+        );
+
+        assertEq(uint256(escrow.orderStatus(expectedOrderHash)), uint256(Escrow.OrderState.PENDING));
+
+        // Check that the user's original token balance decreased
+        assertEq(mockERC.balanceOf(user), 10 ether - sendAmount, "User balance should decrease by sendAmount");
+
+        // Check that the escrow now holds the swapped tokens
+        assertEq(mockERC2.balanceOf(address(escrow)), sendAmount * 2, "Escrow should hold the swapped tokens");
+    }
+
+    function testSwapCompletedEvent() public {
+        // Create a hook that calls the mock swap target
+        HookExecutor.Hook[] memory hooks = new HookExecutor.Hook[](1);
+        hooks[0] = HookExecutor.Hook({
+            target: address(mockSwapTarget),
+            callData: abi.encodeWithSignature(
+                "swap(address,uint256,address,uint256)", address(mockERC), sendAmount, address(mockERC2), sendAmount * 2
+            )
+        });
+
+        vm.prank(user);
+        mockERC.approve(address(escrow), sendAmount);
+
+        // Calculate expected swapId
+        bytes32 expectedSwapId =
+            keccak256(abi.encodePacked(firstOrderId, user, address(mockERC), sendAmount, block.timestamp));
+
+        vm.expectEmit(true, true, true, true);
+        emit Escrow.SwapCompleted(expectedSwapId, user, address(mockERC), sendAmount, address(mockERC2), sendAmount * 2);
+
+        vm.prank(user);
+        escrow.createOrder(
+            destinationAddress,
+            address(mockERC),
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            true,
+            address(mockERC2),
+            bytes32(0),
+            hooks
+        );
+    }
+
+    function testRefundOrderWithSwappedToken() public {
+        // Create a hook that calls the mock swap target
+        HookExecutor.Hook[] memory hooks = new HookExecutor.Hook[](1);
+        hooks[0] = HookExecutor.Hook({
+            target: address(mockSwapTarget),
+            callData: abi.encodeWithSignature(
+                "swap(address,uint256,address,uint256)", address(mockERC), sendAmount, address(mockERC2), sendAmount * 2
+            )
+        });
+
+        vm.startPrank(user);
+        mockERC.approve(address(escrow), sendAmount);
+
+        escrow.createOrder(
+            destinationAddress,
+            address(mockERC),
+            sendAmount,
+            dstToken,
+            dstAmount,
+            dstChainId,
+            expiryWindow,
+            true,
+            address(mockERC2),
+            bytes32(0),
+            hooks
+        );
+
+        uint256 expirationTimestamp = block.timestamp + expiryWindow;
+        vm.warp(block.timestamp + expiryWindow + 1 days); // order is now expired
+
+        // The refund should be in the swapped token (mockERC2) with the swapped amount
+        Escrow.Order memory orderToRefund = Escrow.Order({
+            id: firstOrderId,
+            usrSrcAddress: user,
+            usrDstAddress: destinationAddress,
+            expirationTimestamp: expirationTimestamp,
+            srcToken: address(mockERC2), // swapped token
+            srcAmount: sendAmount * 2, // swapped amount
+            dstToken: dstToken,
+            dstAmount: dstAmount,
+            dstChainId: dstChainId
+        });
+
+        uint256 userBalanceBefore = mockERC2.balanceOf(user);
+        escrow.refundOrder(orderToRefund);
+        assertEq(
+            mockERC2.balanceOf(user), userBalanceBefore + sendAmount * 2, "User should receive refund in swapped token"
+        );
         vm.stopPrank();
     }
 }
