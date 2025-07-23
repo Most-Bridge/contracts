@@ -71,4 +71,4 @@ main().catch((error) => {
 });
 
 // To run this script, use the following command:
-// npx hardhat run script/hardhat/deployEscrow.js --network ethSepolia
+// npx hardhat run script/hardhat/deployEscrow.js --network worldchain

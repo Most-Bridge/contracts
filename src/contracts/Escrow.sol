@@ -3,10 +3,10 @@ pragma solidity ^0.8.26;
 
 import {ModuleTask, ModuleCodecs} from "lib/herodotus-evm-v2/src/libraries/internal/data-processor/ModuleCodecs.sol";
 import {IDataProcessorModule} from "lib/herodotus-evm-v2/src/interfaces/modules/IDataProcessorModule.sol";
-import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
-import {SafeERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {MerkleHelper} from "src/libraries/MerkleHelper.sol";
 import {HookExecutor} from "./HookExecutor.sol";
 
@@ -17,6 +17,25 @@ import {HookExecutor} from "./HookExecutor.sol";
 /// @notice Handles the bridging and swapping of assets between a src chain and a dst chain, in conjunction with
 ///         Payment Registry and a facilitator service
 ///
+
+//                ..                  ...::---=========-....
+//               :@*.           .:*%@@@@@@@@@%*=-*@@%@@@@@@@@@@@%#-.
+//               =@=       .:+%@@#+=.#@*+++@%.   .#@+++%@+     +@@##@@+.      .@=
+//               +@=     .+@@%*@@=   .@@++++@@.  .%@+++%@=     -@@++@@@@*.    .@=
+//               =@+-@@@++++%@#.     .%@+++*@%. .%@*++%@-     -@#+#@+ :#@#.   .@+
+//               -@@@#.%@@+++*@@:    .-@@@@@@@@@@@@@@@@@-..   *@++@@-   .@@@#..@*
+//               :@@+    .+@@++*@@@@@@@*:::::::::-=++**%@@@@@#%@+.    .#@**@%: @#
+//               .@%.       .#@@@@+...                      .-@*@@@%:  %@*++@@@@%
+//                +@@:  #@:  :%@*                                  .*@@@*+%@*=@@@
+//                -@@@@%@:%@@.                                       -@@@*.   .@@.
+//                :@*.+@@@#:.                                         :%@**.+@@@:
+//                :@*   -@+                                             +@@@@:+@:
+//                :@+   .@%                                             .*@*. =@-
+//                :@+   .%@                                             .%@.  =@=
+//                -@+   .#@                                             .%@   =@=
+//                -@-   .%@                                             .%@.
+//                -@-   .%@                                             .%@.
+//
 contract Escrow is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
     using SafeERC20 for IERC20;
@@ -67,11 +86,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         RECLAIMED
     }
 
-    enum HDPProvingStatus {
-        NOT_PROVEN,
-        PROVEN
-    }
-
     /// Structs
     struct Order {
         uint256 id;
@@ -118,7 +132,6 @@ contract Escrow is ReentrancyGuard, Pausable {
                 hdpProgramHash: hdpConnectionInitial.hdpProgramHash
             });
         }
-
     }
 
     ///  Allow the contract to receive ETH from the self-destruct function
@@ -240,19 +253,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         orderId += 1;
     }
 
-    function onExecutorReturn(bytes32 swapId, address swappedToken, uint256 swappedAmount) external {
-        Swap storage swap = swaps[swapId];
-        require(swap.user != address(0), "Swap does not exist");
-        require(msg.sender == swap.executorAddress, "Caller is not the authorized executor");
-        require(swap.executorReturned == false, "Executor already returned");
-
-        swap.tokenOut = swappedToken;
-        swap.amountOut = swappedAmount;
-        swap.executorReturned = true;
-
-        emit SwapCompleted(swapId, swap.user, swap.tokenIn, swap.amountIn, swap.tokenOut, swap.amountOut);
-    }
-
     /// @notice Allows a MM to prove order fulfillment by submitting the orders details and necessary proving info
     ///
     /// @param ordersHashes      Array containing the data of the orders to be proven
@@ -276,12 +276,12 @@ contract Escrow is ReentrancyGuard, Pausable {
         taskInputs[2] = bytes32(_blockNumber);
         taskInputs[3] = bytes32(ordersHashes.length);
 
-
         for (uint256 i = 0; i < ordersHashes.length; i++) {
             require(orderStatus[ordersHashes[i]] == OrderState.PENDING, "Order not in PENDING state");
 
             // This split is because we need to be comaptibile with the HDP way of encoding u256
-            (uint128 currentOrderHashLowPart, uint128 currentOrderHashHighPart) = MerkleHelper.splitBytes32(ordersHashes[i]);
+            (uint128 currentOrderHashLowPart, uint128 currentOrderHashHighPart) =
+                MerkleHelper.splitBytes32(ordersHashes[i]);
 
             // offset because first 4 arguments are destination chain id, payment registry address, block number and order hashes array length
             taskInputs[i + 4] = bytes32(uint256(currentOrderHashLowPart));
@@ -308,8 +308,8 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 computedMerkleRoot = MerkleHelper.computeHDPTaskOutputMerkleRoot(expectedHdpTaskOutput);
 
         // Validate that the computed Merkle root matches the finalized HDP task result
-        // This ensures that the output form HDP module is authentic
-        // The merkle tree leaves are the data returned from HDP module - orders withdrawals amounts including the minimum expiration timestamp among orders
+        // This ensures that the output from the HDP module is authentic
+        // The merkle tree leaves are the data returned from HDP module - orders withdrawal amounts including the minimum expiration timestamp among orders
         // Then we check if the merkle root calculated here matches with the HDP task output
         //
         bytes32 hdpModuleOutputMerkleRoot = hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment);
@@ -364,11 +364,29 @@ contract Escrow is ReentrancyGuard, Pausable {
         emit OrderReclaimed(order.id);
     }
 
+    /// @notice Function called when the executor returns from the swap
+    ///
+    /// @param swapId        The id of the swap
+    /// @param swappedToken  The token that was swapped
+    /// @param swappedAmount The amount of the token that was swapped
+    function onExecutorReturn(bytes32 swapId, address swappedToken, uint256 swappedAmount) external {
+        Swap storage swap = swaps[swapId];
+        require(swap.user != address(0), "Swap does not exist");
+        require(msg.sender == swap.executorAddress, "Caller is not the authorized executor");
+        require(swap.executorReturned == false, "Executor already returned");
+
+        swap.tokenOut = swappedToken;
+        swap.amountOut = swappedAmount;
+        swap.executorReturned = true;
+
+        emit SwapCompleted(swapId, swap.user, swap.tokenIn, swap.amountIn, swap.tokenOut, swap.amountOut);
+    }
+
     /// @notice Creates a hash of the order details
     ///
     /// @param orderDetails The details of the order to be hashed
-    /// @return bytes32 The hash of the order details
-    function _createOrderHash(Order memory orderDetails) public view returns (bytes32) {
+    /// @return bytes32     The hash of the order details
+    function _createOrderHash(Order memory orderDetails) internal view returns (bytes32) {
         return keccak256(
             abi.encode(
                 orderDetails.id, // uint256
@@ -405,6 +423,10 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /// @notice Function called when adding a new destination chain, in Single Market Maker mode. onlyOwner modifier is used,
     ///         and the program hash cannot be modified or deleted once added
+    ///
+    /// @param _destinationChain       The destination chain id
+    /// @param _hdpProgramHash         The HDP program hash
+    /// @param _paymentRegistryAddress The payment registry address
     function addDestinationChain(bytes32 _destinationChain, bytes32 _hdpProgramHash, bytes32 _paymentRegistryAddress)
         external
         onlyOwner
