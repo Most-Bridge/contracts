@@ -35,6 +35,10 @@ module.exports = {
       url: process.env.WLD_MAINNET_RPC || "",
       accounts: [process.env.DEPLOY_PRIVATE_KEY],
     },
+    optimism: {
+      url: process.env.OPTIMISM_RPC || "",
+      accounts: [process.env.DEPLOY_PRIVATE_KEY],
+    },
   },
   etherscan: {
     apiKey: process.env.ETH_TEST_ETHERSCAN_API_KEY,
@@ -53,6 +57,14 @@ module.exports = {
         urls: {
           apiURL: "https://api.sepolia-optimism.etherscan.io",
           browserURL: "https://sepolia-optimism.etherscan.io",
+        },
+      },
+      {
+        network: "optimism",
+        chainId: 10,
+        urls: {
+          apiURL: "https://api.optimistic.etherscan.io/",
+          browserURL: "https://optimistic.etherscan.io/",
         },
       },
     ],
