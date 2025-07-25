@@ -53,7 +53,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     // Storage
     mapping(bytes32 => OrderState) public orderStatus;
     mapping(bytes32 => HDPConnection) public hdpConnections; // mapping chainId -> HdpConnection
-    mapping(bytes32 => Swap) public swaps; // mapping swapId -> Swap
+    mapping(bytes32 => PreBridgeSwap) public preBridgeSwaps; // mapping swapId -> PreBridgeSwap
 
     /// Events
     /// @param usrDstAddress Stored as a bytes32 to allow for foreign addresses to be stored
@@ -97,7 +97,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 dstChainId;
     }
 
-    struct Swap {
+    struct PreBridgeSwap {
         address user;
         address tokenIn;
         uint256 amountIn;
@@ -170,7 +170,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             require(hooks.length > 0, "Swaps require at least one hook");
 
             bytes32 swapId = keccak256(abi.encodePacked(orderId, msg.sender, _srcToken, _srcAmount, block.timestamp));
-            require(swaps[swapId].user == address(0), "Swap already exists for this ID"); //safety check
+            require(preBridgeSwaps[swapId].user == address(0), "Swap already exists for this ID"); //safety check
 
             // Deploy executor
             bytes memory bytecode = type(HookExecutor).creationCode;
@@ -180,7 +180,7 @@ contract Escrow is ReentrancyGuard, Pausable {
                 if iszero(extcodesize(executor)) { revert(0, 0) }
             }
 
-            swaps[swapId] = Swap({
+            preBridgeSwaps[swapId] = PreBridgeSwap({
                 user: msg.sender,
                 tokenIn: _srcToken,
                 amountIn: _srcAmount,
@@ -196,7 +196,7 @@ contract Escrow is ReentrancyGuard, Pausable {
             HookExecutor(executor).execute(swapId, hooks, _srcToken, _expectedOutToken, address(this));
 
             // verify that the executor was successful
-            Swap storage swap = swaps[swapId];
+            PreBridgeSwap storage swap = preBridgeSwaps[swapId];
             require(swap.executorReturned, "Executor failed to return");
             require(swap.tokenOut != address(0), "Executor did not swap token");
 
@@ -367,8 +367,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param swapId        The id of the swap
     /// @param swappedToken  The token that was swapped
     /// @param swappedAmount The amount of the token that was swapped
-    function onExecutorReturn(bytes32 swapId, address swappedToken, uint256 swappedAmount) external {
-        Swap storage swap = swaps[swapId];
+    function onPreBridgeSwapReturn(bytes32 swapId, address swappedToken, uint256 swappedAmount) external {
+        PreBridgeSwap storage swap = preBridgeSwaps[swapId];
         require(swap.user != address(0), "Swap does not exist");
         require(msg.sender == swap.executorAddress, "Caller is not the authorized executor");
         require(swap.executorReturned == false, "Executor already returned");
