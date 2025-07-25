@@ -67,7 +67,8 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 srcAmount,
         bytes32 dstToken,
         uint256 dstAmount,
-        bytes32 dstChainId
+        bytes32 dstChainId,
+        bool isSwap
     );
     event ProveBridgeAggregatedSuccess(bytes32[] orderHashes);
     event WithdrawSuccessBatch(uint256[] orderIds);
@@ -199,7 +200,8 @@ contract Escrow is ReentrancyGuard, Pausable {
             orderData.srcAmount,
             orderData.dstToken,
             orderData.dstAmount,
-            orderData.dstChainId
+            orderData.dstChainId,
+            false
         );
 
         orderId += 1;
@@ -299,7 +301,8 @@ contract Escrow is ReentrancyGuard, Pausable {
             orderData.srcAmount,
             orderData.dstToken,
             orderData.dstAmount,
-            orderData.dstChainId
+            orderData.dstChainId,
+            true
         );
 
         orderId += 1;
