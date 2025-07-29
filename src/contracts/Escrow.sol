@@ -53,7 +53,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     // Storage
     mapping(bytes32 => OrderState) public orderStatus;
     mapping(bytes32 => HDPConnection) public hdpConnections; // mapping chainId -> HdpConnection
-    mapping(bytes32 => Swap) public swaps; // mapping swapId -> Swap
+    mapping(bytes32 => PreBridgeSwap) public preBridgeSwaps; // mapping swapId -> PreBridgeSwap
 
     /// Events
     /// @param usrDstAddress Stored as a bytes32 to allow for foreign addresses to be stored
@@ -67,7 +67,8 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 srcAmount,
         bytes32 dstToken,
         uint256 dstAmount,
-        bytes32 dstChainId
+        bytes32 dstChainId,
+        bool isSwap
     );
     event ProveBridgeAggregatedSuccess(bytes32[] orderHashes);
     event WithdrawSuccessBatch(uint256[] orderIds);
@@ -97,7 +98,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 dstChainId;
     }
 
-    struct Swap {
+    struct PreBridgeSwap {
         address user;
         address tokenIn;
         uint256 amountIn;
@@ -136,7 +137,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     receive() external payable {}
 
     /// Functions
-    ///
     /// @notice Allows the user to create an order
     ///
     /// @param _usrDstAddress The destination address of the user
@@ -155,8 +155,78 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 _dstToken,
         uint256 _dstAmount,
         bytes32 _dstChainId,
+        uint256 _expiryWindow
+    ) external payable nonReentrant whenNotPaused {
+        bool isNativeToken = _srcToken == address(0);
+
+        if (isNativeToken) {
+            // Native ETH logic
+            require(msg.value > 0, "Funds being sent must be greater than 0");
+            require(msg.value == _srcAmount, "The amount sent must match the msg.value");
+        } else {
+            // ERC20 logic
+            require(msg.value == 0, "ERC20: msg.value must be 0");
+            require(_srcAmount > 0, "ERC20: _srcAmount must be greater than 0");
+
+            IERC20(_srcToken).safeTransferFrom(msg.sender, address(this), _srcAmount);
+        }
+
+        // The order expires within the expiry window. If not proven by then, the user can withdraw funds
+        uint256 _expirationTimestamp = block.timestamp + _expiryWindow;
+
+        // Store order data in a struct to avoid stack too deep issues
+        Order memory orderData = Order({
+            id: orderId,
+            usrSrcAddress: msg.sender,
+            usrDstAddress: _usrDstAddress,
+            expirationTimestamp: _expirationTimestamp,
+            srcToken: _srcToken,
+            srcAmount: _srcAmount,
+            dstToken: _dstToken,
+            dstAmount: _dstAmount,
+            dstChainId: _dstChainId
+        });
+
+        // Calculate and store order hash
+        bytes32 orderHash = _createOrderHash(orderData);
+        orderStatus[orderHash] = OrderState.PENDING;
+
+        emit OrderPlaced(
+            orderData.id,
+            orderData.usrSrcAddress,
+            orderData.usrDstAddress,
+            orderData.expirationTimestamp,
+            orderData.srcToken,
+            orderData.srcAmount,
+            orderData.dstToken,
+            orderData.dstAmount,
+            orderData.dstChainId,
+            false
+        );
+
+        orderId += 1;
+    }
+
+    ///
+    /// @notice Allows the user to create an order
+    ///
+    /// @param _usrDstAddress The destination address of the user
+    /// @param _srcToken      The source token address, address(0) for native eth
+    /// @param _srcAmount     The amount of the source token deposited by the user
+    /// @param _dstToken      The destination token address, bytes32 for foreign chain tokens
+    /// @param _dstAmount     The amount of the destination token to be received by the user
+    /// @param _dstChainId    Destination Chain Id as a hex
+    /// @param _expiryWindow  The time window in seconds after which the order expires
+    /// @notice srcToken and usrSrcAddress are native to this chain (EVM), so stored as `address`
+    /// @notice dstToken and usrDstAddress are for a foreign chain (e.g., Starknet), so stored as `bytes32`
+    function swapAndCreateOrder(
+        bytes32 _usrDstAddress,
+        address _srcToken,
+        uint256 _srcAmount,
+        bytes32 _dstToken,
+        uint256 _dstAmount,
+        bytes32 _dstChainId,
         uint256 _expiryWindow,
-        bool useSwap,
         address _expectedOutToken,
         bytes32 hookExecutorSalt,
         HookExecutor.Hook[] calldata hooks
@@ -164,58 +234,44 @@ contract Escrow is ReentrancyGuard, Pausable {
         uint256 finalSrcAmount = _srcAmount;
         address finalSrcToken = _srcToken;
 
-        if (useSwap) {
-            require(_srcToken != address(0), "Swaps require ERC20 tokens");
-            require(msg.value == 0, "Swaps require msg.value to be 0");
-            require(hooks.length > 0, "Swaps require at least one hook");
+        require(_srcToken != address(0), "Swaps require ERC20 tokens");
+        require(msg.value == 0, "Swaps require msg.value to be 0");
+        require(hooks.length > 0, "Swaps require at least one hook");
 
-            bytes32 swapId = keccak256(abi.encodePacked(orderId, msg.sender, _srcToken, _srcAmount, block.timestamp));
-            require(swaps[swapId].user == address(0), "Swap already exists for this ID"); //safety check
+        bytes32 swapId = keccak256(abi.encodePacked(orderId, msg.sender, _srcToken, _srcAmount, block.timestamp));
+        require(preBridgeSwaps[swapId].user == address(0), "Swap already exists for this ID"); //safety check
 
-            // Deploy executor
-            bytes memory bytecode = type(HookExecutor).creationCode;
-            address executor;
-            assembly {
-                executor := create2(0, add(bytecode, 32), mload(bytecode), hookExecutorSalt)
-                if iszero(extcodesize(executor)) { revert(0, 0) }
-            }
-
-            swaps[swapId] = Swap({
-                user: msg.sender,
-                tokenIn: _srcToken,
-                amountIn: _srcAmount,
-                tokenOut: address(0),
-                amountOut: 0,
-                executorReturned: false,
-                executorAddress: address(executor)
-            });
-
-            IERC20(_srcToken).safeTransferFrom(msg.sender, address(this), _srcAmount);
-            IERC20(_srcToken).safeTransfer(address(executor), _srcAmount);
-
-            HookExecutor(executor).execute(swapId, hooks, _srcToken, _expectedOutToken, address(this));
-
-            // verify that the executor was successful
-            Swap storage swap = swaps[swapId];
-            require(swap.executorReturned, "Executor failed to return");
-            require(swap.tokenOut != address(0), "Executor did not swap token");
-
-            finalSrcToken = swap.tokenOut;
-            finalSrcAmount = swap.amountOut;
-        } else {
-            bool isNativeToken = _srcToken == address(0);
-            if (isNativeToken) {
-                // Native ETH logic
-                require(msg.value > 0, "Funds being sent must be greater than 0");
-                require(msg.value == _srcAmount, "The amount sent must match the msg.value");
-            } else {
-                // ERC20 logic
-                require(msg.value == 0, "ERC20: msg.value must be 0");
-                require(_srcAmount > 0, "ERC20: _srcAmount must be greater than 0");
-
-                IERC20(_srcToken).safeTransferFrom(msg.sender, address(this), _srcAmount);
-            }
+        // Deploy executor
+        bytes memory bytecode = type(HookExecutor).creationCode;
+        address executor;
+        assembly {
+            executor := create2(0, add(bytecode, 32), mload(bytecode), hookExecutorSalt)
+            if iszero(extcodesize(executor)) { revert(0, 0) }
         }
+
+        preBridgeSwaps[swapId] = PreBridgeSwap({
+            user: msg.sender,
+            tokenIn: _srcToken,
+            amountIn: _srcAmount,
+            tokenOut: address(0),
+            amountOut: 0,
+            executorReturned: false,
+            executorAddress: address(executor)
+        });
+
+        IERC20(_srcToken).safeTransferFrom(msg.sender, address(this), _srcAmount);
+        IERC20(_srcToken).safeTransfer(address(executor), _srcAmount);
+
+        HookExecutor(executor).execute(swapId, hooks, _srcToken, _expectedOutToken, address(this));
+
+        // verify that the executor was successful
+        PreBridgeSwap storage swap = preBridgeSwaps[swapId];
+        require(swap.executorReturned, "Executor failed to return");
+        require(swap.tokenOut != address(0), "Executor did not swap token");
+
+        finalSrcToken = swap.tokenOut;
+        finalSrcAmount = swap.amountOut;
+
         // The order expires within the expiry window. If not proven by then, the user can withdraw funds
         uint256 _expirationTimestamp = block.timestamp + _expiryWindow;
 
@@ -245,7 +301,8 @@ contract Escrow is ReentrancyGuard, Pausable {
             orderData.srcAmount,
             orderData.dstToken,
             orderData.dstAmount,
-            orderData.dstChainId
+            orderData.dstChainId,
+            true
         );
 
         orderId += 1;
@@ -367,8 +424,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param swapId        The id of the swap
     /// @param swappedToken  The token that was swapped
     /// @param swappedAmount The amount of the token that was swapped
-    function onExecutorReturn(bytes32 swapId, address swappedToken, uint256 swappedAmount) external {
-        Swap storage swap = swaps[swapId];
+    function onPreBridgeSwapReturn(bytes32 swapId, address swappedToken, uint256 swappedAmount) external {
+        PreBridgeSwap storage swap = preBridgeSwaps[swapId];
         require(swap.user != address(0), "Swap does not exist");
         require(msg.sender == swap.executorAddress, "Caller is not the authorized executor");
         require(swap.executorReturned == false, "Executor already returned");

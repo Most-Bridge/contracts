@@ -5,7 +5,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IEscrow {
-    function onExecutorReturn(bytes32 swapId, address swappedToken, uint256 swappedAmount) external;
+    function onPreBridgeSwapReturn(bytes32 swapId, address swappedToken, uint256 swappedAmount) external;
 }
 
 /// @title HookExecutor
@@ -61,7 +61,7 @@ contract HookExecutor {
         IERC20(tokenOut).safeTransfer(escrow, balanceOut);
 
         // notify escrow
-        IEscrow(escrow).onExecutorReturn(swapId, tokenOut, balanceOut);
+        IEscrow(escrow).onPreBridgeSwapReturn(swapId, tokenOut, balanceOut);
 
         // Safety check that all the remaining tokens in the contract are sent to the escrow
         uint256 remainingBalanceIn = IERC20(tokenIn).balanceOf(address(this));

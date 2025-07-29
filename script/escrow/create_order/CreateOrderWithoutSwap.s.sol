@@ -25,25 +25,9 @@ contract CreateOrderWithoutSwap is Script {
         bytes32 dstChainId = bytes32(uint256(0x534e5f5345504f4c4941)); // "SN_SEPOLIA"
         uint256 expiryWindow = 86400; // 1 day
 
-        bool useSwap = false;
-        address expectedOutToken = 0x0000000000000000000000000000000000000000; // If no swap - empty
-        bytes32 hookExecutorSalt = bytes32(uint256(0x0)); // If not swap - empty - not needed
-
-        HookExecutor.Hook[] memory hooks = new HookExecutor.Hook[](0);
-
-        // === Call the function ===
+        // === Call the createOrder function ===
         escrow.createOrder{value: srcAmount}(
-            usrDstAddress,
-            srcToken,
-            srcAmount,
-            dstToken,
-            dstAmount,
-            dstChainId,
-            expiryWindow,
-            useSwap,
-            expectedOutToken,
-            hookExecutorSalt,
-            hooks
+            usrDstAddress, srcToken, srcAmount, dstToken, dstAmount, dstChainId, expiryWindow
         );
 
         vm.stopBroadcast();
