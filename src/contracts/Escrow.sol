@@ -51,7 +51,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     IDataProcessorModule hdpExecutionStore = IDataProcessorModule(HDP_EXECUTION_STORE_ADDRESS);
 
     // Storage
-    mapping(bytes32 => OrderState) public orderStatus;
+    mapping(bytes32 => OrderState) public orderStatus; // mapping orderHash -> OrderState
     mapping(bytes32 => HDPConnection) public hdpConnections; // mapping chainId -> HdpConnection
     mapping(bytes32 => PreBridgeSwap) public preBridgeSwaps; // mapping swapId -> PreBridgeSwap
 
