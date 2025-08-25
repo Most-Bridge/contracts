@@ -1,3 +1,4 @@
 @openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
 forge-std/=lib/forge-std/src/
-herodotus-evm-v2/=lib/herodotus-evm-v2/src/
+satellite/=lib/satellite/
+@HerodotusDev/satellite/=lib/satellite/
