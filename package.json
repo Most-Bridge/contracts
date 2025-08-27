@@ -1,6 +1,7 @@
 {
   "type": "commonjs",
   "devDependencies": {
+    "@nomicfoundation/hardhat-foundry": "^1.2.0",
     "@nomicfoundation/hardhat-toolbox": "^6.0.0",
     "chai": "^4.3.10",
     "dotenv": "^17.2.0",

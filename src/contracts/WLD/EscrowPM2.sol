@@ -8,9 +8,10 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {MerkleHelper} from "src/libraries/MerkleHelper.sol";
-import {HookExecutor} from "./HookExecutor.sol";
+import {HookExecutor} from "../HookExecutor.sol";
+import {ISignatureTransfer} from "permit2/src/interfaces/ISignatureTransfer.sol";
 
-/// @title Escrow
+/// @title EscrowPM2
 ///
 /// @author Most Bridge (https://github.com/Most-Bridge)
 ///
@@ -36,13 +37,16 @@ import {HookExecutor} from "./HookExecutor.sol";
 //                -@-   .%@                                             .%@.
 //                -@-   .%@                                             .%@.
 //
-contract Escrow is ReentrancyGuard, Pausable {
+contract EscrowPM2 is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
     using SafeERC20 for IERC20;
 
     // State variables
     address public owner;
     uint256 private orderId = 1;
+
+    // Permit2 constant (canonical address)
+    address public constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     // HDP
     address public HDP_EXECUTION_STORE_ADDRESS = 0x396bF739f7b37D81f6CdD4571fDEF298150db88f;
@@ -136,7 +140,51 @@ contract Escrow is ReentrancyGuard, Pausable {
     ///  Allow the contract to receive ETH from the self-destruct function
     receive() external payable {}
 
-    /// Functions
+    // Function used by all the different variations for creating an order
+    function _recordOrder(
+        address usrSrcAddress,
+        bytes32 usrDstAddress,
+        address finalSrcToken,
+        uint256 finalSrcAmount,
+        bytes32 dstToken,
+        uint256 dstAmount,
+        bytes32 dstChainId,
+        uint256 expiryWindow,
+        bool isSwap
+    ) internal {
+        uint256 _expirationTimestamp = block.timestamp + expiryWindow;
+
+        Order memory orderData = Order({
+            id: orderId,
+            usrSrcAddress: usrSrcAddress,
+            usrDstAddress: usrDstAddress,
+            expirationTimestamp: _expirationTimestamp,
+            srcToken: finalSrcToken,
+            srcAmount: finalSrcAmount,
+            dstToken: dstToken,
+            dstAmount: dstAmount,
+            dstChainId: dstChainId
+        });
+
+        bytes32 orderHash = _createOrderHash(orderData);
+        orderStatus[orderHash] = OrderState.PENDING;
+
+        emit OrderPlaced(
+            orderData.id,
+            orderData.usrSrcAddress,
+            orderData.usrDstAddress,
+            orderData.expirationTimestamp,
+            orderData.srcToken,
+            orderData.srcAmount,
+            orderData.dstToken,
+            orderData.dstAmount,
+            orderData.dstChainId,
+            isSwap
+        );
+
+        orderId += 1;
+    }
+
     /// @notice Allows the user to create an order
     ///
     /// @param _usrDstAddress The destination address of the user
@@ -146,8 +194,6 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param _dstAmount     The amount of the destination token to be received by the user
     /// @param _dstChainId    Destination Chain Id as a hex
     /// @param _expiryWindow  The time window in seconds after which the order expires
-    /// @notice srcToken and usrSrcAddress are native to this chain (EVM), so stored as `address`
-    /// @notice dstToken and usrDstAddress are for a foreign chain (e.g., Starknet), so stored as `bytes32`
     function createOrder(
         bytes32 _usrDstAddress,
         address _srcToken,
@@ -167,58 +213,27 @@ contract Escrow is ReentrancyGuard, Pausable {
             // ERC20 logic
             require(msg.value == 0, "ERC20: msg.value must be 0");
             require(_srcAmount > 0, "ERC20: _srcAmount must be greater than 0");
-
             IERC20(_srcToken).safeTransferFrom(msg.sender, address(this), _srcAmount);
         }
 
-        // The order expires within the expiry window. If not proven by then, the user can withdraw funds
-        uint256 _expirationTimestamp = block.timestamp + _expiryWindow;
-
-        // Store order data in a struct to avoid stack too deep issues
-        Order memory orderData = Order({
-            id: orderId,
-            usrSrcAddress: msg.sender,
-            usrDstAddress: _usrDstAddress,
-            expirationTimestamp: _expirationTimestamp,
-            srcToken: _srcToken,
-            srcAmount: _srcAmount,
-            dstToken: _dstToken,
-            dstAmount: _dstAmount,
-            dstChainId: _dstChainId
-        });
-
-        // Calculate and store order hash
-        bytes32 orderHash = _createOrderHash(orderData);
-        orderStatus[orderHash] = OrderState.PENDING;
-
-        emit OrderPlaced(
-            orderData.id,
-            orderData.usrSrcAddress,
-            orderData.usrDstAddress,
-            orderData.expirationTimestamp,
-            orderData.srcToken,
-            orderData.srcAmount,
-            orderData.dstToken,
-            orderData.dstAmount,
-            orderData.dstChainId,
-            false
+        _recordOrder(
+            msg.sender, _usrDstAddress, _srcToken, _srcAmount, _dstToken, _dstAmount, _dstChainId, _expiryWindow, false
         );
-
-        orderId += 1;
     }
 
     ///
-    /// @notice Allows the user to create an order
+    /// @notice Allows the user to create an order after swap
     ///
     /// @param _usrDstAddress The destination address of the user
-    /// @param _srcToken      The source token address, address(0) for native eth
+    /// @param _srcToken      The source token address (ERC20)
     /// @param _srcAmount     The amount of the source token deposited by the user
     /// @param _dstToken      The destination token address, bytes32 for foreign chain tokens
     /// @param _dstAmount     The amount of the destination token to be received by the user
     /// @param _dstChainId    Destination Chain Id as a hex
     /// @param _expiryWindow  The time window in seconds after which the order expires
-    /// @notice srcToken and usrSrcAddress are native to this chain (EVM), so stored as `address`
-    /// @notice dstToken and usrDstAddress are for a foreign chain (e.g., Starknet), so stored as `bytes32`
+    /// @param _expectedOutToken Expected output token for swap
+    /// @param hookExecutorSalt CREATE2 salt for executor
+    /// @param hooks Array of hooks to execute
     function swapAndCreateOrder(
         bytes32 _usrDstAddress,
         address _srcToken,
@@ -238,7 +253,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         require(hooks.length > 0, "Swaps require at least one hook");
 
         bytes32 swapId = keccak256(abi.encodePacked(orderId, msg.sender, _srcToken, _srcAmount, block.timestamp));
-        require(preBridgeSwaps[swapId].user == address(0), "Swap already exists for this ID"); //safety check
+        require(preBridgeSwaps[swapId].user == address(0), "Swap already exists for this ID"); // safety check
 
         // Deploy executor
         bytes memory bytecode = type(HookExecutor).creationCode;
@@ -271,40 +286,126 @@ contract Escrow is ReentrancyGuard, Pausable {
         finalSrcToken = swap.tokenOut;
         finalSrcAmount = swap.amountOut;
 
-        // The order expires within the expiry window. If not proven by then, the user can withdraw funds
-        uint256 _expirationTimestamp = block.timestamp + _expiryWindow;
-
-        // Store order data in a struct to avoid stack too deep issues
-        Order memory orderData = Order({
-            id: orderId,
-            usrSrcAddress: msg.sender,
-            usrDstAddress: _usrDstAddress,
-            expirationTimestamp: _expirationTimestamp,
-            srcToken: finalSrcToken,
-            srcAmount: finalSrcAmount,
-            dstToken: _dstToken,
-            dstAmount: _dstAmount,
-            dstChainId: _dstChainId
-        });
-
-        // Calculate and store order hash
-        bytes32 orderHash = _createOrderHash(orderData);
-        orderStatus[orderHash] = OrderState.PENDING;
-
-        emit OrderPlaced(
-            orderData.id,
-            orderData.usrSrcAddress,
-            orderData.usrDstAddress,
-            orderData.expirationTimestamp,
-            orderData.srcToken,
-            orderData.srcAmount,
-            orderData.dstToken,
-            orderData.dstAmount,
-            orderData.dstChainId,
+        _recordOrder(
+            msg.sender,
+            _usrDstAddress,
+            finalSrcToken,
+            finalSrcAmount,
+            _dstToken,
+            _dstAmount,
+            _dstChainId,
+            _expiryWindow,
             true
         );
+    }
 
-        orderId += 1;
+    /// Permit2 Variants of create order functions
+
+    /// @notice ERC20 deposit via Permit2, no swap, then record order
+    function createOrderWithPermit2(
+        bytes32 _usrDstAddress,
+        address _srcToken,
+        uint256 _srcAmount,
+        bytes32 _dstToken,
+        uint256 _dstAmount,
+        bytes32 _dstChainId,
+        uint256 _expiryWindow,
+        ISignatureTransfer.PermitTransferFrom memory permit,
+        bytes calldata signature
+    ) external nonReentrant whenNotPaused {
+        require(_srcToken != address(0), "ERC20 required");
+        require(permit.permitted.token == _srcToken, "Permit token mismatch");
+        require(uint256(permit.permitted.amount) >= _srcAmount, "Permit amount too low");
+
+        // Pull tokens to this contract
+        ISignatureTransfer(PERMIT2).permitTransferFrom(
+            permit,
+            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _srcAmount}),
+            msg.sender,
+            signature
+        );
+
+        _recordOrder(
+            msg.sender, _usrDstAddress, _srcToken, _srcAmount, _dstToken, _dstAmount, _dstChainId, _expiryWindow, false
+        );
+    }
+
+    /// @notice ERC20 via Permit2, run hooks, then record order
+    function swapAndCreateOrderWithPermit2(
+        bytes32 _usrDstAddress,
+        address _srcToken,
+        uint256 _srcAmount,
+        bytes32 _dstToken,
+        uint256 _dstAmount,
+        bytes32 _dstChainId,
+        uint256 _expiryWindow,
+        address _expectedOutToken,
+        bytes32 hookExecutorSalt,
+        HookExecutor.Hook[] calldata hooks,
+        ISignatureTransfer.PermitTransferFrom memory permit,
+        bytes calldata signature
+    ) external nonReentrant whenNotPaused {
+        require(_srcToken != address(0), "Swaps require ERC20 tokens");
+        require(hooks.length > 0, "Swaps require at least one hook");
+        require(permit.permitted.token == _srcToken, "Permit token mismatch");
+        require(uint256(permit.permitted.amount) >= _srcAmount, "Permit amount too low");
+
+        uint256 finalSrcAmount = _srcAmount;
+        address finalSrcToken = _srcToken;
+
+        bytes32 swapId = keccak256(abi.encodePacked(orderId, msg.sender, _srcToken, _srcAmount, block.timestamp));
+        require(preBridgeSwaps[swapId].user == address(0), "Swap already exists for this ID"); // safety check
+
+        // Deploy executor
+        bytes memory bytecode = type(HookExecutor).creationCode;
+        address executor;
+        assembly {
+            executor := create2(0, add(bytecode, 32), mload(bytecode), hookExecutorSalt)
+            if iszero(extcodesize(executor)) { revert(0, 0) }
+        }
+
+        preBridgeSwaps[swapId] = PreBridgeSwap({
+            user: msg.sender,
+            tokenIn: _srcToken,
+            amountIn: _srcAmount,
+            tokenOut: address(0),
+            amountOut: 0,
+            executorReturned: false,
+            executorAddress: address(executor)
+        });
+
+        // Pull user tokens to this contract
+        ISignatureTransfer(PERMIT2).permitTransferFrom(
+            permit,
+            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _srcAmount}),
+            msg.sender,
+            signature
+        );
+
+        // Handoff tokens to the Executor contract
+        IERC20(_srcToken).safeTransfer(address(executor), _srcAmount);
+
+        HookExecutor(executor).execute(swapId, hooks, _srcToken, _expectedOutToken, address(this));
+
+        // verify that the executor was successful
+        PreBridgeSwap storage swap = preBridgeSwaps[swapId];
+        require(swap.executorReturned, "Executor failed to return");
+        require(swap.tokenOut != address(0), "Executor did not swap token");
+
+        finalSrcToken = swap.tokenOut;
+        finalSrcAmount = swap.amountOut;
+
+        _recordOrder(
+            msg.sender,
+            _usrDstAddress,
+            finalSrcToken,
+            finalSrcAmount,
+            _dstToken,
+            _dstAmount,
+            _dstChainId,
+            _expiryWindow,
+            true
+        );
     }
 
     /// @notice Allows a MM to prove order fulfillment by submitting the orders details and necessary proving info
@@ -362,10 +463,6 @@ contract Escrow is ReentrancyGuard, Pausable {
         bytes32 computedMerkleRoot = MerkleHelper.computeHDPTaskOutputMerkleRoot(expectedHdpTaskOutput);
 
         // Validate that the computed Merkle root matches the finalized HDP task result
-        // This ensures that the output from the HDP module is authentic
-        // The merkle tree leaves are the data returned from HDP module - orders withdrawal amounts including the minimum expiration timestamp among orders
-        // Then we check if the merkle root calculated here matches with the HDP task output
-        //
         bytes32 hdpModuleOutputMerkleRoot = hdpExecutionStore.getDataProcessorFinalizedTaskResult(taskCommitment);
         require(hdpModuleOutputMerkleRoot == computedMerkleRoot, "Unable to prove: merkle root mismatch");
 
