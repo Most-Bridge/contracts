@@ -230,12 +230,11 @@ contract Escrow is ReentrancyGuard, Pausable {
         address _expectedOutToken,
         bytes32 hookExecutorSalt,
         HookExecutor.Hook[] calldata hooks
-    ) external payable nonReentrant whenNotPaused {
+    ) external nonReentrant whenNotPaused {
         uint256 finalSrcAmount = _srcAmount;
         address finalSrcToken = _srcToken;
 
         require(_srcToken != address(0), "Swaps require ERC20 tokens");
-        require(msg.value == 0, "Swaps require msg.value to be 0");
         require(hooks.length > 0, "Swaps require at least one hook");
 
         bytes32 swapId = keccak256(abi.encodePacked(orderId, msg.sender, _srcToken, _srcAmount, block.timestamp));
