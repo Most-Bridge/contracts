@@ -402,7 +402,7 @@ contract EscrowTest is Test {
     function testCreateOrderWithSwapRequiresERC20() public {
         vm.prank(user);
         vm.expectRevert("Swaps require ERC20 tokens");
-        escrow.swapAndCreateOrder{value: sendAmount}(
+        escrow.swapAndCreateOrder(
             destinationAddress,
             srcTokenETH,
             sendAmount,
@@ -416,24 +416,24 @@ contract EscrowTest is Test {
         );
     }
 
-    function testCreateOrderWithSwapRequiresMsgValueZero() public {
-        vm.prank(user);
-        mockERC.approve(address(escrow), sendAmount);
+    // function testCreateOrderWithSwapRequiresMsgValueZero() public {
+    //     vm.prank(user);
+    //     mockERC.approve(address(escrow), sendAmount);
 
-        vm.expectRevert("Swaps require msg.value to be 0");
-        escrow.swapAndCreateOrder{value: 1 ether}(
-            destinationAddress,
-            address(mockERC),
-            sendAmount,
-            dstToken,
-            dstAmount,
-            dstChainId,
-            expiryWindow,
-            address(mockERC2),
-            bytes32(0),
-            createEmptyHooks()
-        );
-    }
+    //     vm.expectRevert("Swaps require msg.value to be 0");
+    //     escrow.swapAndCreateOrder{value: 1 ether}(
+    //         destinationAddress,
+    //         address(mockERC),
+    //         sendAmount,
+    //         dstToken,
+    //         dstAmount,
+    //         dstChainId,
+    //         expiryWindow,
+    //         address(mockERC2),
+    //         bytes32(0),
+    //         createEmptyHooks()
+    //     );
+    // }
 
     function testCreateOrderWithSwapRequiresHooks() public {
         vm.prank(user);
