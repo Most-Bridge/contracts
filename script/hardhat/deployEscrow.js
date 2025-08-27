@@ -37,17 +37,20 @@ async function main() {
   ];
 
   console.log("Deploying Escrow contract...");
-  const Escrow = await hre.ethers.getContractFactory("Escrow");
-  const escrow = await Escrow.deploy(initialHDPChainConnections);
+  // const Escrow = await hre.ethers.getContractFactory("Escrow");
+  // const escrow = await Escrow.deploy(initialHDPChainConnections);
 
-  await escrow.waitForDeployment();
+  const EscrowPM2 = await hre.ethers.getContractFactory("EscrowPM2");
+  const escrowPm2 = await EscrowPM2.deploy(initialHDPChainConnections);
 
-  const contractAddress = await escrow.getAddress();
-  console.log(`✅ Escrow contract deployed to: ${contractAddress}`);
+  await escrowPm2.waitForDeployment();
+
+  const contractAddress = await escrowPm2.getAddress();
+  console.log(`✅ EscrowPM2 contract deployed to: ${contractAddress}`);
   console.log("Waiting for block confirmations before verification...");
 
   // Wait for 5 block confirmations
-  await escrow.deploymentTransaction().wait(5);
+  await escrowPm2.deploymentTransaction().wait(5);
 
   console.log("Verifying contract on Etherscan...");
   try {
