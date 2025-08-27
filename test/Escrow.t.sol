@@ -416,25 +416,6 @@ contract EscrowTest is Test {
         );
     }
 
-    // function testCreateOrderWithSwapRequiresMsgValueZero() public {
-    //     vm.prank(user);
-    //     mockERC.approve(address(escrow), sendAmount);
-
-    //     vm.expectRevert("Swaps require msg.value to be 0");
-    //     escrow.swapAndCreateOrder{value: 1 ether}(
-    //         destinationAddress,
-    //         address(mockERC),
-    //         sendAmount,
-    //         dstToken,
-    //         dstAmount,
-    //         dstChainId,
-    //         expiryWindow,
-    //         address(mockERC2),
-    //         bytes32(0),
-    //         createEmptyHooks()
-    //     );
-    // }
-
     function testCreateOrderWithSwapRequiresHooks() public {
         vm.prank(user);
         mockERC.approve(address(escrow), sendAmount);
