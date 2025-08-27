@@ -20,5 +20,6 @@ libs = ["lib"]
 remappings = [
     '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/',
     'forge-std/=lib/forge-std/src/',
-    '@HerodotusDev/satellite/=lib/satellite/'
+    '@HerodotusDev/satellite/=lib/satellite/', 
+    'permit2/=lib/permit2/'
 ]
