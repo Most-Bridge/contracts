@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import {Script} from "forge-std/Script.sol";
-import {EscrowPM2, ISignatureTransferLegacy} from "src/contracts/WLD/EscrowPM2.sol";
+import {EscrowPM2, ISignatureTransferP2} from "src/contracts/WLD/EscrowPM2.sol";
 import {console2} from "forge-std/console2.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -16,21 +16,21 @@ contract CreateOrderPermit2 is Script {
     address constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     // EIP-712 typehashes for legacy SignatureTransfer
-    bytes32 private constant TOKEN_PERMISSIONS_TYPEHASH = keccak256("TokenPermissions(address token,uint160 amount)");
-    bytes32 private constant PERMIT_TRANSFER_FROM_TYPEHASH = keccak256(
+    bytes32 constant TOKEN_PERMISSIONS_TYPEHASH = keccak256("TokenPermissions(address token,uint256 amount)");
+    bytes32 constant PERMIT_TRANSFER_FROM_TYPEHASH = keccak256(
         "PermitTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline)"
-        "TokenPermissions(address token,uint160 amount)"
+        "TokenPermissions(address token,uint256 amount)"
     );
 
     function _domainSeparator() private view returns (bytes32) {
         return IPermit2(PERMIT2).DOMAIN_SEPARATOR();
     }
 
-    function _hashTokenPermissions(address token, uint160 amount) private pure returns (bytes32) {
+    function _hashTokenPermissions(address token, uint256 amount) private pure returns (bytes32) {
         return keccak256(abi.encode(TOKEN_PERMISSIONS_TYPEHASH, token, amount));
     }
 
-    function _hashPermitTransferFrom(ISignatureTransferLegacy.PermitTransferFrom memory permit, address spender)
+    function _hashPermitTransferFrom(ISignatureTransferP2.PermitTransferFrom memory permit, address spender)
         private
         pure
         returns (bytes32)
@@ -46,7 +46,7 @@ contract CreateOrderPermit2 is Script {
         );
     }
 
-    function _buildDigest(ISignatureTransferLegacy.PermitTransferFrom memory permit, address spender)
+    function _buildDigest(ISignatureTransferP2.PermitTransferFrom memory permit, address spender)
         private
         view
         returns (bytes32)
@@ -69,7 +69,7 @@ contract CreateOrderPermit2 is Script {
         uint256 pk = _loadPk("DEPLOY_PRIVATE_KEY");
         vm.startBroadcast(pk);
 
-        address payable escrowAddress = payable(0x40b4e42e300f141DF8b1163A3bdC22AEbeCCdCF9);
+        address payable escrowAddress = payable(0x52702Ce4198e2278DC7c215362F22713A7a5fFc3);
         EscrowPM2 escrow = EscrowPM2(escrowAddress);
         address owner = vm.addr(pk);
 
@@ -85,7 +85,6 @@ contract CreateOrderPermit2 is Script {
         // Preflight
         require(IERC20(srcToken).balanceOf(owner) >= srcAmount, "Insufficient balance");
         require(IERC20(srcToken).allowance(owner, PERMIT2) >= srcAmount, "Approve Permit2 first");
-        require(srcAmount <= type(uint160).max, "srcAmount > uint160"); // match legacy ABI
 
         console2.log("DOMAIN_SEPARATOR");
         console2.logBytes32(_domainSeparator());
@@ -97,9 +96,9 @@ contract CreateOrderPermit2 is Script {
         require((bm & (1 << bit)) == 0, "Nonce bit already used");
 
         // Build legacy permit (amount as uint160)
-        ISignatureTransferLegacy.PermitTransferFrom memory permit;
+        ISignatureTransferP2.PermitTransferFrom memory permit;
         permit.permitted.token = srcToken;
-        permit.permitted.amount = uint160(srcAmount);
+        permit.permitted.amount = srcAmount;
         permit.nonce = (word << 8) | bit;
         permit.deadline = block.timestamp + 1 hours;
 
@@ -126,3 +125,8 @@ contract CreateOrderPermit2 is Script {
         vm.stopBroadcast();
     }
 }
+
+// forge script script/escrow/create_order/CreateOrderPermit2.s.sol:CreateOrderPermit2 \
+//   --rpc-url $WLD_MAINNET_RPC \
+//   --broadcast \
+//   --private-key $DEPLOY_PRIVATE_KEY

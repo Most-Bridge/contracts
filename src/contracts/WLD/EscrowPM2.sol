@@ -36,12 +36,10 @@ import {HookExecutor} from "../HookExecutor.sol";
 //                -@-   .%@                                             .%@.
 //                -@-   .%@                                             .%@.
 //
-
-/// Legacy Permit2 Interface
-interface ISignatureTransferLegacy {
+interface ISignatureTransferP2 {
     struct TokenPermissions {
         address token;
-        uint160 amount;
+        uint256 amount;
     }
 
     struct PermitTransferFrom {
@@ -336,18 +334,17 @@ contract EscrowPM2 is ReentrancyGuard, Pausable {
         uint256 _dstAmount,
         bytes32 _dstChainId,
         uint256 _expiryWindow,
-        ISignatureTransferLegacy.PermitTransferFrom memory permit,
+        ISignatureTransferP2.PermitTransferFrom memory permit,
         bytes calldata signature
     ) external nonReentrant whenNotPaused {
         require(_srcToken != address(0), "ERC20 required");
         require(permit.permitted.token == _srcToken, "Permit token mismatch");
         require(uint256(permit.permitted.amount) >= _srcAmount, "Permit amount too low");
-        require(_srcAmount <= type(uint160).max, "srcAmount > uint160");
 
         // Pull tokens to this contract
-        ISignatureTransferLegacy(PERMIT2).permitTransferFrom(
+        ISignatureTransferP2(PERMIT2).permitTransferFrom(
             permit,
-            ISignatureTransferLegacy.SignatureTransferDetails({to: address(this), requestedAmount: _srcAmount}),
+            ISignatureTransferP2.SignatureTransferDetails({to: address(this), requestedAmount: _srcAmount}),
             msg.sender,
             signature
         );
@@ -369,14 +366,13 @@ contract EscrowPM2 is ReentrancyGuard, Pausable {
         address _expectedOutToken,
         bytes32 hookExecutorSalt,
         HookExecutor.Hook[] calldata hooks,
-        ISignatureTransferLegacy.PermitTransferFrom memory permit,
+        ISignatureTransferP2.PermitTransferFrom memory permit,
         bytes calldata signature
     ) external nonReentrant whenNotPaused {
         require(_srcToken != address(0), "Swaps require ERC20 tokens");
         require(hooks.length > 0, "Swaps require at least one hook");
         require(permit.permitted.token == _srcToken, "Permit token mismatch");
         require(uint256(permit.permitted.amount) >= _srcAmount, "Permit amount too low");
-        require(_srcAmount <= type(uint160).max, "srcAmount > uint160");
 
         uint256 finalSrcAmount = _srcAmount;
         address finalSrcToken = _srcToken;
@@ -403,9 +399,9 @@ contract EscrowPM2 is ReentrancyGuard, Pausable {
         });
 
         // Pull user tokens to this contract
-        ISignatureTransferLegacy(PERMIT2).permitTransferFrom(
+        ISignatureTransferP2(PERMIT2).permitTransferFrom(
             permit,
-            ISignatureTransferLegacy.SignatureTransferDetails({to: address(this), requestedAmount: _srcAmount}),
+            ISignatureTransferP2.SignatureTransferDetails({to: address(this), requestedAmount: _srcAmount}),
             msg.sender,
             signature
         );
