@@ -495,6 +495,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     // This is only temporary
     function setHDPAddress(address _newHDPExecutionStore) external onlyOwner {
         HDP_EXECUTION_STORE_ADDRESS = _newHDPExecutionStore;
+        hdpExecutionStore = IDataProcessorModule(_newHDPExecutionStore);
     }
 
     // Public functions
