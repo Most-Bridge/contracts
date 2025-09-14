@@ -1,0 +1,17 @@
+{
+  "lib/herodotus-evm-v2": {
+    "rev": "24828de469ec0ee4d1a33a24e4fe8e06ec214ac5"
+  },
+  "lib/forge-std": {
+    "rev": "978ac6fadb62f5f0b723c996f64be52eddba6801"
+  },
+  "lib/permit2": {
+    "rev": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
+  },
+  "lib/satellite": {
+    "rev": "e81d59104912aad7d9a887e40271ca85f2f5cbc0"
+  },
+  "lib/openzeppelin-contracts": {
+    "rev": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+  }
+}

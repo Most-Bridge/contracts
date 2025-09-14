@@ -73,7 +73,7 @@ contract EscrowPM2 is ReentrancyGuard, Pausable {
     address public constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     // HDP
-    address public HDP_EXECUTION_STORE_ADDRESS = 0x272d9Bd2a5cba6e52bFF5f167D98AcF00f234602;
+    address public HDP_EXECUTION_STORE_ADDRESS = 0xF7c56EE59397974c0974B2cb7e4127EaBdf66E15;
 
     // Interfaces
     IDataProcessorModule hdpExecutionStore = IDataProcessorModule(HDP_EXECUTION_STORE_ADDRESS);
