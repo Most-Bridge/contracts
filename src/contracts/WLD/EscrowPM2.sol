@@ -463,8 +463,8 @@ contract EscrowPM2 is ReentrancyGuard, Pausable {
                 MerkleHelper.splitBytes32(ordersHashes[i]);
 
             // offset because first 4 arguments are destination chain id, payment registry address, block number and order hashes array length
-            taskInputs[i + 4] = bytes32(uint256(currentOrderHashLowPart));
-            taskInputs[i + 1 + 4] = bytes32(uint256(currentOrderHashHighPart));
+            taskInputs[2 * i + 4] = bytes32(uint256(currentOrderHashLowPart));
+            taskInputs[2 * i + 1 + 4] = bytes32(uint256(currentOrderHashHighPart));
         }
 
         // HDP verification code
