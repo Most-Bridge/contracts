@@ -34,6 +34,11 @@ async function main() {
       paymentRegistryAddress: "0x0740aa1758532dd9cb945a52a59d949aed280733fb243b7721666a1aa1989d55",
       hdpProgramHash: "0x0228737596cc16de4a733aec478701996f6c0f937fe66144781d91537b6df629",
     },
+    {
+      destinationChainId: toPaddedBytes32(10),
+      paymentRegistryAddress: toPaddedBytes32("0x68F2b1C86B58A98D1F5c494393FF9e5A588c2ed1"),
+      hdpProgramHash: toPaddedBytes32("0xa66784d2cbc0987f320e5a19f83e2fa2a0c9f1a921505684f1f2d954af99f3"),
+    },
   ];
 
   console.log("Deploying Escrow contract...");
