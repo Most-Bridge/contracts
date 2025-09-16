@@ -99,7 +99,6 @@ contract EscrowPM2 is ReentrancyGuard, Pausable {
         bool isSwap
     );
     event ProveBridgeAggregatedSuccess(bytes32[] orderHashes);
-    event WithdrawSuccessBatch(uint256[] orderIds);
     event OrderReclaimed(uint256 orderId);
     event SwapCompleted(
         bytes32 indexed swapId, address user, address tokenIn, uint256 amountIn, address tokenOut, uint256 amountOut
