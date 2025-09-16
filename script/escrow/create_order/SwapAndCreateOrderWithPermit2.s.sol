@@ -5,7 +5,7 @@ import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {HookExecutor} from "src/contracts/HookExecutor.sol";
-import {EscrowPM2, ISignatureTransferP2} from "src/contracts/WLD/EscrowPM2.sol";
+import {Escrow, ISignatureTransferP2} from "src/contracts/Escrow.sol";
 
 // ---- Minimal Permit2 view ----
 interface IPermit2 {
@@ -85,7 +85,7 @@ contract SwapAndCreateOrderWithPermit2 is Script {
 
         // Escrow + user
         address payable escrowAddr = payable(0x52702Ce4198e2278DC7c215362F22713A7a5fFc3); // <-- YOUR ESCROW
-        EscrowPM2 escrow = EscrowPM2(escrowAddr);
+        Escrow escrow = Escrow(escrowAddr);
         address owner = vm.addr(pk);
 
         // ---- Order params

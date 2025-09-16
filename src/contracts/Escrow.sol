@@ -62,7 +62,7 @@ interface ISignatureTransferP2 {
     ) external;
 }
 
-contract EscrowPM2 is ReentrancyGuard, Pausable {
+contract Escrow is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
     using SafeERC20 for IERC20;
 
