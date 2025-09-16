@@ -8,14 +8,15 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {MerkleHelper} from "src/libraries/MerkleHelper.sol";
-import {HookExecutor} from "../HookExecutor.sol";
+import {HookExecutor} from "./HookExecutor.sol";
 
-/// @title EscrowPM2
+/// @title Escrow
 ///
 /// @author Most Bridge (https://github.com/Most-Bridge)
 ///
 /// @notice Handles the bridging and swapping of assets between a src chain and a dst chain, in conjunction with
-///         Payment Registry and a facilitator service
+///         Payment Registry and a facilitator service, in a trustless manner. Utilizes a Hook Executor contract
+///         to perform pre-bridge swaps (optional) via user-defined hooks. Supports Permit2 for seamless approvals.
 ///
 
 //                ..                  ...::---=========-....
