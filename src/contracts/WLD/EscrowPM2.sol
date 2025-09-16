@@ -518,7 +518,7 @@ contract EscrowPM2 is ReentrancyGuard, Pausable {
     ///
     /// @param order Data of the order to be refunded
     /// @custom:security This function should never be pausable
-    function refundOrder(Order calldata order) external payable nonReentrant {
+    function refundOrder(Order calldata order) external nonReentrant {
         bytes32 orderHash = _createOrderHash(order);
 
         require(msg.sender == order.usrSrcAddress, "Only the original address can refund an order");
