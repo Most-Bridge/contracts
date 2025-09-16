@@ -443,13 +443,13 @@ contract EscrowPM2 is ReentrancyGuard, Pausable {
         uint256 _blockNumber,
         bytes32 _destinationChainId,
         uint256 _lowestExpirationTimestamp,
-        MerkleHelper.OrdersWithdrawal[] memory _ordersWithdrawals
+        MerkleHelper.OrdersWithdrawal[] calldata _ordersWithdrawals
     ) public nonReentrant {
         require(_lowestExpirationTimestamp >= block.timestamp, "At least one order has expired");
 
         // For proving in aggregated mode using HDP
         bytes32[] memory taskInputs = new bytes32[](ordersHashes.length * 2 + 4);
-        taskInputs[0] = bytes32(_destinationChainId);
+        taskInputs[0] = _destinationChainId;
         taskInputs[1] = bytes32(hdpConnections[_destinationChainId].paymentRegistryAddress);
         taskInputs[2] = bytes32(_blockNumber);
         taskInputs[3] = bytes32(ordersHashes.length);
@@ -457,7 +457,7 @@ contract EscrowPM2 is ReentrancyGuard, Pausable {
         for (uint256 i = 0; i < ordersHashes.length; i++) {
             require(orderStatus[ordersHashes[i]] == OrderState.PENDING, "Order not in PENDING state");
 
-            // This split is because we need to be comaptibile with the HDP way of encoding u256
+            // This split is because we need to be compatible with the HDP way of encoding u256
             (uint128 currentOrderHashLowPart, uint128 currentOrderHashHighPart) =
                 MerkleHelper.splitBytes32(ordersHashes[i]);
 
