@@ -248,16 +248,16 @@ contract Escrow is ReentrancyGuard, Pausable {
     ///
     /// @notice Allows the user to create an order after swap
     ///
-    /// @param _usrDstAddress The destination address of the user
-    /// @param _srcToken      The source token address (ERC20)
-    /// @param _srcAmount     The amount of the source token deposited by the user
-    /// @param _dstToken      The destination token address, bytes32 for foreign chain tokens
-    /// @param _dstAmount     The amount of the destination token to be received by the user
-    /// @param _dstChainId    Destination Chain Id as a hex
-    /// @param _expiryWindow  The time window in seconds after which the order expires
+    /// @param _usrDstAddress    The destination address of the user
+    /// @param _srcToken         The source token address (ERC20)
+    /// @param _srcAmount        The amount of the source token deposited by the user
+    /// @param _dstToken         The destination token address, bytes32 for foreign chain tokens
+    /// @param _dstAmount        The amount of the destination token to be received by the user
+    /// @param _dstChainId       Destination Chain Id as a hex
+    /// @param _expiryWindow     The time window in seconds after which the order expires
     /// @param _expectedOutToken Expected output token for swap
-    /// @param hookExecutorSalt CREATE2 salt for executor
-    /// @param hooks Array of hooks to execute
+    /// @param hookExecutorSalt  CREATE2 salt for executor
+    /// @param hooks             Array of hooks to execute
     function swapAndCreateOrder(
         bytes32 _usrDstAddress,
         address _srcToken,
@@ -323,9 +323,9 @@ contract Escrow is ReentrancyGuard, Pausable {
         );
     }
 
-    /// Permit2 Variants of create order functions
+    /// Permit2 variants of create order functions
 
-    /// @notice ERC20 deposit via Permit2, no swap, then record order
+    /// @notice ERC20 deposit via Permit2, no pre-bridge swap, then record order
     function createOrderWithPermit2(
         bytes32 _usrDstAddress,
         address _srcToken,
@@ -354,7 +354,7 @@ contract Escrow is ReentrancyGuard, Pausable {
         );
     }
 
-    /// @notice ERC20 via Permit2, run hooks, then record order
+    /// @notice ERC20 via Permit2, run pre-bridge swap hooks, then record order
     function swapAndCreateOrderWithPermit2(
         bytes32 _usrDstAddress,
         address _srcToken,
@@ -434,11 +434,11 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /// @notice Allows a MM to prove order fulfillment by submitting the orders details and necessary proving info
     ///
-    /// @param ordersHashes      Array containing the data of the orders to be proven
-    /// @param _blockNumber        The point in time when all the submitted orders have been fulfilled
-    /// @param _destinationChainId The chain on which the order was fulfilled
+    /// @param ordersHashes               Array containing the data of the orders to be proven
+    /// @param _blockNumber               The point in time when all the submitted orders have been fulfilled
+    /// @param _destinationChainId        The chain on which the order was fulfilled
     /// @param _lowestExpirationTimestamp The lowest order expiration timestamp across this proving batch
-    /// @param _ordersWithdrawals Summarized amounts for each market maker of each token to withdraw - token address and amount pair
+    /// @param _ordersWithdrawals         Summarized amounts for each market maker of each token to withdraw - token address and amount pair
     function proveAndWithdrawBatch(
         bytes32[] calldata ordersHashes,
         uint256 _blockNumber,
