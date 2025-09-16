@@ -27,7 +27,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     /// Storage
     /// @notice Mapping to track if an order has been fulfilled.
     ///         The key is the order hash, and the value is the address of the market maker (in bytes32) that fulfilled it.
-    mapping(bytes32 => bytes32) public fulfillments;
+    mapping(bytes32 => bytes32) public fulfillments; // orderHash => marketMakerSourceAddress
 
     /// State variables
     address public immutable owner;

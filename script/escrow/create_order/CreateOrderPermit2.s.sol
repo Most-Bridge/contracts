@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import {Script} from "forge-std/Script.sol";
-import {EscrowPM2, ISignatureTransferP2} from "src/contracts/WLD/EscrowPM2.sol";
+import {Escrow, ISignatureTransferP2} from "src/contracts/Escrow.sol";
 import {console2} from "forge-std/console2.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -70,7 +70,7 @@ contract CreateOrderPermit2 is Script {
         vm.startBroadcast(pk);
 
         address payable escrowAddress = payable(0x52702Ce4198e2278DC7c215362F22713A7a5fFc3);
-        EscrowPM2 escrow = EscrowPM2(escrowAddress);
+        Escrow escrow = Escrow(escrowAddress);
         address owner = vm.addr(pk);
 
         // Params
