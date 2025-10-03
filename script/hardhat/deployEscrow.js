@@ -7,17 +7,53 @@ const hre = require("hardhat");
  */
 function toPaddedBytes32(value) {
   // Convert number to hex string if necessary
-  let hex = typeof value === 'number' ? value.toString(16) : value;
+  let hex = typeof value === "number" ? value.toString(16) : value;
 
   // Remove '0x' prefix if it exists
-  if (hex.startsWith('0x')) {
+  if (hex.startsWith("0x")) {
     hex = hex.slice(2);
   }
 
   // Pad the string with leading zeros to 64 characters (32 bytes)
-  const paddedHex = hex.padStart(64, '0');
+  const paddedHex = hex.padStart(64, "0");
 
   return `0x${paddedHex}`;
+}
+
+async function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForConfirmations(provider, txHash, confirmations, intervalMs) {
+  let receipt = null;
+  while (receipt === null) {
+    try {
+      receipt = await provider.getTransactionReceipt(txHash);
+    } catch (e) {
+      await sleep(intervalMs);
+      continue;
+    }
+    if (receipt === null) {
+      await sleep(intervalMs);
+    }
+  }
+
+  const txBlock = receipt.blockNumber;
+  for (;;) {
+    let currentBlock;
+    try {
+      currentBlock = await provider.getBlockNumber();
+    } catch (e) {
+      await sleep(intervalMs);
+      continue;
+    }
+
+    const confs = currentBlock - txBlock + 1;
+    if (confs >= confirmations) {
+      break;
+    }
+    await sleep(intervalMs);
+  }
 }
 
 async function main() {
@@ -52,16 +88,43 @@ async function main() {
   console.log(`✅ Escrow contract deployed to: ${contractAddress}`);
   console.log("Waiting for block confirmations before verification...");
 
-  // Wait for 5 block confirmations
-  await escrow.deploymentTransaction().wait(5);
+  const confirmations = Number(process.env.CONFIRMATIONS || 5);
+  const pollIntervalMs = Number(process.env.CONFIRMATION_POLL_INTERVAL_MS || 15000);
+  const txHash = escrow.deploymentTransaction().hash;
+  await waitForConfirmations(hre.ethers.provider, txHash, confirmations, pollIntervalMs);
 
   console.log("Verifying contract on Etherscan...");
   try {
-    await hre.run("verify:verify", {
-      address: contractAddress,
-      constructorArguments: [initialHDPChainConnections],
-    });
-    console.log("✅ Contract verified successfully!");
+    const maxAttempts = Number(process.env.VERIFY_MAX_ATTEMPTS || 5);
+    const baseDelayMs = Number(process.env.VERIFY_RETRY_BASE_DELAY_MS || 10000);
+    let attempt = 0;
+    for (;;) {
+      attempt += 1;
+      try {
+        await hre.run("verify:verify", {
+          address: contractAddress,
+          constructorArguments: [initialHDPChainConnections],
+        });
+        console.log("✅ Contract verified successfully!");
+        break;
+      } catch (err) {
+        const message = (err && err.message ? err.message : "").toLowerCase();
+        if (message.includes("already verified")) {
+          console.log("Contract is already verified.");
+          break;
+        }
+        const isRateLimited = message.includes("too many requests") || message.includes("429");
+        if (attempt < maxAttempts && isRateLimited) {
+          const delay = baseDelayMs * attempt;
+          console.log(
+            `Verification rate-limited (attempt ${attempt}/${maxAttempts}). Retrying in ${Math.round(delay / 1000)}s...`
+          );
+          await sleep(delay);
+          continue;
+        }
+        throw err;
+      }
+    }
   } catch (e) {
     if (e.message.toLowerCase().includes("already verified")) {
       console.log("Contract is already verified.");
