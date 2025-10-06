@@ -80,7 +80,7 @@ async function main() {
   console.log("Deploying Escrow contract...");
 
   const Escrow = await hre.ethers.getContractFactory("Escrow");
-  const escrow = await Escrow.deploy(initialHDPChainConnections);
+  const escrow = await Escrow.deploy(initialHDPChainConnections, { nonce: 933 });
 
   await escrow.waitForDeployment();
 
