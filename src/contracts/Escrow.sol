@@ -8,6 +8,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {MerkleHelper} from "src/libraries/MerkleHelper.sol";
+import {ISignatureTransferP2, IAllowanceTransferP2} from "src/interfaces/Permit2Interfaces.sol";
 import {HookExecutor} from "./HookExecutor.sol";
 
 /// @title Escrow
@@ -37,43 +38,6 @@ import {HookExecutor} from "./HookExecutor.sol";
 //                -@-   .%@                                             .%@.
 //                -@-   .%@                                             .%@.
 //
-interface ISignatureTransferP2 {
-    struct TokenPermissions {
-        address token;
-        uint256 amount;
-    }
-
-    struct PermitTransferFrom {
-        TokenPermissions permitted;
-        uint256 nonce;
-        uint256 deadline;
-    }
-
-    struct SignatureTransferDetails {
-        address to;
-        uint256 requestedAmount;
-    }
-
-    function permitTransferFrom(
-        PermitTransferFrom calldata permit,
-        SignatureTransferDetails calldata transferDetails,
-        address owner,
-        bytes calldata signature
-    ) external;
-}
-
-interface IAllowanceTransferP2 {
-    struct AllowanceTransferDetails {
-        address from;
-        address to;
-        uint160 amount;
-        address token;
-    }
-
-    function transferFrom(AllowanceTransferDetails[] calldata transferDetails) external;
-    function transferFrom(address from, address to, uint160 amount, address token) external;
-}
-
 contract Escrow is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
     using SafeERC20 for IERC20;
