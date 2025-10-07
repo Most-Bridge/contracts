@@ -48,7 +48,7 @@ module.exports = {
         network: "worldchain",
         chainId: 480,
         urls: {
-          apiURL: "https://api.worldscan.org",
+          apiURL: "https://api.worldscan.org/api",
           browserURL: "https://worldscan.org",
         },
       },

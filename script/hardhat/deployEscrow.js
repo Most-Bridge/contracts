@@ -80,9 +80,16 @@ async function main() {
   console.log("Deploying Escrow contract...");
 
   const Escrow = await hre.ethers.getContractFactory("Escrow");
-  const escrow = await Escrow.deploy(initialHDPChainConnections, { nonce: 933 });
+  const escrow = await Escrow.deploy(initialHDPChainConnections, { nonce: 938 });
 
-  await escrow.waitForDeployment();
+  try {
+    await escrow.waitForDeployment({ timeout: 120_000 });
+  } catch (error) {
+    console.warn("Timeout in waitForDeployment; fetching receipt manually…");
+    const r = await hre.ethers.provider.waitForTransaction(tx.hash, 1, 120_000);
+    if (!r || !r.contractAddress) throw new Error("No receipt/contractAddress yet");
+    escrow.target = r.contractAddress;
+  }
 
   const contractAddress = await escrow.getAddress();
   console.log(`✅ Escrow contract deployed to: ${contractAddress}`);
@@ -141,3 +148,6 @@ main().catch((error) => {
 
 // To run this script, use the following command:
 // npx hardhat run script/hardhat/deployEscrow.js --network worldchain
+
+// If the deployment passes, but the validation fails, run the following command:
+// npx hardhat verify --network worldchain <contractAddress>
