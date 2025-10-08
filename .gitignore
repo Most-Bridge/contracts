@@ -28,7 +28,7 @@ cache_hardhat/
 .DS_Store
 */.DS_Store
 
-# lockfiles you don’t use
+# lockfiles 
 package-lock.json
 
 # yarn v2+
