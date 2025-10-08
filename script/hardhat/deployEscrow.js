@@ -80,7 +80,7 @@ async function main() {
   console.log("Deploying Escrow contract...");
 
   const Escrow = await hre.ethers.getContractFactory("Escrow");
-  const escrow = await Escrow.deploy(initialHDPChainConnections, { nonce: 938 });
+  const escrow = await Escrow.deploy(initialHDPChainConnections);
 
   try {
     await escrow.waitForDeployment({ timeout: 120_000 });
@@ -95,15 +95,15 @@ async function main() {
   console.log(`✅ Escrow contract deployed to: ${contractAddress}`);
   console.log("Waiting for block confirmations before verification...");
 
-  const confirmations = Number(process.env.CONFIRMATIONS || 5);
-  const pollIntervalMs = Number(process.env.CONFIRMATION_POLL_INTERVAL_MS || 15000);
+  const confirmations = 12;
+  const pollIntervalMs = 20000;
   const txHash = escrow.deploymentTransaction().hash;
   await waitForConfirmations(hre.ethers.provider, txHash, confirmations, pollIntervalMs);
 
   console.log("Verifying contract on Etherscan...");
   try {
-    const maxAttempts = Number(process.env.VERIFY_MAX_ATTEMPTS || 5);
-    const baseDelayMs = Number(process.env.VERIFY_RETRY_BASE_DELAY_MS || 10000);
+    const maxAttempts = 8;
+    const baseDelayMs = 20000;
     let attempt = 0;
     for (;;) {
       attempt += 1;
