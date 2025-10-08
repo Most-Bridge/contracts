@@ -8,6 +8,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {MerkleHelper} from "src/libraries/MerkleHelper.sol";
+import {ISignatureTransferP2, IAllowanceTransferP2} from "src/interfaces/Permit2Interfaces.sol";
 import {HookExecutor} from "./HookExecutor.sol";
 
 /// @title Escrow
@@ -37,30 +38,6 @@ import {HookExecutor} from "./HookExecutor.sol";
 //                -@-   .%@                                             .%@.
 //                -@-   .%@                                             .%@.
 //
-interface ISignatureTransferP2 {
-    struct TokenPermissions {
-        address token;
-        uint256 amount;
-    }
-
-    struct PermitTransferFrom {
-        TokenPermissions permitted;
-        uint256 nonce;
-        uint256 deadline;
-    }
-
-    struct SignatureTransferDetails {
-        address to;
-        uint256 requestedAmount;
-    }
-
-    function permitTransferFrom(
-        PermitTransferFrom calldata permit,
-        SignatureTransferDetails calldata transferDetails,
-        address owner,
-        bytes calldata signature
-    ) external;
-}
 
 contract Escrow is ReentrancyGuard, Pausable {
     using ModuleCodecs for ModuleTask;
@@ -323,8 +300,13 @@ contract Escrow is ReentrancyGuard, Pausable {
         );
     }
 
+    ///
     /// Permit2 variants of create order functions
+    ///
 
+    ///
+    /// @notice Signature Transfer variation is used for the World Mini App requirements
+    ///
     /// @notice ERC20 deposit via Permit2, no pre-bridge swap, then record order
     function createOrderWithPermit2(
         bytes32 _usrDstAddress,
@@ -424,6 +406,98 @@ contract Escrow is ReentrancyGuard, Pausable {
             _usrDstAddress,
             finalSrcToken,
             finalSrcAmount,
+            _dstToken,
+            _dstAmount,
+            _dstChainId,
+            _expiryWindow,
+            true
+        );
+    }
+
+    ///
+    /// @notice Allowance Transfer variation is used for the Most Frontend requirements
+    ///
+
+    /// @notice ERC20 deposit via Permit2 AllowanceTransfer, no pre-bridge swap
+    function createOrderWithPermit2AllowanceTransfer(
+        bytes32 _usrDstAddress,
+        address _srcToken,
+        uint256 _srcAmount,
+        bytes32 _dstToken,
+        uint256 _dstAmount,
+        bytes32 _dstChainId,
+        uint256 _expiryWindow
+    ) external nonReentrant whenNotPaused {
+        require(_srcToken != address(0), "ERC20 required");
+        require(_srcAmount > 0, "Amount must be > 0");
+
+        IAllowanceTransferP2(PERMIT2).transferFrom(
+            msg.sender,
+            address(this),
+            uint160(_srcAmount), // downcast required by Permit2
+            _srcToken
+        );
+
+        _recordOrder(
+            msg.sender, _usrDstAddress, _srcToken, _srcAmount, _dstToken, _dstAmount, _dstChainId, _expiryWindow, false
+        );
+    }
+
+    /// @notice ERC20 via Permit2 AllowanceTransfer, run pre-bridge swap hooks
+    function swapAndCreateOrderWithPermit2AllowanceTransfer(
+        bytes32 _usrDstAddress,
+        address _srcToken,
+        uint256 _srcAmount,
+        bytes32 _dstToken,
+        uint256 _dstAmount,
+        bytes32 _dstChainId,
+        uint256 _expiryWindow,
+        address _expectedOutToken,
+        bytes32 hookExecutorSalt,
+        HookExecutor.Hook[] calldata hooks
+    ) external nonReentrant whenNotPaused {
+        require(_srcToken != address(0), "Swaps require ERC20");
+        require(hooks.length > 0, "At least one hook required");
+
+        // Deploy executor
+        bytes32 swapId = keccak256(abi.encodePacked(orderId, msg.sender, _srcToken, _srcAmount, block.timestamp));
+        require(preBridgeSwaps[swapId].user == address(0), "Swap already exists");
+
+        bytes memory bytecode = type(HookExecutor).creationCode;
+        address executor;
+        assembly {
+            executor := create2(0, add(bytecode, 32), mload(bytecode), hookExecutorSalt)
+            if iszero(extcodesize(executor)) { revert(0, 0) }
+        }
+
+        preBridgeSwaps[swapId] = PreBridgeSwap({
+            user: msg.sender,
+            tokenIn: _srcToken,
+            amountIn: _srcAmount,
+            tokenOut: address(0),
+            amountOut: 0,
+            executorReturned: false,
+            executorAddress: executor
+        });
+
+        // Pull user tokens in via Permit2 AllowanceTransfer
+        IAllowanceTransferP2(PERMIT2).transferFrom(msg.sender, address(this), uint160(_srcAmount), _srcToken);
+
+        // Handoff to executor
+        IERC20(_srcToken).safeTransfer(executor, _srcAmount);
+
+        HookExecutor(executor).execute(swapId, hooks, _srcToken, _expectedOutToken, address(this));
+
+        // Verify executor success
+        PreBridgeSwap storage swap = preBridgeSwaps[swapId];
+        require(swap.executorReturned, "Executor failed to return");
+        require(swap.tokenOut != address(0), "Executor did not swap token");
+
+        _recordOrder(
+            msg.sender,
+            _usrDstAddress,
+            swap.tokenOut,
+            swap.amountOut,
             _dstToken,
             _dstAmount,
             _dstChainId,

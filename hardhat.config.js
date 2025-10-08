@@ -1,5 +1,5 @@
 require("@nomicfoundation/hardhat-toolbox");
-require("@nomicfoundation/hardhat-foundry"); 
+require("@nomicfoundation/hardhat-foundry");
 require("dotenv").config();
 
 /** @type import('hardhat/config').HardhatUserConfig */
@@ -48,7 +48,7 @@ module.exports = {
         network: "worldchain",
         chainId: 480,
         urls: {
-          apiURL: "https://api.worldscan.org",
+          apiURL: "https://api.worldscan.org/api",
           browserURL: "https://worldscan.org",
         },
       },
