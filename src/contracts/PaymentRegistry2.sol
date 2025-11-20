@@ -28,10 +28,10 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
 
     /// @notice Mapping to track cumulative partial fulfillment for an order.
     ///         The key is the order hash, and the value is the total amount fulfilled so far on dstChain.
-    mapping(bytes32 => uint256) public partialFulfillments; // orderHash => total fulfilled amount
+    mapping(bytes32 => uint256) public orderFilledAmount; // orderHash => total fulfilled amount
 
     ///  mapping to bind an order to a single MM after first fill
-    mapping(bytes32 => bytes32) public orderMarketMakerSource; // orderHash => src MM address
+    mapping(bytes32 => bytes32) public orderMMSourceAddress; // orderHash => src MM address
 
     /// State variables
     address public immutable owner;
@@ -98,17 +98,17 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         require(amount > 0, "Fulfillment: amount must be > 0");
         require(amount <= order.dstAmount, "Fulfillment: amount > total order");
 
-        uint256 alreadyFilled = partialFulfillments[orderHash]; // 0 if first fill
+        uint256 alreadyFilled = orderFilledAmount[orderHash]; // 0 if first fill
         uint256 newFilled = alreadyFilled + amount;
         require(newFilled <= order.dstAmount, "Fulfillment: overfill");
 
         // Bind order to a single MM on first fill
         if (alreadyFilled == 0) {
             // First fill (could be full or partial) claims the order
-            orderMarketMakerSource[orderHash] = order.marketMakerSourceAddress;
+            orderMMSourceAddress[orderHash] = order.marketMakerSourceAddress;
         } else {
             // Subsequent fills must come from the same MM
-            require(orderMarketMakerSource[orderHash] == order.marketMakerSourceAddress, "Fulfillment: different MM");
+            require(orderMMSourceAddress[orderHash] == order.marketMakerSourceAddress, "Fulfillment: different MM");
         }
 
         // Do the transfer for THIS tx's amount
@@ -126,12 +126,12 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             fulfillments[orderHash] = order.marketMakerSourceAddress;
 
             if (alreadyFilled != 0) {
-                delete partialFulfillments[orderHash];
+                delete orderFilledAmount[orderHash];
             }
-            delete orderMarketMakerSource[orderHash];
+            delete orderMMSourceAddress[orderHash];
         } else {
             // Still partial
-            partialFulfillments[orderHash] = newFilled;
+            orderFilledAmount[orderHash] = newFilled;
         }
 
         // Emit receipt for THIS tx's amount
@@ -151,7 +151,7 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         );
     }
 
-    /// @notice Creates a hash of the fulfillment order details (used as the key in fulfillments / partialFulfillments)
+    /// @notice Creates a hash of the fulfillment order details (used as the key in fulfillments / orderFilledAmount)
     ///
     /// @param order The details of the order to be hashed
     /// @return bytes32 The hash of the order details
