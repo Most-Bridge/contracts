@@ -5,26 +5,6 @@ import {Test, console} from "forge-std/Test.sol";
 import {PaymentRegistry} from "src/contracts/PaymentRegistry2.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-contract MockERC20 is ERC20 {
-    constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
-
-    function mint(address to, uint256 amount) public {
-        _mint(to, amount);
-    }
-}
-
-contract BrokenERC20 is ERC20 {
-    constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
-
-    function mint(address to, uint256 amount) public {
-        _mint(to, amount);
-    }
-
-    function transferFrom(address, address, uint256) public pure override returns (bool) {
-        revert("Broken ERC20: transferFrom always fails");
-    }
-}
-
 contract PaymentRegistry2Test is Test {
     PaymentRegistry public paymentRegistry;
     uint256 orderId = 1;
@@ -43,10 +23,15 @@ contract PaymentRegistry2Test is Test {
     address mmAddress = address(3);
     bytes32 mmSrcAddress = bytes32(uint256(4));
 
+    address emptyMMAddress = address(0);
+    bytes32 emptyMMBytes = 0x0000000000000000000000000000000000000000000000000000000000000000;
+    address maliciousMMAddress = address(5);
+
     function setUp() public {
         paymentRegistry = new PaymentRegistry();
         vm.deal(mmAddress, 10 ether);
         vm.deal(userDstAddress, 1 ether);
+        vm.deal(maliciousMMAddress, 10 ether);
         vm.prank(address(this));
 
         // deploy mock ERC20 token and mint it to MM
@@ -335,6 +320,284 @@ contract PaymentRegistry2Test is Test {
         // Verify MM balance decreased correctly
         uint256 expectedMMBalance = 10 ether - totalEthRequired;
         assertEq(address(mmAddress).balance, expectedMMBalance, "MM balance did not decrease correctly.");
+    }
+
+    // 1. full fulfillment goes through and there is is a entry in the fulfillments mapping, and not in the partials mapping
+    function testFullFulfillment() public {
+        PaymentRegistry.OrderFulfillmentData[] memory orders = _createDefaultEthOrdersArray();
+        vm.prank(mmAddress);
+        paymentRegistry.mostFulfillOrders{value: dstAmount}(orders);
+
+        bytes32 orderHash = keccak256(
+            abi.encode(
+                orderId,
+                srcEscrow,
+                userSrcAddress,
+                userDstAddress,
+                expirationTimestamp,
+                srcToken,
+                srcAmount,
+                dstTokenETH,
+                dstAmount,
+                srcChainId,
+                block.chainid
+            )
+        );
+
+        assertEq(paymentRegistry.fulfillments(orderHash), mmSrcAddress, "Order was not marked as processed.");
+        assertEq(paymentRegistry.partialFillBalance(orderHash), 0, "Partial fill balance was not cleared");
+        assertEq(paymentRegistry.lockPartialFillTo(orderHash), emptyMMAddress, "MM source address was not cleared");
+    }
+    // 2. partial fulfillment, first time, check that the fulfillments mapping is empty, and that the partials mapping has the partial amount saved, and that the MMSrc address is saved also
+
+    function testPartialFulfillment1of3() public {
+        PaymentRegistry.OrderFulfillmentData[] memory orders = new PaymentRegistry.OrderFulfillmentData[](1);
+        orders[0] = PaymentRegistry.OrderFulfillmentData({
+            orderId: orderId,
+            srcEscrow: srcEscrow,
+            usrSrcAddress: userSrcAddress,
+            usrDstAddress: userDstAddress,
+            expirationTimestamp: expirationTimestamp,
+            srcToken: srcToken,
+            srcAmount: 0.4 ether,
+            dstToken: dstTokenETH,
+            dstAmount: 0.3 ether,
+            srcChainId: srcChainId,
+            marketMakerSourceAddress: mmSrcAddress,
+            fulfillmentAmount: 0.1 ether
+        });
+        vm.prank(mmAddress);
+        // first time, fulfill 1/3 of the order
+        paymentRegistry.mostFulfillOrders{value: 0.1 ether}(orders);
+
+        bytes32 orderHash = keccak256(
+            abi.encode(
+                orderId,
+                srcEscrow,
+                userSrcAddress,
+                userDstAddress,
+                expirationTimestamp,
+                srcToken,
+                0.4 ether,
+                dstTokenETH,
+                0.3 ether,
+                srcChainId,
+                block.chainid
+            )
+        );
+
+        assertEq(paymentRegistry.fulfillments(orderHash), emptyMMBytes, "Order was not marked as processed.");
+        assertEq(paymentRegistry.partialFillBalance(orderHash), 0.1 ether, "Partial fill balance was not saved");
+        assertEq(paymentRegistry.lockPartialFillTo(orderHash), mmAddress, "MM source address was not saved");
+    }
+    // 3. they fulfill 2/3 of the way, the full fullfillments is still empty, and the rest is as it should be
+
+    function testPartialFulfillment2of3() public {
+        PaymentRegistry.OrderFulfillmentData[] memory orders = new PaymentRegistry.OrderFulfillmentData[](2);
+        orders[0] = PaymentRegistry.OrderFulfillmentData({
+            orderId: orderId,
+            srcEscrow: srcEscrow,
+            usrSrcAddress: userSrcAddress,
+            usrDstAddress: userDstAddress,
+            expirationTimestamp: expirationTimestamp,
+            srcToken: srcToken,
+            srcAmount: 0.4 ether,
+            dstToken: dstTokenETH,
+            dstAmount: 0.3 ether,
+            srcChainId: srcChainId,
+            marketMakerSourceAddress: mmSrcAddress,
+            fulfillmentAmount: 0.1 ether
+        });
+        orders[1] = PaymentRegistry.OrderFulfillmentData({
+            orderId: orderId,
+            srcEscrow: srcEscrow,
+            usrSrcAddress: userSrcAddress,
+            usrDstAddress: userDstAddress,
+            expirationTimestamp: expirationTimestamp,
+            srcToken: srcToken,
+            srcAmount: 0.4 ether,
+            dstToken: dstTokenETH,
+            dstAmount: 0.3 ether,
+            srcChainId: srcChainId,
+            marketMakerSourceAddress: mmSrcAddress,
+            fulfillmentAmount: 0.1 ether
+        });
+        vm.prank(mmAddress);
+        // first time, fulfill 1/3 of the order
+        paymentRegistry.mostFulfillOrders{value: 0.2 ether}(orders);
+
+        bytes32 orderHash = keccak256(
+            abi.encode(
+                orderId,
+                srcEscrow,
+                userSrcAddress,
+                userDstAddress,
+                expirationTimestamp,
+                srcToken,
+                0.4 ether,
+                dstTokenETH,
+                0.3 ether,
+                srcChainId,
+                block.chainid
+            )
+        );
+
+        assertEq(paymentRegistry.fulfillments(orderHash), emptyMMBytes, "Order was not marked as processed.");
+        assertEq(paymentRegistry.partialFillBalance(orderHash), 0.2 ether, "Partial fill balance was not saved");
+        assertEq(paymentRegistry.lockPartialFillTo(orderHash), mmAddress, "MM source address was not saved");
+    }
+    // 4. they did 3/3 fulfillments and now the fullfilments mapping should have the MM address registered, therefore the order has been fully fulfilled.
+
+    function testFullFulfillment3of3() public {
+        PaymentRegistry.OrderFulfillmentData[] memory orders = new PaymentRegistry.OrderFulfillmentData[](3);
+        orders[0] = PaymentRegistry.OrderFulfillmentData({
+            orderId: orderId,
+            srcEscrow: srcEscrow,
+            usrSrcAddress: userSrcAddress,
+            usrDstAddress: userDstAddress,
+            expirationTimestamp: expirationTimestamp,
+            srcToken: srcToken,
+            srcAmount: 0.4 ether,
+            dstToken: dstTokenETH,
+            dstAmount: 0.3 ether,
+            srcChainId: srcChainId,
+            marketMakerSourceAddress: mmSrcAddress,
+            fulfillmentAmount: 0.1 ether
+        });
+        orders[1] = PaymentRegistry.OrderFulfillmentData({
+            orderId: orderId,
+            srcEscrow: srcEscrow,
+            usrSrcAddress: userSrcAddress,
+            usrDstAddress: userDstAddress,
+            expirationTimestamp: expirationTimestamp,
+            srcToken: srcToken,
+            srcAmount: 0.4 ether,
+            dstToken: dstTokenETH,
+            dstAmount: 0.3 ether,
+            srcChainId: srcChainId,
+            marketMakerSourceAddress: mmSrcAddress,
+            fulfillmentAmount: 0.1 ether
+        });
+        orders[2] = PaymentRegistry.OrderFulfillmentData({
+            orderId: orderId,
+            srcEscrow: srcEscrow,
+            usrSrcAddress: userSrcAddress,
+            usrDstAddress: userDstAddress,
+            expirationTimestamp: expirationTimestamp,
+            srcToken: srcToken,
+            srcAmount: 0.4 ether,
+            dstToken: dstTokenETH,
+            dstAmount: 0.3 ether,
+            srcChainId: srcChainId,
+            marketMakerSourceAddress: mmSrcAddress,
+            fulfillmentAmount: 0.1 ether
+        });
+        vm.prank(mmAddress);
+        // first time, fulfill 1/3 of the order
+        paymentRegistry.mostFulfillOrders{value: 0.3 ether}(orders);
+
+        bytes32 orderHash = keccak256(
+            abi.encode(
+                orderId,
+                srcEscrow,
+                userSrcAddress,
+                userDstAddress,
+                expirationTimestamp,
+                srcToken,
+                0.4 ether,
+                dstTokenETH,
+                0.3 ether,
+                srcChainId,
+                block.chainid
+            )
+        );
+
+        assertEq(paymentRegistry.fulfillments(orderHash), mmSrcAddress, "Order was not marked as processed.");
+        assertEq(paymentRegistry.partialFillBalance(orderHash), 0, "Partial fill balance was not saved");
+        assertEq(paymentRegistry.lockPartialFillTo(orderHash), emptyMMAddress, "MM source address was not saved");
+    }
+    // 5. one mm does the first fulfillment, then another one tries to fulfill the rest of the amount
+
+    function testPartialFulfillment1of3ByAnotherMM() public {
+        PaymentRegistry.OrderFulfillmentData[] memory orders = new PaymentRegistry.OrderFulfillmentData[](1);
+        orders[0] = PaymentRegistry.OrderFulfillmentData({
+            orderId: orderId,
+            srcEscrow: srcEscrow,
+            usrSrcAddress: userSrcAddress,
+            usrDstAddress: userDstAddress,
+            expirationTimestamp: expirationTimestamp,
+            srcToken: srcToken,
+            srcAmount: 0.4 ether,
+            dstToken: dstTokenETH,
+            dstAmount: 0.3 ether,
+            srcChainId: srcChainId,
+            marketMakerSourceAddress: mmSrcAddress,
+            fulfillmentAmount: 0.1 ether
+        });
+        vm.prank(mmAddress);
+        // first time, fulfill 1/3 of the order
+        paymentRegistry.mostFulfillOrders{value: 0.1 ether}(orders);
+
+        bytes32 orderHash = keccak256(
+            abi.encode(
+                orderId,
+                srcEscrow,
+                userSrcAddress,
+                userDstAddress,
+                expirationTimestamp,
+                srcToken,
+                0.4 ether,
+                dstTokenETH,
+                0.3 ether,
+                srcChainId,
+                block.chainid
+            )
+        );
+
+        assertEq(paymentRegistry.fulfillments(orderHash), emptyMMBytes, "Order was not marked as processed.");
+        assertEq(paymentRegistry.partialFillBalance(orderHash), 0.1 ether, "Partial fill balance was not saved");
+        assertEq(paymentRegistry.lockPartialFillTo(orderHash), mmAddress, "MM source address was not saved");
+
+        PaymentRegistry.OrderFulfillmentData[] memory maliciousOrders = new PaymentRegistry.OrderFulfillmentData[](1);
+        maliciousOrders[0] = PaymentRegistry.OrderFulfillmentData({
+            orderId: orderId,
+            srcEscrow: srcEscrow,
+            usrSrcAddress: userSrcAddress,
+            usrDstAddress: userDstAddress,
+            expirationTimestamp: expirationTimestamp,
+            srcToken: srcToken,
+            srcAmount: 0.4 ether,
+            dstToken: dstTokenETH,
+            dstAmount: 0.3 ether,
+            srcChainId: srcChainId,
+            marketMakerSourceAddress: mmSrcAddress,
+            fulfillmentAmount: 0.1 ether
+        });
+
+        // malicious tries to fulfill the rest of the amount
+        vm.prank(maliciousMMAddress);
+        vm.expectRevert("Fulfillment: different MM");
+        paymentRegistry.mostFulfillOrders{value: 0.1 ether}(maliciousOrders);
+    }
+}
+
+contract MockERC20 is ERC20 {
+    constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
+
+    function mint(address to, uint256 amount) public {
+        _mint(to, amount);
+    }
+}
+
+contract BrokenERC20 is ERC20 {
+    constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
+
+    function mint(address to, uint256 amount) public {
+        _mint(to, amount);
+    }
+
+    function transferFrom(address, address, uint256) public pure override returns (bool) {
+        revert("Broken ERC20: transferFrom always fails");
     }
 }
 

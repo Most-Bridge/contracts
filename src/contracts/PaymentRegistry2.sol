@@ -28,10 +28,10 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
 
     /// @notice Mapping to track cumulative partial fulfillment for an order.
     ///         The key is the order hash, and the value is the total amount fulfilled so far on dstChain.
-    mapping(bytes32 => uint256) public orderFilledAmount; // orderHash => total fulfilled amount
+    mapping(bytes32 => uint256) public partialFillBalance; // orderHash => total fulfilled amount
 
     ///  mapping to bind an order to a single MM after first fill
-    mapping(bytes32 => bytes32) public orderMMSourceAddress; // orderHash => src MM address
+    mapping(bytes32 => address) public lockPartialFillTo; // orderHash => address that first filled the order, and only they can keep filling the order
 
     /// State variables
     address public immutable owner;
@@ -55,7 +55,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         uint256 dstAmount,
         bytes32 srcChainId,
         uint256 dstChainId,
-        bytes32 marketMakerSourceAddress
+        bytes32 marketMakerSourceAddress,
+        bool isFullyFulfilled
     );
 
     /// Structs
@@ -98,17 +99,17 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         require(amount > 0, "Fulfillment: amount must be > 0");
         require(amount <= order.dstAmount, "Fulfillment: amount > total order");
 
-        uint256 alreadyFilled = orderFilledAmount[orderHash]; // 0 if first fill
+        uint256 alreadyFilled = partialFillBalance[orderHash]; // 0 if first fill
         uint256 newFilled = alreadyFilled + amount;
         require(newFilled <= order.dstAmount, "Fulfillment: overfill");
 
         // Bind order to a single MM on first fill
         if (alreadyFilled == 0) {
             // First fill (could be full or partial) claims the order
-            orderMMSourceAddress[orderHash] = order.marketMakerSourceAddress;
+            lockPartialFillTo[orderHash] = msg.sender;
         } else {
             // Subsequent fills must come from the same MM
-            require(orderMMSourceAddress[orderHash] == order.marketMakerSourceAddress, "Fulfillment: different MM");
+            require(lockPartialFillTo[orderHash] == msg.sender, "Fulfillment: different MM");
         }
 
         // Do the transfer for THIS tx's amount
@@ -120,18 +121,19 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         }
 
         // Update state
-        // Accounts for first fill == full fill case
-        if (newFilled == order.dstAmount) {
+        // Accounts for first fill == full fill
+        bool isFullyFilled = newFilled == order.dstAmount;
+        if (isFullyFilled) {
             // This call completes the order
             fulfillments[orderHash] = order.marketMakerSourceAddress;
 
             if (alreadyFilled != 0) {
-                delete orderFilledAmount[orderHash];
+                delete partialFillBalance[orderHash];
             }
-            delete orderMMSourceAddress[orderHash];
+            delete lockPartialFillTo[orderHash];
         } else {
             // Still partial
-            orderFilledAmount[orderHash] = newFilled;
+            partialFillBalance[orderHash] = newFilled;
         }
 
         // Emit receipt for THIS tx's amount
@@ -147,11 +149,12 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             amount, // amount fulfilled in this tx
             order.srcChainId,
             block.chainid,
-            order.marketMakerSourceAddress
+            order.marketMakerSourceAddress,
+            isFullyFilled
         );
     }
 
-    /// @notice Creates a hash of the fulfillment order details (used as the key in fulfillments / orderFilledAmount)
+    /// @notice Creates a hash of the fulfillment order details (used as the key in fulfillments / partialFillBalance)
     ///
     /// @param order The details of the order to be hashed
     /// @return bytes32 The hash of the order details
