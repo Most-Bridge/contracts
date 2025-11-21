@@ -5,7 +5,7 @@ source .env && \
 
 # deploy the payment registry on ETHEREUM SEPOLIA
 forge script script/paymentRegistry/DeployPaymentRegistry.s.sol:DeployPaymentRegistry \
-    --rpc-url $ETH_SEPOLIA_RPC \
+    --rpc-url $MAINNET_OP_RPC \
     --broadcast \
     --private-key $DEPLOY_PRIVATE_KEY \
     --verify --etherscan-api-key $ETH_ETHERSCAN_API_KEY

@@ -2,12 +2,12 @@
 pragma solidity ^0.8.0;
 
 import {Script} from "forge-std/Script.sol";
-import {PaymentRegistry} from "src/contracts/PaymentRegistry.sol";
+import {PaymentRegistry} from "src/contracts/PaymentRegistry2.sol";
 
 contract DeployPaymentRegistry is Script {
     function run() external {
         vm.startBroadcast();
-        // new PaymentRegistry(); // TODO: add parameters to deploy
+        new PaymentRegistry();
         vm.stopBroadcast();
     }
 }

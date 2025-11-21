@@ -44,15 +44,15 @@ contract PaymentRegistry2Test is Test {
         address _dstToken,
         uint256 _dstAmount,
         uint256 _fulfillmentAmount,
-        address _usrDstAddress,
+        address _dstAddress,
         uint256 _expirationTimestamp
     ) internal view returns (PaymentRegistry.OrderFulfillmentData[] memory) {
         PaymentRegistry.OrderFulfillmentData[] memory orders = new PaymentRegistry.OrderFulfillmentData[](1);
         orders[0] = PaymentRegistry.OrderFulfillmentData({
             orderId: orderId,
             srcEscrow: srcEscrow,
-            usrSrcAddress: userSrcAddress,
-            usrDstAddress: _usrDstAddress,
+            srcAddress: userSrcAddress,
+            dstAddress: _dstAddress,
             expirationTimestamp: _expirationTimestamp,
             srcToken: srcToken,
             srcAmount: srcAmount,
@@ -243,8 +243,8 @@ contract PaymentRegistry2Test is Test {
         orders[0] = PaymentRegistry.OrderFulfillmentData({
             orderId: orderId,
             srcEscrow: srcEscrow,
-            usrSrcAddress: userSrcAddress,
-            usrDstAddress: userDstAddress,
+            srcAddress: userSrcAddress,
+            dstAddress: userDstAddress,
             expirationTimestamp: expirationTimestamp,
             srcToken: srcToken,
             srcAmount: srcAmount,
@@ -260,8 +260,8 @@ contract PaymentRegistry2Test is Test {
         orders[1] = PaymentRegistry.OrderFulfillmentData({
             orderId: orderId + 1,
             srcEscrow: srcEscrow,
-            usrSrcAddress: userSrcAddress,
-            usrDstAddress: userDstAddress,
+            srcAddress: userSrcAddress,
+            dstAddress: userDstAddress,
             expirationTimestamp: expirationTimestamp,
             srcToken: srcToken,
             srcAmount: srcAmount / 2,
@@ -355,8 +355,8 @@ contract PaymentRegistry2Test is Test {
         orders[0] = PaymentRegistry.OrderFulfillmentData({
             orderId: orderId,
             srcEscrow: srcEscrow,
-            usrSrcAddress: userSrcAddress,
-            usrDstAddress: userDstAddress,
+            srcAddress: userSrcAddress,
+            dstAddress: userDstAddress,
             expirationTimestamp: expirationTimestamp,
             srcToken: srcToken,
             srcAmount: 0.4 ether,
@@ -397,8 +397,8 @@ contract PaymentRegistry2Test is Test {
         orders[0] = PaymentRegistry.OrderFulfillmentData({
             orderId: orderId,
             srcEscrow: srcEscrow,
-            usrSrcAddress: userSrcAddress,
-            usrDstAddress: userDstAddress,
+            srcAddress: userSrcAddress,
+            dstAddress: userDstAddress,
             expirationTimestamp: expirationTimestamp,
             srcToken: srcToken,
             srcAmount: 0.4 ether,
@@ -411,8 +411,8 @@ contract PaymentRegistry2Test is Test {
         orders[1] = PaymentRegistry.OrderFulfillmentData({
             orderId: orderId,
             srcEscrow: srcEscrow,
-            usrSrcAddress: userSrcAddress,
-            usrDstAddress: userDstAddress,
+            srcAddress: userSrcAddress,
+            dstAddress: userDstAddress,
             expirationTimestamp: expirationTimestamp,
             srcToken: srcToken,
             srcAmount: 0.4 ether,
@@ -453,8 +453,8 @@ contract PaymentRegistry2Test is Test {
         orders[0] = PaymentRegistry.OrderFulfillmentData({
             orderId: orderId,
             srcEscrow: srcEscrow,
-            usrSrcAddress: userSrcAddress,
-            usrDstAddress: userDstAddress,
+            srcAddress: userSrcAddress,
+            dstAddress: userDstAddress,
             expirationTimestamp: expirationTimestamp,
             srcToken: srcToken,
             srcAmount: 0.4 ether,
@@ -467,8 +467,8 @@ contract PaymentRegistry2Test is Test {
         orders[1] = PaymentRegistry.OrderFulfillmentData({
             orderId: orderId,
             srcEscrow: srcEscrow,
-            usrSrcAddress: userSrcAddress,
-            usrDstAddress: userDstAddress,
+            srcAddress: userSrcAddress,
+            dstAddress: userDstAddress,
             expirationTimestamp: expirationTimestamp,
             srcToken: srcToken,
             srcAmount: 0.4 ether,
@@ -481,8 +481,8 @@ contract PaymentRegistry2Test is Test {
         orders[2] = PaymentRegistry.OrderFulfillmentData({
             orderId: orderId,
             srcEscrow: srcEscrow,
-            usrSrcAddress: userSrcAddress,
-            usrDstAddress: userDstAddress,
+            srcAddress: userSrcAddress,
+            dstAddress: userDstAddress,
             expirationTimestamp: expirationTimestamp,
             srcToken: srcToken,
             srcAmount: 0.4 ether,
@@ -523,8 +523,8 @@ contract PaymentRegistry2Test is Test {
         orders[0] = PaymentRegistry.OrderFulfillmentData({
             orderId: orderId,
             srcEscrow: srcEscrow,
-            usrSrcAddress: userSrcAddress,
-            usrDstAddress: userDstAddress,
+            srcAddress: userSrcAddress,
+            dstAddress: userDstAddress,
             expirationTimestamp: expirationTimestamp,
             srcToken: srcToken,
             srcAmount: 0.4 ether,
@@ -562,8 +562,8 @@ contract PaymentRegistry2Test is Test {
         maliciousOrders[0] = PaymentRegistry.OrderFulfillmentData({
             orderId: orderId,
             srcEscrow: srcEscrow,
-            usrSrcAddress: userSrcAddress,
-            usrDstAddress: userDstAddress,
+            srcAddress: userSrcAddress,
+            dstAddress: userDstAddress,
             expirationTimestamp: expirationTimestamp,
             srcToken: srcToken,
             srcAmount: 0.4 ether,

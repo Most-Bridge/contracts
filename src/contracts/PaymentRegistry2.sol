@@ -19,6 +19,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 //    | $$\  $ | $$| $$  | $$ /$$  \ $$   | $$
 //    | $$ \/  | $$|  $$$$$$/|  $$$$$$/   | $$
 //    |__/     |__/ \______/  \______/    |__/
+
 contract PaymentRegistry is Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -46,8 +47,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     event FulfillmentReceipt(
         uint256 indexed orderId,
         bytes32 srcEscrow,
-        bytes32 indexed usrSrcAddress,
-        address indexed usrDstAddress,
+        bytes32 indexed srcAddress,
+        address indexed dstAddress,
         uint256 expirationTimestamp,
         bytes32 srcToken,
         uint256 srcAmount,
@@ -64,8 +65,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     struct OrderFulfillmentData {
         uint256 orderId;
         bytes32 srcEscrow;
-        bytes32 usrSrcAddress;
-        address usrDstAddress;
+        bytes32 srcAddress;
+        address dstAddress;
         uint256 expirationTimestamp;
         bytes32 srcToken;
         uint256 srcAmount;
@@ -115,10 +116,10 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
 
         // Do the transfer for THIS tx's amount
         if (order.dstToken == address(0)) {
-            (bool success,) = payable(order.usrDstAddress).call{value: amount}("");
+            (bool success,) = payable(order.dstAddress).call{value: amount}("");
             require(success, "Native ETH: Transfer failed");
         } else {
-            IERC20(order.dstToken).safeTransferFrom(msg.sender, order.usrDstAddress, amount);
+            IERC20(order.dstToken).safeTransferFrom(msg.sender, order.dstAddress, amount);
         }
 
         // Update state
@@ -141,8 +142,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         emit FulfillmentReceipt(
             order.orderId,
             order.srcEscrow,
-            order.usrSrcAddress,
-            order.usrDstAddress,
+            order.srcAddress,
+            order.dstAddress,
             order.expirationTimestamp,
             order.srcToken,
             order.srcAmount,
@@ -165,8 +166,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             abi.encode(
                 order.orderId,
                 order.srcEscrow,
-                order.usrSrcAddress,
-                order.usrDstAddress,
+                order.srcAddress,
+                order.dstAddress,
                 order.expirationTimestamp,
                 order.srcToken,
                 order.srcAmount,
