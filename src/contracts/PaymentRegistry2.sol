@@ -56,7 +56,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
         bytes32 srcChainId,
         uint256 dstChainId,
         bytes32 marketMakerSourceAddress,
-        bool isFullyFulfilled
+        bool isFullyFulfilled,
+        uint256 fulfilledAmount
     );
 
     /// Structs
@@ -146,11 +147,12 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             order.srcToken,
             order.srcAmount,
             order.dstToken,
-            amount, // amount fulfilled in this tx
+            order.dstAmount,
             order.srcChainId,
             block.chainid,
             order.marketMakerSourceAddress,
-            isFullyFilled
+            isFullyFilled,
+            amount // fulfilledAmount: amount fulfilled in this transaction
         );
     }
 
