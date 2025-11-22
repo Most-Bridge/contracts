@@ -62,12 +62,12 @@ contract Escrow is ReentrancyGuard, Pausable {
     mapping(bytes32 => PreBridgeSwap) public preBridgeSwaps; // mapping swapId -> PreBridgeSwap
 
     /// Events
-    /// @param usrDstAddress Stored as a bytes32 to allow for foreign addresses to be stored
+    /// @param dstAddress Stored as a bytes32 to allow for foreign addresses to be stored
     /// @param dstToken      Stored as a bytes32 to allow for foreign addresses to be stored
     event OrderPlaced(
         uint256 orderId,
-        address usrSrcAddress,
-        bytes32 usrDstAddress,
+        address srcAddress,
+        bytes32 dstAddress,
         uint256 expirationTimestamp,
         address srcToken,
         uint256 srcAmount,
@@ -93,8 +93,8 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// Structs
     struct Order {
         uint256 id;
-        address usrSrcAddress;
-        bytes32 usrDstAddress;
+        address srcAddress;
+        bytes32 dstAddress;
         uint256 expirationTimestamp;
         address srcToken;
         uint256 srcAmount;
@@ -143,8 +143,8 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     // Function used by all the different variations for creating an order
     function _recordOrder(
-        address usrSrcAddress,
-        bytes32 usrDstAddress,
+        address srcAddress,
+        bytes32 dstAddress,
         address finalSrcToken,
         uint256 finalSrcAmount,
         bytes32 dstToken,
@@ -157,8 +157,8 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         Order memory orderData = Order({
             id: orderId,
-            usrSrcAddress: usrSrcAddress,
-            usrDstAddress: usrDstAddress,
+            srcAddress: srcAddress,
+            dstAddress: dstAddress,
             expirationTimestamp: _expirationTimestamp,
             srcToken: finalSrcToken,
             srcAmount: finalSrcAmount,
@@ -172,8 +172,8 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         emit OrderPlaced(
             orderData.id,
-            orderData.usrSrcAddress,
-            orderData.usrDstAddress,
+            orderData.srcAddress,
+            orderData.dstAddress,
             orderData.expirationTimestamp,
             orderData.srcToken,
             orderData.srcAmount,
@@ -188,7 +188,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /// @notice Allows the user to create an order
     ///
-    /// @param _usrDstAddress The destination address of the user
+    /// @param _dstAddress The destination address of the user
     /// @param _srcToken      The source token address, address(0) for native eth
     /// @param _srcAmount     The amount of the source token deposited by the user
     /// @param _dstToken      The destination token address, bytes32 for foreign chain tokens
@@ -196,7 +196,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param _dstChainId    Destination Chain Id as a hex
     /// @param _expiryWindow  The time window in seconds after which the order expires
     function createOrder(
-        bytes32 _usrDstAddress,
+        bytes32 _dstAddress,
         address _srcToken,
         uint256 _srcAmount,
         bytes32 _dstToken,
@@ -218,14 +218,14 @@ contract Escrow is ReentrancyGuard, Pausable {
         }
 
         _recordOrder(
-            msg.sender, _usrDstAddress, _srcToken, _srcAmount, _dstToken, _dstAmount, _dstChainId, _expiryWindow, false
+            msg.sender, _dstAddress, _srcToken, _srcAmount, _dstToken, _dstAmount, _dstChainId, _expiryWindow, false
         );
     }
 
     ///
     /// @notice Allows the user to create an order after swap
     ///
-    /// @param _usrDstAddress    The destination address of the user
+    /// @param _dstAddress    The destination address of the user
     /// @param _srcToken         The source token address (ERC20)
     /// @param _srcAmount        The amount of the source token deposited by the user
     /// @param _dstToken         The destination token address, bytes32 for foreign chain tokens
@@ -236,7 +236,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     /// @param hookExecutorSalt  CREATE2 salt for executor
     /// @param hooks             Array of hooks to execute
     function swapAndCreateOrder(
-        bytes32 _usrDstAddress,
+        bytes32 _dstAddress,
         address _srcToken,
         uint256 _srcAmount,
         bytes32 _dstToken,
@@ -289,7 +289,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         _recordOrder(
             msg.sender,
-            _usrDstAddress,
+            _dstAddress,
             finalSrcToken,
             finalSrcAmount,
             _dstToken,
@@ -309,7 +309,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     ///
     /// @notice ERC20 deposit via Permit2, no pre-bridge swap, then record order
     function createOrderWithPermit2(
-        bytes32 _usrDstAddress,
+        bytes32 _dstAddress,
         address _srcToken,
         uint256 _srcAmount,
         bytes32 _dstToken,
@@ -332,13 +332,13 @@ contract Escrow is ReentrancyGuard, Pausable {
         );
 
         _recordOrder(
-            msg.sender, _usrDstAddress, _srcToken, _srcAmount, _dstToken, _dstAmount, _dstChainId, _expiryWindow, false
+            msg.sender, _dstAddress, _srcToken, _srcAmount, _dstToken, _dstAmount, _dstChainId, _expiryWindow, false
         );
     }
 
     /// @notice ERC20 via Permit2, run pre-bridge swap hooks, then record order
     function swapAndCreateOrderWithPermit2(
-        bytes32 _usrDstAddress,
+        bytes32 _dstAddress,
         address _srcToken,
         uint256 _srcAmount,
         bytes32 _dstToken,
@@ -403,7 +403,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         _recordOrder(
             msg.sender,
-            _usrDstAddress,
+            _dstAddress,
             finalSrcToken,
             finalSrcAmount,
             _dstToken,
@@ -420,7 +420,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
     /// @notice ERC20 deposit via Permit2 AllowanceTransfer, no pre-bridge swap
     function createOrderWithPermit2AllowanceTransfer(
-        bytes32 _usrDstAddress,
+        bytes32 _dstAddress,
         address _srcToken,
         uint256 _srcAmount,
         bytes32 _dstToken,
@@ -439,13 +439,13 @@ contract Escrow is ReentrancyGuard, Pausable {
         );
 
         _recordOrder(
-            msg.sender, _usrDstAddress, _srcToken, _srcAmount, _dstToken, _dstAmount, _dstChainId, _expiryWindow, false
+            msg.sender, _dstAddress, _srcToken, _srcAmount, _dstToken, _dstAmount, _dstChainId, _expiryWindow, false
         );
     }
 
     /// @notice ERC20 via Permit2 AllowanceTransfer, run pre-bridge swap hooks
     function swapAndCreateOrderWithPermit2AllowanceTransfer(
-        bytes32 _usrDstAddress,
+        bytes32 _dstAddress,
         address _srcToken,
         uint256 _srcAmount,
         bytes32 _dstToken,
@@ -495,7 +495,7 @@ contract Escrow is ReentrancyGuard, Pausable {
 
         _recordOrder(
             msg.sender,
-            _usrDstAddress,
+            _dstAddress,
             swap.tokenOut,
             swap.amountOut,
             _dstToken,
@@ -595,7 +595,7 @@ contract Escrow is ReentrancyGuard, Pausable {
     function refundOrder(Order calldata order) external nonReentrant {
         bytes32 orderHash = _createOrderHash(order);
 
-        require(msg.sender == order.usrSrcAddress, "Only the original address can refund an order");
+        require(msg.sender == order.srcAddress, "Only the original address can refund an order");
         require(orderStatus[orderHash] == OrderState.PENDING, "Cannot refund a non-pending order");
         require(block.timestamp > order.expirationTimestamp, "Order has not expired yet");
 
@@ -641,8 +641,8 @@ contract Escrow is ReentrancyGuard, Pausable {
             abi.encode(
                 orderDetails.id, // uint256
                 address(this), // address
-                orderDetails.usrSrcAddress, // address
-                orderDetails.usrDstAddress, // bytes32
+                orderDetails.srcAddress, // address
+                orderDetails.dstAddress, // bytes32
                 orderDetails.expirationTimestamp, // uint256
                 orderDetails.srcToken, // address
                 orderDetails.srcAmount, // uint256
