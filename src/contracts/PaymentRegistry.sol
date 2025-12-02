@@ -25,8 +25,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /// Storage
-    /// @notice Mapping to track if an order has been fulfilled.
-    ///         The key is the order hash, and the value is the address of the market maker (in bytes32) that fulfilled it.
+    /// @notice Mapping to track if an order has been fulfilled
+    ///         The key is the order hash, and the value is the address of the market maker (in bytes32) that fulfilled it
     mapping(bytes32 => bytes32) public fulfillments; // orderHash => marketMakerSourceAddress
 
     /// State variables
@@ -41,8 +41,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     event FulfillmentReceipt(
         uint256 indexed orderId,
         bytes32 srcEscrow,
-        bytes32 indexed usrSrcAddress,
-        address indexed usrDstAddress,
+        bytes32 indexed srcAddress,
+        address indexed dstAddress,
         uint256 expirationTimestamp,
         bytes32 srcToken,
         uint256 srcAmount,
@@ -57,8 +57,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
     struct OrderFulfillmentData {
         uint256 orderId;
         bytes32 srcEscrow;
-        bytes32 usrSrcAddress;
-        address usrDstAddress;
+        bytes32 srcAddress;
+        address dstAddress;
         uint256 expirationTimestamp;
         bytes32 srcToken;
         uint256 srcAmount;
@@ -87,19 +87,19 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             if (orders[i].dstToken == address(0)) {
                 // Native ETH transfer
                 require(orders[i].dstAmount > 0, "Native ETH: Amount must be > 0");
-                (bool success,) = payable(orders[i].usrDstAddress).call{value: orders[i].dstAmount}("");
+                (bool success,) = payable(orders[i].dstAddress).call{value: orders[i].dstAmount}("");
                 require(success, "Native ETH: Transfer failed");
             } else {
                 // ERC20 token transfer
                 require(orders[i].dstAmount > 0, "ERC20: Amount must be > 0");
-                IERC20(orders[i].dstToken).safeTransferFrom(msg.sender, orders[i].usrDstAddress, orders[i].dstAmount);
+                IERC20(orders[i].dstToken).safeTransferFrom(msg.sender, orders[i].dstAddress, orders[i].dstAmount);
             }
 
             emit FulfillmentReceipt(
                 orders[i].orderId,
                 orders[i].srcEscrow,
-                orders[i].usrSrcAddress,
-                orders[i].usrDstAddress,
+                orders[i].srcAddress,
+                orders[i].dstAddress,
                 orders[i].expirationTimestamp,
                 orders[i].srcToken,
                 orders[i].srcAmount,
@@ -121,8 +121,8 @@ contract PaymentRegistry is Pausable, ReentrancyGuard {
             abi.encode(
                 order.orderId,
                 order.srcEscrow,
-                order.usrSrcAddress,
-                order.usrDstAddress,
+                order.srcAddress,
+                order.dstAddress,
                 order.expirationTimestamp,
                 order.srcToken,
                 order.srcAmount,
